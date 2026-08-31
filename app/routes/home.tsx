@@ -1,16 +1,18 @@
-import { Button } from "~/components/ui/button"
+import { ImageUpload } from "@/components/image-upload";
+import { SiteHeader } from "@/components/site-header";
 
-export default function Home() {
+export default function WorkflowPage() {
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
+    <>
+      <SiteHeader title="Example Title" />
+
+      <div className="flex flex-1 flex-col gap-4 overflow-auto p-4">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-md">
+            <ImageUpload />
+          </div>
         </div>
       </div>
-    </div>
-  )
+    </>
+  );
 }
