@@ -14,6 +14,11 @@ import "./app.css";
 
 import { AppSidebar } from "./components/app-sidebar";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { ModelsProvider } from "./features/workflow/context";
+
+export const meta: Route.MetaFunction = () => [
+  { title: "Alganas Workflow" },
+];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -26,7 +31,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <TooltipProvider>
-          {children}
+          <ModelsProvider>
+            <SidebarProvider
+              style={
+                {
+                  "--sidebar-width": "calc(var(--spacing) * 72)",
+                  "--header-height": "calc(var(--spacing) * 12)",
+                } as React.CSSProperties
+              }
+            >
+              <AppSidebar />
+              <SidebarInset>{children}</SidebarInset>
+            </SidebarProvider>
+          </ModelsProvider>
+
           <ScrollRestoration />
           <Scripts />
         </TooltipProvider>
@@ -36,21 +54,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar />
-      <SidebarInset>
-        <Outlet />
-      </SidebarInset>
-    </SidebarProvider>
-  );
+  return <Outlet />;
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

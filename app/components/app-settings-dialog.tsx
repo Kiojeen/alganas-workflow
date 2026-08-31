@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useModels } from "@/features/workflow/context";
 import {
   Delete02Icon,
   Key01Icon,
@@ -8,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -19,14 +21,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-import { Button } from "./ui/button";
-
-type ModelKey = {
-  id: string;
-  name: string;
-  key: string;
-};
-
 function AppSettingsDialog({
   open,
   onOpenChange,
@@ -34,27 +28,8 @@ function AppSettingsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [models, setModels] = useState<ModelKey[]>([
-    { id: crypto.randomUUID(), name: "", key: "" },
-  ]);
+  const { models, addModel, updateModel, removeModel } = useModels();
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
-
-  function updateModel(id: string, field: "name" | "key", value: string) {
-    setModels((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)),
-    );
-  }
-
-  function addModel() {
-    setModels((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), name: "", key: "" },
-    ]);
-  }
-
-  function removeModel(id: string) {
-    setModels((prev) => prev.filter((m) => m.id !== id));
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -74,7 +49,7 @@ function AppSettingsDialog({
             <Button
               variant="ghost"
               size="sm"
-              onClick={addModel}
+              onClick={() => addModel("", "")}
               className="h-7 gap-1 text-xs"
             >
               <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
@@ -86,7 +61,6 @@ function AppSettingsDialog({
             {models.map((model) => (
               <div key={model.id} className="flex items-center gap-2">
                 <div className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md border">
-                  {/* icon placeholder — swap for the provider icon later */}
                   <HugeiconsIcon
                     icon={Key01Icon}
                     className="text-muted-foreground size-4"
