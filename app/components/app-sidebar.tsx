@@ -27,6 +27,7 @@ import {
 
 import AppIcon from "./app-icon";
 import { AppSettingsDialog } from "./app-settings-dialog";
+import { Separator } from "./ui/separator";
 
 export function AppSidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -35,7 +36,7 @@ export function AppSidebar() {
 
   return (
     <>
-      <Sidebar side="left" variant="sidebar" collapsible="icon">
+      <Sidebar side="right" variant="sidebar" collapsible="icon" className="group-data-[side=right]:border-e">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem className="flex items-center justify-between">
@@ -46,23 +47,26 @@ export function AppSidebar() {
                 <div>
                   <AppIcon className="text-foreground size-6! transition-all ease-in-out group-data-[state=collapsed]:size-4!" />
                   <span className="text-base font-semibold">
-                    Alganas Workflow
+                    أتمته الگناص
                   </span>
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            
           </SidebarMenu>
+          
         </SidebarHeader>
+        
         <SidebarContent>
           <SidebarGroup>
             <div className="flex items-center justify-between px-2">
-              <SidebarGroupLabel>Workflows</SidebarGroupLabel>
+              <SidebarGroupLabel>المشاريع</SidebarGroupLabel>
               <Button
                 variant="ghost"
                 size="icon"
                 className="text-muted-foreground hover:text-foreground size-6"
                 onClick={add}
-                aria-label="New workflow"
+                aria-label="سير عمل جديد"
               >
                 <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
               </Button>
@@ -70,7 +74,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {workflows.length === 0 ? (
                 <p className="text-muted-foreground px-2 text-xs">
-                  No workflows yet.
+                لاتوجد مشاريع بعد.
                 </p>
               ) : (
                 workflows.map((wf) => {
@@ -109,9 +113,9 @@ export function AppSidebar() {
                             remove(wf.id);
                           }}
                           className="text-muted-foreground hover:text-destructive group-data-[state=collapsed]:hidden"
-                          aria-label={`Remove ${wf.name}`}
+                          aria-label={`حذف ${wf.name}`}
 
-                          title={`Remove ${wf.name}`}
+                          title={`حذف ${wf.name}`}
                         >
                           <HugeiconsIcon icon={TrashIcon} strokeWidth={2} />
                         </Button>
@@ -125,11 +129,12 @@ export function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter>
+          <Separator />
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton onClick={() => setSettingsOpen(true)}>
                 <HugeiconsIcon icon={Settings02Icon} className="size-4" />
-                <span>Settings</span>
+                <span>الإعدادات</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

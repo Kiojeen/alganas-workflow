@@ -33,7 +33,7 @@ function SiteHeader({ title }: { title: string }) {
         </SidebarTrigger>
         <Separator orientation="vertical" className="mx-2" />
         <span className="text-sm font-semibold">
-          {title || "Select a workflow"}
+          {title || "اختر مشروعًا"}
         </span>
       </div>
 

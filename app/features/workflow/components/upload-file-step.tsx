@@ -34,7 +34,7 @@ export function UploadFileStep({
         )}
       >
         <HugeiconsIcon icon={FileUploadIcon} className="size-4" />
-        {preview ? "Replace file" : "Upload an image or PDF"}
+        {preview ? "استبدال الملف" : "رفع صورة أو ملف PDF"}
         <Input
           type="file"
           accept="image/*,application/pdf"

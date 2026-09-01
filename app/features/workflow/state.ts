@@ -25,7 +25,7 @@ export function createDefaultWorkflowState(
     busy: false,
     ai: "",
     prompt:
-      "Enhance this artwork for print: fix contrast, remove noise, and export at 300dpi.",
+      "حسّن هذا العمل الفني للطباعة: أصلح التباين، أزل الضوضاء، وصدّر بدقة 300 نقطة في البوصة.",
     runState: "idle",
     runningStep: null,
     completed: new Set(),

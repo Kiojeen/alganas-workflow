@@ -6,7 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 export default function Home() {
   const { workflows, currentId, add } = useWorkflows();
   const current = workflows.find((w) => w.id === currentId);
-  const title = current?.name ?? "Workflows";
+  const title = current?.name ?? "";
 
   return (
     <>

@@ -32,16 +32,16 @@ export function ConfigureStep({
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
-          AI model
+          نموذج الذكاء الاصطناعي
         </Label>
         <Select value={ai} onValueChange={onAiChange} disabled={disabled}>
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select a model (add more in Settings)" />
+            <SelectValue placeholder="اختر نموذجًا (يمكنك إضافة المزيد من الإعدادات)" />
           </SelectTrigger>
           <SelectContent>
             {named.length === 0 ? (
               <div className="text-muted-foreground px-2 py-1.5 text-xs">
-                No models yet
+                لاتتوفر نماذج حتى الآن
               </div>
             ) : (
               named.map((model) => (
@@ -56,7 +56,7 @@ export function ConfigureStep({
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
-          Prompt
+          التعليمات
         </Label>
         <Textarea
           value={prompt}

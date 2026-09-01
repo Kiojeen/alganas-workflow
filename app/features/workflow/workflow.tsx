@@ -203,8 +203,6 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           );
         })}
       </div>
-
-      <Separator />
     </div>
   );
 }

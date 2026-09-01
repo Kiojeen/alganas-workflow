@@ -35,9 +35,9 @@ function AppSettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
+          <DialogTitle>الإعدادات</DialogTitle>
           <DialogDescription>
-            Manage your workspace and AI model connections.
+            إدارة مساحة العمل واتصالات نماذج الذكاء الاصطناعي.
           </DialogDescription>
         </DialogHeader>
 
@@ -45,7 +45,7 @@ function AppSettingsDialog({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">AI model keys</Label>
+            <Label className="text-sm font-medium">مفاتيح نماذج الذكاء الاصطناعي</Label>
             <Button
               variant="ghost"
               size="sm"
@@ -53,7 +53,7 @@ function AppSettingsDialog({
               className="h-7 gap-1 text-xs"
             >
               <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
-              Add model
+              إضافة نموذج
             </Button>
           </div>
 
@@ -68,7 +68,7 @@ function AppSettingsDialog({
                 </div>
 
                 <Input
-                  placeholder="Name (e.g. OpenAI)"
+                  placeholder="الاسم (مثال: OpenAI)"
                   value={model.name}
                   onChange={(e) =>
                     updateModel(model.id, "name", e.target.value)
@@ -79,11 +79,9 @@ function AppSettingsDialog({
                 <div className="relative flex-1">
                   <Input
                     type={revealed[model.id] ? "text" : "password"}
-                    placeholder="API key"
+                    placeholder="مفتاح API"
                     value={model.key}
-                    onChange={(e) =>
-                      updateModel(model.id, "key", e.target.value)
-                    }
+                    onChange={(e) => updateModel(model.id, "key", e.target.value)}
                     className="pr-8"
                   />
                   <button

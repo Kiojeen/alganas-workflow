@@ -44,7 +44,7 @@ function applyChange(state: WorkflowState, change: StateChange): WorkflowState {
 
 export function WorkflowsProvider({ children }: { children: ReactNode }) {
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>(() => [
-    createInstance("Workflow 1"),
+    createInstance("مشروع - 1 -"),
   ]);
   const [currentId, setCurrentId] = useState<string | null>(() => null);
 
@@ -70,7 +70,7 @@ export function WorkflowsProvider({ children }: { children: ReactNode }) {
   const select = useCallback((id: string) => setCurrentId(id), []);
   const add = useCallback(() => {
     setWorkflows((prev) => {
-      const next = [...prev, createInstance(`Workflow ${prev.length + 1}`)];
+      const next = [...prev, createInstance(`مشروع - ${prev.length + 1} -`)];
       setCurrentId(next[next.length - 1].id);
       return next;
     });
