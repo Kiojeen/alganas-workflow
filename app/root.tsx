@@ -14,11 +14,10 @@ import "./app.css";
 
 import { AppSidebar } from "./components/app-sidebar";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { ModelsProvider } from "./features/workflow/context";
+import { ModelsProvider, WorkflowsProvider } from "./features/workflow/context";
+import { ThemeProvider } from "./providers/theme-provider";
 
-export const meta: Route.MetaFunction = () => [
-  { title: "Alganas Workflow" },
-];
+export const meta: Route.MetaFunction = () => [{ title: "Alganas Workflow" }];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -26,28 +25,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('ui-theme') || 'system';
+                  var resolved = theme === 'system'
+                    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : theme;
+                  document.documentElement.classList.add(resolved);
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <Meta />
         <Links />
       </head>
       <body>
-        <TooltipProvider>
-          <ModelsProvider>
-            <SidebarProvider
-              style={
-                {
-                  "--sidebar-width": "calc(var(--spacing) * 72)",
-                  "--header-height": "calc(var(--spacing) * 12)",
-                } as React.CSSProperties
-              }
-            >
-              <AppSidebar />
-              <SidebarInset>{children}</SidebarInset>
-            </SidebarProvider>
-          </ModelsProvider>
+        <ThemeProvider defaultTheme="dark" storageKey="ui-theme">
+          <TooltipProvider>
+            <WorkflowsProvider>
+              <ModelsProvider>
+                <SidebarProvider
+                  style={
+                    {
+                      "--sidebar-width": "calc(var(--spacing) * 72)",
+                      "--header-height": "calc(var(--spacing) * 12)",
+                    } as React.CSSProperties
+                  }
+                >
+                  <AppSidebar />
+                  <SidebarInset>{children}</SidebarInset>
+                </SidebarProvider>
+              </ModelsProvider>
+            </WorkflowsProvider>
 
-          <ScrollRestoration />
-          <Scripts />
-        </TooltipProvider>
+            <ScrollRestoration />
+            <Scripts />
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

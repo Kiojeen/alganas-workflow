@@ -1,5 +1,21 @@
-import { Workflow } from "@/features/workflow";
+import { useWorkflows, Workflow } from "@/features/workflow";
+import { EmptyWorkflow } from "@/features/workflow/components/empty-workflow";
 
-export default function WorkflowPage() {
-  return <Workflow />;
+import { SiteHeader } from "@/components/site-header";
+
+export default function Home() {
+  const { workflows, currentId, add } = useWorkflows();
+  const current = workflows.find((w) => w.id === currentId);
+  const title = current?.name ?? "Workflows";
+
+  return (
+    <>
+      <SiteHeader title={title} />
+      {currentId && current ? (
+        <Workflow key={currentId} workflowId={currentId} />
+      ) : (
+        <EmptyWorkflow onCreate={add} />
+      )}
+    </>
+  );
 }

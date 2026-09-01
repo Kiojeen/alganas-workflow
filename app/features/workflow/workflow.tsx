@@ -1,198 +1,210 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { Separator } from "@/components/ui/separator";
-import { SiteHeader } from "@/components/site-header";
 
 import { ConfigureStep } from "./components/configure-step";
-import { FetchInputStep } from "./components/fetch-input-step";
+import { UploadFileStep } from "./components/upload-file-step";
+import { StepContainer } from "./components/step-container";
 import { WorkflowControls } from "./components/workflow-controls";
-import { WorkflowStep } from "./components/workflow-step";
-import { useModels } from "./context";
+import { useWorkflow } from "./context";
 import { JOBS } from "./jobs";
 import { renderPdfPage } from "./lib/pdf";
-import type { Preview, RunState, StepStatus } from "./types";
+import type { StepStatus } from "./types";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function Workflow() {
-  const { models } = useModels();
-
-  const [startId, setStartId] = useState<string>(JOBS[0].id);
-  const [file, setFile] = useState<File | null>(null);
-  const [pdfPage, setPdfPage] = useState(1);
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [ai, setAi] = useState("");
-  const [prompt, setPrompt] = useState(
-    "Enhance this artwork for print: fix contrast, remove noise, and export at 300dpi.",
-  );
-
-  const [runState, setRunState] = useState<RunState>("idle");
-  const [runningStep, setRunningStep] = useState<number | null>(null);
-  const [completed, setCompleted] = useState<Set<number>>(new Set());
-  const [outputImage, setOutputImage] = useState<string | null>(null);
-
-  const startIndex = useMemo(
-    () =>
-      Math.max(
-        0,
-        JOBS.findIndex((j) => j.id === startId),
-      ),
-    [startId],
-  );
-
-  const previewUrlRef = useRef<string | null>(null);
+export function Workflow({ workflowId }: { workflowId: string }) {
+  const workflow = useWorkflow(workflowId);
+  const fileRef = useRef<File | null>(workflow?.state.file ?? null);
   useEffect(() => {
-    previewUrlRef.current = preview?.url ?? null;
-  }, [preview]);
+    fileRef.current = workflow?.state.file ?? null;
+  }, [workflow?.state.file]);
 
-  const activeCount = JOBS.length - startIndex;
-  const progress = Math.round((activeCount / JOBS.length) * 100);
+  const involvedIndices = useMemo(() => {
+    const inv = workflow?.state.involved;
+    if (!inv) return [];
+    return JOBS.map((j, i) => (inv.has(j.id) ? i : -1)).filter((i) => i >= 0);
+  }, [workflow?.state.involved]);
+
+  if (!workflow) return null;
+  const { state, update } = workflow;
+  const {
+    file,
+    preview,
+    busy,
+    ai,
+    prompt,
+    runState,
+    runningStep,
+    completed,
+    outputImage,
+    involved,
+  } = state;
+
+  const firstInvolved = involvedIndices[0] ?? 0;
+  const involvedCount = involvedIndices.length;
+  const completedCount = involvedIndices.filter((i) => completed.has(i)).length;
+  const progress =
+    runState === "idle"
+      ? Math.round((involvedCount / JOBS.length) * 100)
+      : Math.round((completedCount / Math.max(1, involvedCount)) * 100);
   const canRun = runState !== "running" && preview !== null;
 
-  const resetRun = () => {
-    setRunState("idle");
-    setRunningStep(null);
-    setCompleted(new Set());
-    setOutputImage(null);
+  const resetRun = () =>
+    update({
+      runState: "idle",
+      runningStep: null,
+      completed: new Set(),
+      outputImage: null,
+    });
+
+  const toggleInvolved = (id: string, value: boolean) => {
+    if (id === JOBS[0].id) return; // first step is mandatory
+    update((prev) => {
+      const nextInvolved = new Set(prev.involved);
+      if (value) nextInvolved.add(id);
+      else nextInvolved.delete(id);
+      return {
+        involved: nextInvolved,
+        runState: "idle",
+        runningStep: null,
+        completed: new Set(),
+        outputImage: null,
+      };
+    });
   };
 
   const handleFile = async (f: File | null) => {
     if (!f) return;
     resetRun();
-    setBusy(true);
+    update({ file: f, pdfPage: 1, busy: true });
     try {
       if (f.type.startsWith("image/")) {
         const url = URL.createObjectURL(f);
-        setPreview((prev) => {
-          if (prev?.url.startsWith("blob:")) URL.revokeObjectURL(prev.url);
-          return { kind: "image", url, name: f.name };
+        update((prev) => {
+          if (prev.preview?.url.startsWith("blob:"))
+            URL.revokeObjectURL(prev.preview.url);
+          return { preview: { kind: "image", url, name: f.name }, busy: false };
         });
-        setFile(f);
         return;
       }
-
       if (f.type === "application/pdf") {
-        setFile(f);
-        setPdfPage(1);
         const url = await renderPdfPage(f, 1);
-        setPreview((prev) => {
-          if (prev?.url.startsWith("blob:")) URL.revokeObjectURL(prev.url);
-          return { kind: "pdf", url, name: f.name };
+        update((prev) => {
+          if (prev.preview?.url.startsWith("blob:"))
+            URL.revokeObjectURL(prev.preview.url);
+          return { preview: { kind: "pdf", url, name: f.name }, busy: false };
         });
         return;
       }
-
-      setPreview(null);
-      setFile(null);
-    } finally {
-      setBusy(false);
+      update({ preview: null, file: null, busy: false });
+    } catch {
+      update({ preview: null, busy: false });
     }
   };
 
   const handlePageChange = async (page: number) => {
+    const file = fileRef.current;
     if (!file || file.type !== "application/pdf") return;
-    setPdfPage(page);
-    setBusy(true);
+    update({ pdfPage: page, busy: true });
     try {
       const url = await renderPdfPage(file, page);
-      setPreview((prev) => {
-        if (prev?.url.startsWith("blob:")) URL.revokeObjectURL(prev.url);
-        return { kind: "pdf", url, name: file.name };
+      update((prev) => {
+        if (prev.preview?.url.startsWith("blob:"))
+          URL.revokeObjectURL(prev.preview.url);
+        return { preview: { kind: "pdf", url, name: file.name }, busy: false };
       });
     } catch {
-      // ignore render failure
-    } finally {
-      setBusy(false);
+      update({ busy: false });
     }
   };
 
   const run = async () => {
     if (runState === "running") return;
-    setRunState("running");
-    setCompleted(new Set());
-    setOutputImage(null);
-
-    for (let i = startIndex; i < JOBS.length; i++) {
-      setRunningStep(i);
+    update({
+      runState: "running",
+      completed: new Set(),
+      outputImage: null,
+    });
+    for (const i of involvedIndices) {
+      update({ runningStep: i });
       await delay(900);
-      setCompleted((prev) => new Set(prev).add(i));
-      if (i === 1) setOutputImage(previewUrlRef.current);
+      update((prev) => ({ completed: new Set(prev.completed).add(i) }));
+      if (JOBS[i].id === "configure") {
+        update((prev) => ({ outputImage: prev.preview?.url ?? null }));
+      }
     }
-
-    setRunningStep(null);
-    setRunState("done");
+    update({ runningStep: null, runState: "done" });
   };
 
   const statusOf = (i: number): StepStatus => {
-    if (i < startIndex) return "muted";
+    if (!involved.has(JOBS[i].id)) return "muted";
     if (completed.has(i) || runState === "done") return "done";
     if (runState === "running" && runningStep === i) return "running";
-    if (i === startIndex) return "start";
+    if (i === firstInvolved) return "start";
     return "active";
   };
 
   return (
-    <>
-      <SiteHeader title="Dummy Workflow" />
+    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 overflow-auto p-4">
+      <WorkflowControls
+        involvedCount={involvedCount}
+        total={JOBS.length}
+        progress={progress}
+        runState={runState}
+        onRun={run}
+        onReset={resetRun}
+        canRun={canRun}
+      />
 
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 overflow-auto p-4">
-        <WorkflowControls
-          startId={startId}
-          onStartChange={setStartId}
-          activeCount={activeCount}
-          progress={progress}
-          runState={runState}
-          onRun={run}
-          onReset={resetRun}
-          canRun={canRun}
-        />
+      <div className="flex flex-col gap-3">
+        {JOBS.map((job, i) => {
+          const status = statusOf(i);
+          const isInvolved = involved.has(job.id);
 
-        <ol className="flex flex-col">
-          {JOBS.map((job, i) => {
-            const status = statusOf(i);
-            const muted = status === "muted";
+          return (
+            <StepContainer
+              key={job.id}
+              job={job}
+              index={i}
+              status={status}
+              involved={isInvolved}
+              mandatory={job.id === JOBS[0].id}
+              onToggleInvolved={toggleInvolved}
+            >
+              {job.id === "upload" && (
+                <UploadFileStep
+                  preview={preview}
+                  pdfPage={state.pdfPage}
+                  busy={busy}
+                  onFile={handleFile}
+                  onPageChange={handlePageChange}
+                  disabled={!isInvolved}
+                />
+              )}
 
-            return (
-              <WorkflowStep key={job.id} job={job} index={i} status={status}>
-                {job.id === "fetch" && (
-                  <FetchInputStep
-                    preview={preview}
-                    pdfPage={pdfPage}
-                    busy={busy}
-                    onFile={handleFile}
-                    onPageChange={handlePageChange}
-                    disabled={muted}
-                  />
-                )}
-
-                {job.id === "configure" && (
-                  <ConfigureStep
-                    ai={ai}
-                    onAiChange={(id) => {
-                      setAi(id);
-                      resetRun();
-                    }}
-                    prompt={prompt}
-                    onPromptChange={(value) => {
-                      setPrompt(value);
-                      resetRun();
-                    }}
-                    outputImage={outputImage}
-                    disabled={muted}
-                  />
-                )}
-              </WorkflowStep>
-            );
-          })}
-        </ol>
-
-        <Separator />
-
-        <p className="text-muted-foreground pb-2 text-center text-xs">
-          This is a UI demo. Steps 1–2 are wired; the rest simulate execution.
-        </p>
+              {job.id === "configure" && (
+                <ConfigureStep
+                  ai={ai}
+                  onAiChange={(id) => {
+                    update({ ai: id });
+                    resetRun();
+                  }}
+                  prompt={prompt}
+                  onPromptChange={(value) => {
+                    update({ prompt: value });
+                    resetRun();
+                  }}
+                  outputImage={outputImage}
+                  disabled={!isInvolved}
+                />
+              )}
+            </StepContainer>
+          );
+        })}
       </div>
-    </>
+
+      <Separator />
+    </div>
   );
 }

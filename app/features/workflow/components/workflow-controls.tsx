@@ -10,32 +10,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 
-import { JOBS } from "../jobs";
 import type { RunState } from "../types";
 
 export function WorkflowControls({
-  startId,
-  onStartChange,
-  activeCount,
+  involvedCount,
+  total,
   progress,
   runState,
   onRun,
   onReset,
   canRun,
 }: {
-  startId: string;
-  onStartChange: (id: string) => void;
-  activeCount: number;
+  involvedCount: number;
+  total: number;
   progress: number;
   runState: RunState;
   onRun: () => void;
@@ -71,44 +61,17 @@ export function WorkflowControls({
           </div>
         </div>
         <CardDescription>
-          Pick a starting job — every step before it is muted and skipped. Press
-          Run to execute the active steps.
+          Toggle which steps are involved (the first is mandatory). Press Run to
+          execute the active steps.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <label className="text-muted-foreground text-xs font-medium">
-            Starting job
-          </label>
-          <div className="flex items-center gap-2">
-            <Select value={startId} onValueChange={onStartChange}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Select a job" />
-              </SelectTrigger>
-              <SelectContent>
-                {JOBS.map((job, i) => (
-                  <SelectItem key={job.id} value={job.id}>
-                    {i + 1}. {job.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onStartChange(JOBS[0].id)}
-            >
-              Reset
-            </Button>
-          </div>
-        </div>
-
         <Separator />
 
         <div className="flex flex-col gap-1.5">
           <div className="text-muted-foreground flex items-center justify-between text-xs">
             <span>
-              {activeCount} of {JOBS.length} jobs active
+              {involvedCount} of {total} steps involved
             </span>
             <span>{progress}%</span>
           </div>

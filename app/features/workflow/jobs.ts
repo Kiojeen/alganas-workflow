@@ -10,8 +10,8 @@ import type { Job } from "./types";
 
 export const JOBS: Job[] = [
   {
-    id: "fetch",
-    title: "Fetch Input",
+    id: "upload",
+    title: "Upload File",
     description: "Upload an image or a PDF (one page becomes the artwork).",
     icon: DatabaseIcon,
   },

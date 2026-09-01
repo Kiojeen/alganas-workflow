@@ -4,6 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "@/lib/utils";
 
+import { ModeToggle } from "./mode-toggle";
 import { Separator } from "./ui/separator";
 import { SidebarTrigger } from "./ui/sidebar";
 
@@ -21,7 +22,7 @@ function SiteHeader({ title }: { title: string }) {
   return (
     <header
       className={cn(
-        "bg-sidebar flex h-(--header-height) shrink-0 items-center gap-2 transition-shadow duration-200 ease-linear",
+        "bg-sidebar flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-shadow duration-200 ease-linear",
         "group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)",
         scrolled ? "sticky top-0 z-50 shadow" : "shadow-none",
       )}
@@ -34,6 +35,10 @@ function SiteHeader({ title }: { title: string }) {
         <span className="text-sm font-semibold">
           {title || "Select a workflow"}
         </span>
+      </div>
+
+      <div className="flex gap-1 px-4 lg:gap-2 lg:px-6">
+        <ModeToggle />
       </div>
     </header>
   );
