@@ -1,5 +1,5 @@
 import { JOBS } from "./jobs";
-import type { Preview } from "./types";
+import type { BookConfig, Preview } from "./types";
 
 export type WorkflowState = {
   file: File | null;
@@ -12,6 +12,15 @@ export type WorkflowState = {
   completed: Set<number>;
   outputImage: string | null;
   involved: Set<string>;
+  bookConfig: BookConfig;
+};
+
+const defaultBookConfig: BookConfig = {
+  numPages: 720,
+  numChapters: 1,
+  autoChapter: false,
+  chapterLabel: "chapter",
+  coverType: "normal",
 };
 
 export function createDefaultWorkflowState(
@@ -29,5 +38,6 @@ export function createDefaultWorkflowState(
     completed: new Set(),
     outputImage: null,
     involved: new Set(jobIds),
+    bookConfig: { ...defaultBookConfig },
   };
 }

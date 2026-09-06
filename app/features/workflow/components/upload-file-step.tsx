@@ -1,14 +1,15 @@
-import { FileUploadIcon, Maximize04Icon } from "@hugeicons/core-free-icons";
+import { FileUploadIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { ImageZoom } from "@/components/ui/image-zoom";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Spinner } from "@/components/ui/spinner";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-import type { Preview } from "../types";
+import type { BookConfig, Preview } from "../types";
+import { Separator } from "@/components/ui/separator";
+import { ImagePreview } from "./image-preview";
 
 export function UploadFileStep({
   preview,
@@ -16,6 +17,8 @@ export function UploadFileStep({
   busy,
   onFile,
   onPageChange,
+  bookConfig,
+  onBookConfigChange,
   disabled,
 }: {
   preview: Preview | null;
@@ -23,10 +26,124 @@ export function UploadFileStep({
   busy: boolean;
   onFile: (f: File | null) => void;
   onPageChange: (page: number) => void;
+  bookConfig: BookConfig;
+  onBookConfigChange: (config: BookConfig) => void;
   disabled: boolean;
 }) {
+  const chaptersDisabled = bookConfig.autoChapter;
+  const autoChapters =
+    bookConfig.numPages > 720 ? Math.ceil(bookConfig.numPages / 720) : 1;
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-muted-foreground text-xs font-medium">
+            عدد الصفحات
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            value={bookConfig.numPages}
+            disabled={disabled}
+            onChange={(e) =>
+              onBookConfigChange({
+                ...bookConfig,
+                numPages: Number(e.target.value) || 0,
+              })
+            }
+            className="h-8"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-muted-foreground text-xs font-medium">
+            عدد الفصول
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            value={
+              bookConfig.autoChapter ? autoChapters : bookConfig.numChapters
+            }
+            disabled={disabled || chaptersDisabled}
+            onChange={(e) =>
+              onBookConfigChange({
+                ...bookConfig,
+                numChapters: Number(e.target.value) || 1,
+              })
+            }
+            className="h-8"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Checkbox
+          checked={bookConfig.autoChapter}
+          onCheckedChange={(checked) =>
+            onBookConfigChange({
+              ...bookConfig,
+              autoChapter: Boolean(checked),
+            })
+          }
+          disabled={disabled}
+          id="auto-chapter"
+        />
+        <Label htmlFor="auto-chapter" className="text-xs font-medium">
+          تقسيم تلقائي للفصول (كل فصل ≤ 720 صفحة)
+        </Label>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-muted-foreground text-xs font-medium">
+          تسمية الفصل
+        </Label>
+        <Input
+          value={bookConfig.chapterLabel}
+          disabled={disabled}
+          onChange={(e) =>
+            onBookConfigChange({
+              ...bookConfig,
+              chapterLabel: e.target.value,
+            })
+          }
+          placeholder="مثال: chapter, volume, part"
+          className="h-8"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-muted-foreground text-xs font-medium">
+          نوع الغلاف
+        </Label>
+        <RadioGroup
+          value={bookConfig.coverType}
+          onValueChange={(value) =>
+            onBookConfigChange({
+              ...bookConfig,
+              coverType: value as "normal" | "spiral",
+            })
+          }
+          disabled={disabled}
+          className="flex gap-4"
+        >
+          <div className="flex items-center gap-1.5">
+            <RadioGroupItem value="normal" id="cover-normal" />
+            <Label htmlFor="cover-normal" className="text-xs font-medium">
+              غلاف عادي
+            </Label>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <RadioGroupItem value="spiral" id="cover-spiral" />
+            <Label htmlFor="cover-spiral" className="text-xs font-medium">
+              غلاف لولبي
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      <Separator />
       <Label
         className={cn(
           "border-input bg-input/10 text-muted-foreground hover:bg-input/20 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed px-3 py-4 text-xs transition-colors",
@@ -46,9 +163,9 @@ export function UploadFileStep({
 
       {preview?.kind === "pdf" && (
         <div className="flex items-center gap-2">
-          <label className="text-muted-foreground text-xs font-medium">
+          <Label className="text-muted-foreground text-xs font-medium">
             Page
-          </label>
+          </Label>
           <Input
             type="number"
             min={1}
@@ -61,29 +178,7 @@ export function UploadFileStep({
       )}
 
       {preview && (
-        <div className="bg-muted relative overflow-hidden rounded-md border">
-          {!busy && (
-            <Badge
-              variant="outline"
-              className="absolute inset-s-2 top-2 z-50 [&>svg]:size-3!"
-            >
-              <HugeiconsIcon icon={Maximize04Icon} />
-            </Badge>
-          )}
-
-          <ImageZoom>
-            <img
-              src={preview.url}
-              alt={preview.name}
-              className="max-h-64 w-full object-contain"
-            />
-          </ImageZoom>
-          {busy && (
-            <div className="bg-background/60 absolute inset-0 flex items-center justify-center">
-              <Spinner />
-            </div>
-          )}
-        </div>
+        <ImagePreview url={preview.url} name={preview.name} busy={busy} />
       )}
     </div>
   );

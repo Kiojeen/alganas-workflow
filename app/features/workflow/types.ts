@@ -18,3 +18,12 @@ export type Preview = {
 };
 
 export type StepStatus = "muted" | "ready" | "pending" | "running" | "done";
+
+export type BookConfig = {
+  numPages: number;
+  numChapters: number;
+  autoChapter: boolean;
+  chapterLabel: string;
+  coverType: "normal" | "spiral";
+};
+

@@ -52,7 +52,12 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     completed,
     outputImage,
     involved,
+    bookConfig,
   } = state;
+
+  const handleBookConfigChange = (config: typeof bookConfig) => {
+    update({ bookConfig: config });
+  };
 
   const involvedCount = involvedIndices.length;
 
@@ -204,6 +209,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                   busy={busy}
                   onFile={handleFile}
                   onPageChange={handlePageChange}
+                  bookConfig={bookConfig}
+                  onBookConfigChange={handleBookConfigChange}
                   disabled={!isInvolved}
                 />
               )}

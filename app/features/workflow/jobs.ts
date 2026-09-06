@@ -11,8 +11,8 @@ import type { Job } from "./types";
 export const JOBS: Job[] = [
   {
     id: "upload",
-    title: "رفع ملف",
-    description: "ارفع صورة أو ملف PDF (تصبح صفحة واحدة هي العمل الفني).",
+    title: "إعداد غلاف الكتاب",
+    description: "ارفع ملفًا وحدّد إعدادات الغلاف (الصفحات، الفصول، التسمية، نوع الغلاف).",
     icon: DatabaseIcon,
     autoRun: false,
   },
