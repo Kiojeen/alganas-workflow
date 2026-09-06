@@ -1,5 +1,5 @@
 import { JOBS } from "./jobs";
-import type { Preview, RunState } from "./types";
+import type { Preview } from "./types";
 
 export type WorkflowState = {
   file: File | null;
@@ -8,7 +8,6 @@ export type WorkflowState = {
   busy: boolean;
   ai: string;
   prompt: string;
-  runState: RunState;
   runningStep: number | null;
   completed: Set<number>;
   outputImage: string | null;
@@ -26,7 +25,6 @@ export function createDefaultWorkflowState(
     ai: "",
     prompt:
       "حسّن هذا العمل الفني للطباعة: أصلح التباين، أزل الضوضاء، وصدّر بدقة 300 نقطة في البوصة.",
-    runState: "idle",
     runningStep: null,
     completed: new Set(),
     outputImage: null,

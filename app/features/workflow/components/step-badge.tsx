@@ -1,7 +1,8 @@
 import {
   CheckmarkCircle01Icon,
   CircleLock01Icon,
-  Flag01Icon,
+  Clock01Icon,
+  PlayIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
@@ -19,16 +20,25 @@ export function StepBadge({ status }: { status: StepStatus }) {
           className="size-2.5"
           strokeWidth={2}
         />
-        Skipped
+        تم التخطي
       </Badge>
     );
   }
 
-  if (status === "start") {
+  if (status === "ready") {
     return (
       <Badge variant="default" className="gap-1">
-        <HugeiconsIcon icon={Flag01Icon} className="size-2.5" strokeWidth={2} />
-        Start
+        <HugeiconsIcon icon={PlayIcon} className="size-2.5" strokeWidth={2} />
+        جاهز
+      </Badge>
+    );
+  }
+
+  if (status === "pending") {
+    return (
+      <Badge variant="outline" className="gap-1">
+        <HugeiconsIcon icon={Clock01Icon} className="size-2.5" strokeWidth={2} />
+        قيد الانتظار
       </Badge>
     );
   }
@@ -36,7 +46,7 @@ export function StepBadge({ status }: { status: StepStatus }) {
   if (status === "running") {
     return (
       <Badge variant="secondary" className="gap-1">
-        <Spinner /> Running
+        <Spinner /> قيد التشغيل
       </Badge>
     );
   }
@@ -49,10 +59,10 @@ export function StepBadge({ status }: { status: StepStatus }) {
           className="size-2.5"
           strokeWidth={2}
         />
-        Done
+        تم
       </Badge>
     );
   }
 
-  return <Badge variant="secondary">Active</Badge>;
+  return <Badge variant="secondary">نشط</Badge>;
 }

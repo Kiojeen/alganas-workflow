@@ -16,9 +16,23 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function Workflow({ workflowId }: { workflowId: string }) {
   const workflow = useWorkflow(workflowId);
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
+  const involvedRef = useRef<Set<string>>(workflow?.state.involved ?? new Set());
+  const completedRef = useRef<Set<number>>(
+    workflow?.state.completed ?? new Set(),
+  );
+  const runningRef = useRef<number | null>(workflow?.state.runningStep ?? null);
   useEffect(() => {
     fileRef.current = workflow?.state.file ?? null;
   }, [workflow?.state.file]);
+  useEffect(() => {
+    involvedRef.current = workflow?.state.involved ?? new Set();
+  }, [workflow?.state.involved]);
+  useEffect(() => {
+    completedRef.current = workflow?.state.completed ?? new Set();
+  }, [workflow?.state.completed]);
+  useEffect(() => {
+    runningRef.current = workflow?.state.runningStep ?? null;
+  }, [workflow?.state.runningStep]);
 
   const involvedIndices = useMemo(() => {
     const inv = workflow?.state.involved;
@@ -34,25 +48,55 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     busy,
     ai,
     prompt,
-    runState,
     runningStep,
     completed,
     outputImage,
     involved,
   } = state;
 
-  const firstInvolved = involvedIndices[0] ?? 0;
   const involvedCount = involvedIndices.length;
-  const completedCount = involvedIndices.filter((i) => completed.has(i)).length;
-  const progress =
-    runState === "idle"
-      ? Math.round((involvedCount / JOBS.length) * 100)
-      : Math.round((completedCount / Math.max(1, involvedCount)) * 100);
-  const canRun = runState !== "running" && preview !== null;
+
+  const findNextInvolved = (fromIdx: number, set: Set<string>): number | null => {
+    for (let j = fromIdx + 1; j < JOBS.length; j++) {
+      if (set.has(JOBS[j].id)) return j;
+    }
+    return null;
+  };
+
+  const runStep = async (i: number) => {
+    if (runningRef.current !== null) return;
+    if (completedRef.current.has(i)) return;
+    if (!involvedRef.current.has(JOBS[i].id)) return;
+    // Only allow running the current "ready" step.
+    for (let j = 0; j < i; j++) {
+      if (
+        involvedRef.current.has(JOBS[j].id) &&
+        !completedRef.current.has(j)
+      ) {
+        return;
+      }
+    }
+    update({ runningStep: i });
+    await delay(900);
+    const nextIdx = findNextInvolved(i, involvedRef.current);
+    const shouldAutoRun =
+      nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
+    update((prev) => {
+      const next = new Set(prev.completed).add(i);
+      let outputImage = prev.outputImage;
+      if (JOBS[i].id === "configure") {
+        outputImage = prev.preview?.url ?? null;
+      }
+      return { completed: next, runningStep: null, outputImage };
+    });
+    if (nextIdx !== null && shouldAutoRun) {
+      await delay(300);
+      runStep(nextIdx);
+    }
+  };
 
   const resetRun = () =>
     update({
-      runState: "idle",
       runningStep: null,
       completed: new Set(),
       outputImage: null,
@@ -66,7 +110,6 @@ export function Workflow({ workflowId }: { workflowId: string }) {
       else nextInvolved.delete(id);
       return {
         involved: nextInvolved,
-        runState: "idle",
         runningStep: null,
         completed: new Set(),
         outputImage: null,
@@ -119,43 +162,24 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     }
   };
 
-  const run = async () => {
-    if (runState === "running") return;
-    update({
-      runState: "running",
-      completed: new Set(),
-      outputImage: null,
-    });
-    for (const i of involvedIndices) {
-      update({ runningStep: i });
-      await delay(900);
-      update((prev) => ({ completed: new Set(prev.completed).add(i) }));
-      if (JOBS[i].id === "configure") {
-        update((prev) => ({ outputImage: prev.preview?.url ?? null }));
-      }
-    }
-    update({ runningStep: null, runState: "done" });
-  };
-
   const statusOf = (i: number): StepStatus => {
     if (!involved.has(JOBS[i].id)) return "muted";
-    if (completed.has(i) || runState === "done") return "done";
-    if (runState === "running" && runningStep === i) return "running";
-    if (i === firstInvolved) return "start";
-    return "active";
+    if (completed.has(i)) return "done";
+    if (runningStep === i) return "running";
+    let allPrevDone = true;
+    for (let j = 0; j < i; j++) {
+      if (involved.has(JOBS[j].id) && !completed.has(j)) {
+        allPrevDone = false;
+        break;
+      }
+    }
+    if (allPrevDone) return "ready";
+    return "pending";
   };
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 overflow-auto p-4">
-      <WorkflowControls
-        involvedCount={involvedCount}
-        total={JOBS.length}
-        progress={progress}
-        runState={runState}
-        onRun={run}
-        onReset={resetRun}
-        canRun={canRun}
-      />
+      <WorkflowControls involvedCount={involvedCount} total={JOBS.length} />
 
       <div className="flex flex-col gap-3">
         {JOBS.map((job, i) => {
@@ -171,6 +195,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
               involved={isInvolved}
               mandatory={job.id === JOBS[0].id}
               onToggleInvolved={toggleInvolved}
+              onRun={() => runStep(i)}
             >
               {job.id === "upload" && (
                 <UploadFileStep
@@ -203,6 +228,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           );
         })}
       </div>
+
+      <Separator />
     </div>
   );
 }

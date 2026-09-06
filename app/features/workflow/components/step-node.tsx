@@ -28,7 +28,7 @@ export function StepNode({
     );
   }
 
-  if (status === "start") {
+  if (status === "ready") {
     return (
       <div className="bg-primary text-primary-foreground ring-primary flex size-8 items-center justify-center rounded-full ring-2">
         <HugeiconsIcon

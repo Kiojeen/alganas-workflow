@@ -8,6 +8,7 @@ export type Job = {
   title: string;
   description: string;
   icon: IconType;
+  autoRun?: boolean;
 };
 
 export type Preview = {
@@ -16,6 +17,4 @@ export type Preview = {
   name: string;
 };
 
-export type RunState = "idle" | "running" | "done";
-
-export type StepStatus = "muted" | "start" | "active" | "running" | "done";
+export type StepStatus = "muted" | "ready" | "pending" | "running" | "done";

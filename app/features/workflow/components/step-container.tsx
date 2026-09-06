@@ -1,7 +1,10 @@
+import { CheckmarkCircle01Icon, PlayIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 
 import type { Job, StepStatus } from "../types";
@@ -14,6 +17,7 @@ export function StepContainer({
   involved,
   mandatory,
   onToggleInvolved,
+  onRun,
   children,
 }: {
   job: Job;
@@ -22,6 +26,7 @@ export function StepContainer({
   involved: boolean;
   mandatory: boolean;
   onToggleInvolved: (id: string, value: boolean) => void;
+  onRun: () => void;
   children?: React.ReactNode;
 }) {
   return (
@@ -40,8 +45,9 @@ export function StepContainer({
           <div
             className={cn(
               "bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md",
-              status === "start" && "bg-primary text-primary-foreground",
-              status === "active" && "bg-secondary text-secondary-foreground",
+              status === "ready" && "bg-primary text-primary-foreground",
+              status === "pending" && "bg-secondary text-secondary-foreground",
+              status === "running" && "bg-primary text-primary-foreground",
               status === "done" && "bg-primary/10 text-primary",
             )}
           >
@@ -54,12 +60,15 @@ export function StepContainer({
               {job.description}
             </p>
           </div>
+
+          <RunSlot status={status} onRun={onRun} />
+
           {!mandatory && (
             <Switch
               checked={involved}
               onCheckedChange={(value) => onToggleInvolved(job.id, value)}
-              aria-label={`Toggle ${job.title} involvement`}
-              title={`Toggle ${job.title} involvement`}
+              aria-label={`تبديل مشاركة ${job.title}`}
+              title={`تبديل مشاركة ${job.title}`}
             />
           )}
         </CardHeader>
@@ -76,4 +85,40 @@ export function StepContainer({
       </Card>
     </div>
   );
+}
+
+function RunSlot({
+  status,
+  onRun,
+}: {
+  status: StepStatus;
+  onRun: () => void;
+}) {
+  if (status === "ready") {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onRun}
+        className="gap-1"
+        aria-label="تشغيل"
+      >
+        <HugeiconsIcon icon={PlayIcon} className="size-3.5" />
+        تشغيل
+      </Button>
+    );
+  }
+  if (status === "running") {
+    return <Spinner />;
+  }
+  if (status === "done") {
+    return (
+      <HugeiconsIcon
+        icon={CheckmarkCircle01Icon}
+        className="text-primary size-4"
+        strokeWidth={2}
+      />
+    );
+  }
+  return null;
 }
