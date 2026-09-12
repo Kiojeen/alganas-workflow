@@ -57,9 +57,10 @@ export function GenerateStep({
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
-          التعليمات
+          التعليمات (باللغة الإنجليزية)
         </Label>
         <Textarea
+          dir="ltr"
           value={prompt}
           disabled={disabled}
           onChange={(e) => onPromptChange(e.target.value)}
@@ -70,9 +71,15 @@ export function GenerateStep({
 
       {outputImage && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-primary text-xs font-medium">مخرجات الذكاء الاصطناعي</span>
+          <span className="text-primary text-xs font-medium">
+            مخرجات الذكاء الاصطناعي
+          </span>
           <div className="bg-muted overflow-hidden rounded-md border">
-            <ImagePreview url={outputImage} name={"مخرجات الذكاء الاصطناعي"} busy={false} />
+            <ImagePreview
+              url={outputImage}
+              name={"مخرجات الذكاء الاصطناعي"}
+              busy={false}
+            />
           </div>
         </div>
       )}
