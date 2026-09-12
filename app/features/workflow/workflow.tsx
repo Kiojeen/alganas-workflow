@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { GenerateStep } from "./components/generate-step";
 import { UploadFileStep } from "./components/upload-file-step";
 import { StepContainer } from "./components/step-container";
-import { WorkflowControls } from "./components/workflow-controls";
+import { WorkflowHeaderCard } from "./components/workflow-header-card";
 import { useWorkflow } from "./context";
 import { JOBS } from "./jobs";
 import { renderPdfPage } from "./lib/pdf";
@@ -16,7 +16,9 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function Workflow({ workflowId }: { workflowId: string }) {
   const workflow = useWorkflow(workflowId);
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
-  const involvedRef = useRef<Set<string>>(workflow?.state.involved ?? new Set());
+  const involvedRef = useRef<Set<string>>(
+    workflow?.state.involved ?? new Set(),
+  );
   const completedRef = useRef<Set<number>>(
     workflow?.state.completed ?? new Set(),
   );
@@ -61,7 +63,10 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
   const involvedCount = involvedIndices.length;
 
-  const findNextInvolved = (fromIdx: number, set: Set<string>): number | null => {
+  const findNextInvolved = (
+    fromIdx: number,
+    set: Set<string>,
+  ): number | null => {
     for (let j = fromIdx + 1; j < JOBS.length; j++) {
       if (set.has(JOBS[j].id)) return j;
     }
@@ -74,18 +79,14 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     if (!involvedRef.current.has(JOBS[i].id)) return;
     // Only allow running the current "ready" step.
     for (let j = 0; j < i; j++) {
-      if (
-        involvedRef.current.has(JOBS[j].id) &&
-        !completedRef.current.has(j)
-      ) {
+      if (involvedRef.current.has(JOBS[j].id) && !completedRef.current.has(j)) {
         return;
       }
     }
     update({ runningStep: i });
     await delay(900);
     const nextIdx = findNextInvolved(i, involvedRef.current);
-    const shouldAutoRun =
-      nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
+    const shouldAutoRun = nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
     update((prev) => {
       const next = new Set(prev.completed).add(i);
       let outputImage = prev.outputImage;
@@ -184,7 +185,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 overflow-auto p-4">
-      <WorkflowControls involvedCount={involvedCount} total={JOBS.length} />
+      <WorkflowHeaderCard involvedCount={involvedCount} total={JOBS.length} />
 
       <div className="flex flex-col gap-3">
         {JOBS.map((job, i) => {

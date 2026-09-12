@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export function WorkflowControls({
+export function WorkflowHeaderCard({
   involvedCount,
   total,
 }: {
@@ -27,8 +27,8 @@ export function WorkflowControls({
           <CardTitle>معالجة الطلبات</CardTitle>
         </div>
         <CardDescription>
-          بدّل الخطوات المشاركة (الأولى إلزامية). اضغط تشغيل في كل خطوة لتنفيذها،
-          وتُكمل بعض الخطوات تلقائيًا.
+          بدّل الخطوات المشاركة (الأولى إلزامية). اضغط تشغيل في كل خطوة
+          لتنفيذها، وتُكمل بعض الخطوات تلقائيًا.
         </CardDescription>
       </CardHeader>
       <CardContent>

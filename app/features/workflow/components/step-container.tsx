@@ -37,7 +37,7 @@ export function StepContainer({
 
       <Card
         className={cn(
-          "flex-1 transition-all",
+          "flex-1 transition-all border",
           status === "muted" && "opacity-60 saturate-0",
         )}
       >
