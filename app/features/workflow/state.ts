@@ -20,7 +20,6 @@ const defaultBookConfig: BookConfig = {
   numChapters: 1,
   autoChapter: false,
   chapterLabel: "chapter",
-  coverType: "normal",
 };
 
 export function createDefaultWorkflowState(

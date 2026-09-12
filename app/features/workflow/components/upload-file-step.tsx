@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 import type { BookConfig, Preview } from "../types";
 import { Separator } from "@/components/ui/separator";
@@ -111,36 +110,6 @@ export function UploadFileStep({
           placeholder="مثال: chapter, volume, part"
           className="h-8"
         />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-muted-foreground text-xs font-medium">
-          نوع الغلاف
-        </Label>
-        <RadioGroup
-          value={bookConfig.coverType}
-          onValueChange={(value) =>
-            onBookConfigChange({
-              ...bookConfig,
-              coverType: value as "normal" | "spiral",
-            })
-          }
-          disabled={disabled}
-          className="flex gap-4"
-        >
-          <div className="flex items-center gap-1.5">
-            <RadioGroupItem value="normal" id="cover-normal" />
-            <Label htmlFor="cover-normal" className="text-xs font-medium">
-              غلاف عادي
-            </Label>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <RadioGroupItem value="spiral" id="cover-spiral" />
-            <Label htmlFor="cover-spiral" className="text-xs font-medium">
-              غلاف لولبي
-            </Label>
-          </div>
-        </RadioGroup>
       </div>
 
       <Separator />

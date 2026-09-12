@@ -24,6 +24,5 @@ export type BookConfig = {
   numChapters: number;
   autoChapter: boolean;
   chapterLabel: string;
-  coverType: "normal" | "spiral";
 };
 
