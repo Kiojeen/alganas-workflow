@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { Separator } from "@/components/ui/separator";
 
-import { ConfigureStep } from "./components/configure-step";
+import { GenerateStep } from "./components/generate-step";
 import { UploadFileStep } from "./components/upload-file-step";
 import { StepContainer } from "./components/step-container";
 import { WorkflowControls } from "./components/workflow-controls";
@@ -216,7 +216,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
               )}
 
               {job.id === "configure" && (
-                <ConfigureStep
+                <GenerateStep
                   ai={ai}
                   onAiChange={(id) => {
                     update({ ai: id });

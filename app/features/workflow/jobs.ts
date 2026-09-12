@@ -18,7 +18,7 @@ export const JOBS: Job[] = [
   },
   {
     id: "configure",
-    title: "إعداد الذكاء الاصطناعي",
+    title: "توليد الصور بالذكاء الاصطناعي",
     description: "اختر نموذجًا وعدّل البرومبت الذي سيعالجه.",
     icon: SparklesIcon,
     autoRun: false,

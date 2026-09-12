@@ -9,8 +9,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 import { useModels } from "../context";
+import { ImagePreview } from "./image-preview";
 
-export function ConfigureStep({
+export function GenerateStep({
   ai,
   onAiChange,
   prompt,
@@ -69,13 +70,9 @@ export function ConfigureStep({
 
       {outputImage && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-primary text-xs font-medium">AI output</span>
+          <span className="text-primary text-xs font-medium">مخرجات الذكاء الاصطناعي</span>
           <div className="bg-muted overflow-hidden rounded-md border">
-            <img
-              src={outputImage}
-              alt="AI output"
-              className="max-h-64 w-full object-contain"
-            />
+            <ImagePreview url={outputImage} name={"مخرجات الذكاء الاصطناعي"} busy={false} />
           </div>
         </div>
       )}
