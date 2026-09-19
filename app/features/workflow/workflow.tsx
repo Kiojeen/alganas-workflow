@@ -1,20 +1,30 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { Separator } from "@/components/ui/separator";
 
+import { ConvertStep } from "./components/convert-step";
 import { GenerateStep } from "./components/generate-step";
 import { UploadFileStep } from "./components/upload-file-step";
 import { StepContainer } from "./components/step-container";
 import { WorkflowHeaderCard } from "./components/workflow-header-card";
 import { useWorkflow } from "./context";
+import { useModels } from "./context/models-context";
 import { JOBS } from "./jobs";
+import { exportCoverPdf } from "./lib/export-cover-pdf";
 import { renderPdfPage } from "./lib/pdf";
 import type { StepStatus } from "./types";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+async function blobFromUrl(url: string): Promise<Blob> {
+  const response = await fetch(url);
+  return response.blob();
+}
+
 export function Workflow({ workflowId }: { workflowId: string }) {
   const workflow = useWorkflow(workflowId);
+  const { models } = useModels();
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
   const involvedRef = useRef<Set<string>>(
     workflow?.state.involved ?? new Set(),
@@ -23,6 +33,9 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     workflow?.state.completed ?? new Set(),
   );
   const runningRef = useRef<number | null>(workflow?.state.runningStep ?? null);
+  const [showLines, setShowLines] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
   useEffect(() => {
     fileRef.current = workflow?.state.file ?? null;
   }, [workflow?.state.file]);
@@ -45,7 +58,6 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   if (!workflow) return null;
   const { state, update } = workflow;
   const {
-    file,
     preview,
     busy,
     ai,
@@ -56,6 +68,11 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     involved,
     bookConfig,
   } = state;
+
+  const selectedModel =
+    models.find((m) => m.id === ai) ??
+    models.find((m) => m.name.trim() && m.key.trim());
+  const sourceImage = outputImage ?? preview?.url ?? null;
 
   const handleBookConfigChange = (config: typeof bookConfig) => {
     update({ bookConfig: config });
@@ -73,43 +90,147 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     return null;
   };
 
+  const exportPdf = async () => {
+    if (!sourceImage) {
+      toast.error("ارفع صورة غلاف أولاً.");
+      return;
+    }
+    setExporting(true);
+    try {
+      await exportCoverPdf({
+        sourceUrl: sourceImage,
+        bookConfig,
+        showGuides: showLines,
+      });
+      toast.success("تم تصدير ملف PDF.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "تعذّر تصدير ملف PDF.",
+      );
+      throw error;
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const finishStep = (i: number) => {
+    runningRef.current = null;
+    const nextIdx = findNextInvolved(i, involvedRef.current);
+    const shouldAutoRun = nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
+    update((prev) => {
+      const next = new Set(prev.completed).add(i);
+      return { completed: next, runningStep: null };
+    });
+    if (nextIdx !== null && shouldAutoRun) {
+      void delay(300).then(() => runStep(nextIdx));
+    }
+  };
+
   const runStep = async (i: number) => {
     if (runningRef.current !== null) return;
     if (completedRef.current.has(i)) return;
     if (!involvedRef.current.has(JOBS[i].id)) return;
-    // Only allow running the current "ready" step.
     for (let j = 0; j < i; j++) {
       if (involvedRef.current.has(JOBS[j].id) && !completedRef.current.has(j)) {
         return;
       }
     }
     update({ runningStep: i });
-    await delay(900);
-    const nextIdx = findNextInvolved(i, involvedRef.current);
-    const shouldAutoRun = nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
-    update((prev) => {
-      const next = new Set(prev.completed).add(i);
-      let outputImage = prev.outputImage;
-      if (JOBS[i].id === "configure") {
-        outputImage = prev.preview?.url ?? null;
+    runningRef.current = i;
+
+    if (JOBS[i].id === "upload") {
+      if (!fileRef.current && !preview) {
+        runningRef.current = null;
+        update({ runningStep: null });
+        toast.error("ارفع صورة أو ملف PDF للمتابعة.");
+        return;
       }
-      return { completed: next, runningStep: null, outputImage };
-    });
-    if (nextIdx !== null && shouldAutoRun) {
-      await delay(300);
-      runStep(nextIdx);
+      await delay(250);
+      finishStep(i);
+      return;
     }
+
+    if (JOBS[i].id === "generate") {
+      try {
+        if (!selectedModel?.key) {
+          throw new Error("اختر نموذجًا وأضف مفتاح API من الإعدادات.");
+        }
+        if (!preview?.url) {
+          throw new Error("ارفع صورة في الخطوة الأولى قبل التوليد.");
+        }
+
+        const form = new FormData();
+        form.append("apiKey", selectedModel.key);
+        form.append("modelId", selectedModel.name);
+        form.append("prompt", prompt);
+        form.append("image", await blobFromUrl(preview.url), "cover.png");
+
+        const response = await fetch("/api/generate-cover", {
+          method: "POST",
+          body: form,
+        });
+        const payload = (await response.json()) as {
+          error?: string;
+          mediaType?: string;
+          base64?: string;
+        };
+        if (!response.ok || !payload.base64) {
+          throw new Error(payload.error || "فشل توليد الصورة.");
+        }
+        const imageUrl = `data:${payload.mediaType ?? "image/png"};base64,${payload.base64}`;
+        runningRef.current = null;
+        const nextIdx = findNextInvolved(i, involvedRef.current);
+        const shouldAutoRun =
+          nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
+        update((prev) => {
+          const next = new Set(prev.completed).add(i);
+          return {
+            completed: next,
+            runningStep: null,
+            outputImage: imageUrl,
+          };
+        });
+        if (nextIdx !== null && shouldAutoRun) {
+          void runStep(nextIdx);
+        }
+      } catch (error) {
+        runningRef.current = null;
+        update({ runningStep: null });
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "فشل توليد الصورة. تحقق من النموذج والمفتاح.",
+        );
+      }
+      return;
+    }
+
+    if (JOBS[i].id === "convert") {
+      try {
+        await exportPdf();
+        finishStep(i);
+      } catch {
+        runningRef.current = null;
+        update({ runningStep: null });
+      }
+      return;
+    }
+
+    await delay(400);
+    finishStep(i);
   };
 
-  const resetRun = () =>
+  const resetRun = () => {
     update({
       runningStep: null,
       completed: new Set(),
       outputImage: null,
+      canvasImage: null,
     });
+  };
 
   const toggleInvolved = (id: string, value: boolean) => {
-    if (id === JOBS[0].id) return; // first step is mandatory
+    if (id === JOBS[0].id) return;
     update((prev) => {
       const nextInvolved = new Set(prev.involved);
       if (value) nextInvolved.add(id);
@@ -119,6 +240,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         runningStep: null,
         completed: new Set(),
         outputImage: null,
+        canvasImage: null,
       };
     });
   };
@@ -153,15 +275,18 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   };
 
   const handlePageChange = async (page: number) => {
-    const file = fileRef.current;
-    if (!file || file.type !== "application/pdf") return;
+    const currentFile = fileRef.current;
+    if (!currentFile || currentFile.type !== "application/pdf") return;
     update({ pdfPage: page, busy: true });
     try {
-      const url = await renderPdfPage(file, page);
+      const url = await renderPdfPage(currentFile, page);
       update((prev) => {
         if (prev.preview?.url.startsWith("blob:"))
           URL.revokeObjectURL(prev.preview.url);
-        return { preview: { kind: "pdf", url, name: file.name }, busy: false };
+        return {
+          preview: { kind: "pdf", url, name: currentFile.name },
+          busy: false,
+        };
       });
     } catch {
       update({ busy: false });
@@ -184,7 +309,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 overflow-auto p-4">
+    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 overflow-auto p-4">
       <WorkflowHeaderCard involvedCount={involvedCount} total={JOBS.length} />
 
       <div className="flex flex-col gap-3">
@@ -216,7 +341,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                 />
               )}
 
-              {job.id === "configure" && (
+              {job.id === "generate" && (
                 <GenerateStep
                   ai={ai}
                   onAiChange={(id) => {
@@ -230,6 +355,21 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                   }}
                   outputImage={outputImage}
                   disabled={!isInvolved}
+                />
+              )}
+
+              {job.id === "convert" && (
+                <ConvertStep
+                  disabled={!isInvolved}
+                  sourceImage={sourceImage}
+                  bookConfig={bookConfig}
+                  onBookConfigChange={handleBookConfigChange}
+                  showLines={showLines}
+                  setShowLines={setShowLines}
+                  onExport={() => {
+                    void exportPdf().catch(() => undefined);
+                  }}
+                  exporting={exporting}
                 />
               )}
             </StepContainer>

@@ -17,6 +17,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { ModelsProvider, WorkflowsProvider } from "./features/workflow/context";
 import { ThemeProvider } from "./providers/theme-provider";
 import { DirectionProvider } from "./components/ui/direction";
+import { Toaster } from "./components/ui/sonner";
 
 export const meta: Route.MetaFunction = () => [{ title: "أتمته الگناص" }];
 
@@ -50,6 +51,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <TooltipProvider>
               <WorkflowsProvider>
                 <ModelsProvider>
+                  <Toaster />
                   <SidebarProvider
                     style={
                       {

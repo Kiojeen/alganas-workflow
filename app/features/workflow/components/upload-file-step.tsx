@@ -90,7 +90,8 @@ export function UploadFileStep({
           id="auto-chapter"
         />
         <Label htmlFor="auto-chapter" className="text-xs font-medium">
-          تقسيم تلقائي للفصول (كل فصل ≤ 720 صفحة)
+          تقسيم تلقائي إلى فصول (كل فصل ≤ 720 صفحة). إن لم تُفعّل يبقى الكتاب
+          مجلدًا واحدًا بعدد صفحات كبير.
         </Label>
       </div>
 

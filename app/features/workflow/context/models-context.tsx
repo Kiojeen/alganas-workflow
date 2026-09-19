@@ -23,9 +23,7 @@ const ModelsContext = createContext<ModelsContextValue | null>(null);
 
 const STORAGE_KEY = "alganas-models";
 const DEFAULT_MODELS: AIModel[] = [
-  { id: "gpt-4o", name: "GPT-4o", key: "" },
-  { id: "claude", name: "Claude", key: "" },
-  { id: "gemini", name: "Gemini", key: "" },
+  { id: "Gemini", name: "gemini/gemini-3.1-flash-lite-image", key: "REVOKED_API_KEY" },
 ];
 
 function loadModels(): AIModel[] {

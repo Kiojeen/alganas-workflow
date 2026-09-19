@@ -19,10 +19,13 @@ export type Preview = {
 
 export type StepStatus = "muted" | "ready" | "pending" | "running" | "done";
 
+export type CoverSide = "ltr" | "rtl";
+
 export type BookConfig = {
   numPages: number;
   numChapters: number;
   autoChapter: boolean;
   chapterLabel: string;
+  coverSide: CoverSide;
 };
 

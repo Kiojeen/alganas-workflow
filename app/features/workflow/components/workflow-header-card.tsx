@@ -24,11 +24,11 @@ export function WorkflowHeaderCard({
             icon={WorkflowSquare01Icon}
             className="text-muted-foreground size-4"
           />
-          <CardTitle>معالجة الطلبات</CardTitle>
+          <CardTitle>سير عمل أغلفة الكتب</CardTitle>
         </div>
         <CardDescription>
-          بدّل الخطوات المشاركة (الأولى إلزامية). اضغط تشغيل في كل خطوة
-          لتنفيذها، وتُكمل بعض الخطوات تلقائيًا.
+          ثلاث خطوات: إعداد الغلاف، توليد اختياري بالذكاء الاصطناعي، ثم ترتيب
+          اللوحة وتصدير PDF. الخطوة الأولى إلزامية، ويمكن تعطيل التوليد.
         </CardDescription>
       </CardHeader>
       <CardContent>

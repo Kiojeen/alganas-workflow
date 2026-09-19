@@ -29,13 +29,23 @@ export function GenerateStep({
   const { models } = useModels();
   const named = models.filter((m) => m.name.trim());
 
+  const selectedAi = named.some((m) => m.id === ai) ? ai : (named[0]?.id ?? "");
+
   return (
     <div className="flex flex-col gap-3">
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        هذه الخطوة اختيارية. عطّل المفتاح أعلاه لتمرير صورة الخطوة الأولى مباشرة
+        إلى ترتيب الغلاف.
+      </p>
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
           نموذج الذكاء الاصطناعي
         </Label>
-        <Select value={ai} onValueChange={onAiChange} disabled={disabled}>
+        <Select
+          value={selectedAi || undefined}
+          onValueChange={onAiChange}
+          disabled={disabled}
+        >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="اختر نموذجًا (يمكنك إضافة المزيد من الإعدادات)" />
           </SelectTrigger>
@@ -64,7 +74,7 @@ export function GenerateStep({
           value={prompt}
           disabled={disabled}
           onChange={(e) => onPromptChange(e.target.value)}
-          placeholder="Describe how the AI should process the input…"
+          placeholder="Describe how the AI should generate the image…"
           rows={4}
         />
       </div>
@@ -75,11 +85,7 @@ export function GenerateStep({
             مخرجات الذكاء الاصطناعي
           </span>
           <div className="bg-muted overflow-hidden rounded-md border">
-            <ImagePreview
-              url={outputImage}
-              name={"مخرجات الذكاء الاصطناعي"}
-              busy={false}
-            />
+            <ImagePreview url={outputImage} name={"مخرجات الذكاء الاصطناعي"} busy={false} />
           </div>
         </div>
       )}
