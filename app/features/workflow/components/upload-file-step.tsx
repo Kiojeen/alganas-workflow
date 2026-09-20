@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 import type { BookConfig, Preview } from "../types";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +20,7 @@ export function UploadFileStep({
   bookConfig,
   onBookConfigChange,
   disabled,
+  describeInvolved,
 }: {
   preview: Preview | null;
   pdfPage: number;
@@ -28,6 +30,7 @@ export function UploadFileStep({
   bookConfig: BookConfig;
   onBookConfigChange: (config: BookConfig) => void;
   disabled: boolean;
+  describeInvolved: boolean;
 }) {
   const chaptersDisabled = bookConfig.autoChapter;
   const autoChapters =
@@ -96,12 +99,39 @@ export function UploadFileStep({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label className="text-muted-foreground text-xs font-medium">
-          اسم الكتاب
-        </Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-muted-foreground text-xs font-medium">
+            اسم الكتاب
+          </Label>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="book-name-enabled" className="text-xs font-medium">
+              تفعيل
+            </Label>
+            <Switch
+              id="book-name-enabled"
+              checked={bookConfig.bookNameEnabled !== false && !describeInvolved}
+              disabled={disabled || describeInvolved}
+              onCheckedChange={(checked) =>
+                onBookConfigChange({
+                  ...bookConfig,
+                  bookNameEnabled: Boolean(checked),
+                })
+              }
+            />
+          </div>
+        </div>
+        {describeInvolved && (
+          <p className="text-muted-foreground text-[11px]">
+            الاسم سيُستخرج في خطوة Gemini التالية.
+          </p>
+        )}
         <Input
           value={bookConfig.bookName ?? ""}
-          disabled={disabled}
+          disabled={
+            disabled ||
+            describeInvolved ||
+            bookConfig.bookNameEnabled === false
+          }
           onChange={(e) =>
             onBookConfigChange({
               ...bookConfig,

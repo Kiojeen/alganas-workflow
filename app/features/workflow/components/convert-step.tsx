@@ -11,6 +11,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import type { BookConfig, CoverSide } from "../types";
 import {
+  A4_HEIGHT_CM,
+  A4_WIDTH_CM,
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
   BACK_STRIPE_WIDTH_CM,
@@ -67,7 +69,7 @@ export function ConvertStep({
 
   useEffect(() => {
     setChapterIndex(0);
-  }, [chapters.length, bookConfig.autoChapter, bookConfig.numPages]);
+  }, [chapters.length, bookConfig.autoChapter, bookConfig.numPages, bookConfig.numChapters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,6 +142,7 @@ export function ConvertStep({
         chapterLabelColor,
         chapterLabelX,
         chapterLabelY,
+        stripeText: bookConfig.bookDescription,
       });
       fitCanvas();
     };
@@ -158,6 +161,7 @@ export function ConvertStep({
     chapter.label,
     bookConfig.coverSide,
     bookConfig.bookName,
+    bookConfig.bookDescription,
     coverColor,
     stripeForeground,
     chapterLabelColor,
@@ -268,9 +272,14 @@ export function ConvertStep({
             موضع تسمية الفصل
           </Label>
           <div className="flex flex-col gap-1">
-            <div className="text-muted-foreground flex justify-between text-[10px]" dir="ltr">
-              <span>يسار</span>
-              <span>يمين</span>
+            <div className="text-muted-foreground flex items-center justify-between text-[10px]">
+              <div className="flex justify-between gap-3" dir="ltr">
+                <span>يسار</span>
+                <span>يمين</span>
+              </div>
+              <span className="font-mono text-xs text-foreground" dir="ltr">
+                {((chapterLabelX / 100) * A4_WIDTH_CM).toFixed(1)} cm
+              </span>
             </div>
             <Slider
               dir="ltr"
@@ -289,9 +298,14 @@ export function ConvertStep({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <div className="text-muted-foreground flex justify-between text-[10px]" dir="ltr">
-              <span>أعلى</span>
-              <span>أسفل</span>
+            <div className="text-muted-foreground flex items-center justify-between text-[10px]">
+              <div className="flex justify-between gap-3" dir="ltr">
+                <span>أعلى</span>
+                <span>أسفل</span>
+              </div>
+              <span className="font-mono text-xs text-foreground" dir="ltr">
+                {((chapterLabelY / 100) * A4_HEIGHT_CM).toFixed(1)} cm
+              </span>
             </div>
             <Slider
               dir="ltr"
@@ -329,7 +343,7 @@ export function ConvertStep({
               disabled={disabled}
               onClick={() => setChapterIndex(index)}
             >
-              {item.label}
+              {item.label || `غلاف ${item.index}`}
             </Button>
           ))}
         </div>

@@ -16,6 +16,7 @@ export function StepContainer({
   status,
   involved,
   mandatory,
+  hideRun,
   onToggleInvolved,
   onRun,
   children,
@@ -25,6 +26,7 @@ export function StepContainer({
   status: StepStatus;
   involved: boolean;
   mandatory: boolean;
+  hideRun?: boolean;
   onToggleInvolved: (id: string, value: boolean) => void;
   onRun: () => void;
   children?: React.ReactNode;
@@ -61,7 +63,7 @@ export function StepContainer({
             </p>
           </div>
 
-          <RunSlot status={status} onRun={onRun} />
+          <RunSlot status={status} onRun={onRun} hideRun={hideRun} />
 
           {!mandatory && (
             <Switch
@@ -90,10 +92,16 @@ export function StepContainer({
 function RunSlot({
   status,
   onRun,
+  hideRun,
 }: {
   status: StepStatus;
   onRun: () => void;
+  hideRun?: boolean;
 }) {
+  if (hideRun) {
+    if (status === "running") return <Spinner />;
+    return null;
+  }
   if (status === "ready") {
     return (
       <Button

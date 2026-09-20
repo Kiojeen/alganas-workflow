@@ -1,4 +1,9 @@
-import { DatabaseIcon, RefreshIcon, SparklesIcon } from "@hugeicons/core-free-icons";
+import {
+  DatabaseIcon,
+  RefreshIcon,
+  SparklesIcon,
+  TextFontIcon,
+} from "@hugeicons/core-free-icons";
 
 import type { Job } from "./types";
 
@@ -12,10 +17,18 @@ export const JOBS: Job[] = [
     autoRun: false,
   },
   {
+    id: "describe",
+    title: "استخراج اسم الكتاب ووصفه",
+    description:
+      "أرسل الغلاف إلى Gemini لاستخراج اسم الكتاب ووصف له. يمكن تعطيلها للكتابة يدويًا.",
+    icon: TextFontIcon,
+    autoRun: false,
+  },
+  {
     id: "generate",
     title: "توليد الصور بالذكاء الاصطناعي",
     description:
-      "خطوة اختيارية: عدّل الغلاف بنموذج ذكاء اصطناعي وبرومبت. عطّلها لتمرير الصورة مباشرة للتحويل.",
+      "عدّل الغلاف بنموذج ذكاء اصطناعي وبرومبت. يمكن تعطيلها لتمرير الصورة مباشرة للتحويل.",
     icon: SparklesIcon,
     autoRun: false,
   },

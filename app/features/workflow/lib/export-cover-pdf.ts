@@ -6,6 +6,7 @@ import {
   ARTBOARD_WIDTH_CM,
   EXPORT_DPI,
   drawCoverOnCanvas,
+  fileSafeName,
   loadCoverImage,
   resolveChapters,
 } from "./cover-layout";
@@ -21,6 +22,8 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function exportCoverPdf(args: {
   sourceUrl: string;
   bookConfig: BookConfig;
@@ -28,11 +31,11 @@ export async function exportCoverPdf(args: {
 }) {
   const image = await loadCoverImage(args.sourceUrl);
   const chapters = resolveChapters(args.bookConfig);
-  const pdf = await PDFDocument.create();
   const widthPt = (ARTBOARD_WIDTH_CM / 2.54) * 72;
   const heightPt = (ARTBOARD_HEIGHT_CM / 2.54) * 72;
+  const bookTitle = fileSafeName(args.bookConfig.bookName ?? "", "cover");
 
-  for (const chapter of chapters) {
+  for (const [index, chapter] of chapters.entries()) {
     const canvas = document.createElement("canvas");
     drawCoverOnCanvas(canvas, {
       sourceImage: image,
@@ -47,6 +50,7 @@ export async function exportCoverPdf(args: {
       chapterLabelColor: args.bookConfig.chapterLabelColor,
       chapterLabelX: args.bookConfig.chapterLabelX ?? 50,
       chapterLabelY: args.bookConfig.chapterLabelY ?? 88,
+      stripeText: args.bookConfig.bookDescription,
     });
 
     const blob = await new Promise<Blob>((resolve, reject) => {
@@ -56,6 +60,7 @@ export async function exportCoverPdf(args: {
       }, "image/png");
     });
 
+    const pdf = await PDFDocument.create();
     const embedded = await pdf.embedPng(await blob.arrayBuffer());
     const page = pdf.addPage([widthPt, heightPt]);
     page.drawImage(embedded, {
@@ -64,10 +69,21 @@ export async function exportCoverPdf(args: {
       width: widthPt,
       height: heightPt,
     });
-  }
 
-  const bytes = await pdf.save();
-  const copy = new Uint8Array(bytes.byteLength);
-  copy.set(bytes);
-  downloadBlob(new Blob([copy], { type: "application/pdf" }), "book-cover.pdf");
+    const bytes = await pdf.save();
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    const chapterPart = chapter.label
+      ? fileSafeName(chapter.label, `chapter-${chapter.index}`)
+      : "";
+    const filename =
+      chapters.length > 1 && chapterPart
+        ? `${bookTitle}-${chapterPart}.pdf`
+        : `${bookTitle}.pdf`;
+    downloadBlob(new Blob([copy], { type: "application/pdf" }), filename);
+
+    if (index < chapters.length - 1) {
+      await delay(350);
+    }
+  }
 }

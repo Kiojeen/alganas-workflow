@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { generateImage } from "ai";
+import { generateImage, generateObject } from "ai";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { Separator } from "@/components/ui/separator";
 
 import { ConvertStep } from "./components/convert-step";
+import { DescribeStep } from "./components/describe-step";
 import { GenerateStep } from "./components/generate-step";
 import { UploadFileStep } from "./components/upload-file-step";
 import { StepContainer } from "./components/step-container";
@@ -19,6 +21,19 @@ import { renderPdfPage } from "./lib/pdf";
 import type { StepStatus } from "./types";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const describeSchema = z.object({
+  bookName: z.string(),
+  description: z.string(),
+});
+
+function googleLanguageModelId(name: string) {
+  const id = name.includes("/") ? (name.split("/").pop() ?? name) : name.trim();
+  if (!id || /gpt|dall|imagen/i.test(id) || /image/i.test(id)) {
+    return "gemini-2.5-flash";
+  }
+  return id;
+}
 
 export function Workflow({ workflowId }: { workflowId: string }) {
   const workflow = useWorkflow(workflowId);
@@ -59,6 +74,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     preview,
     busy,
     ai,
+    describeAi,
     prompt,
     runningStep,
     completed,
@@ -69,6 +85,9 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
   const selectedModel =
     models.find((m) => m.id === ai) ??
+    models.find((m) => m.name.trim() && m.key.trim());
+  const selectedDescribeModel =
+    models.find((m) => m.id === describeAi) ??
     models.find((m) => m.name.trim() && m.key.trim());
   const sourceImage = outputImage ?? preview?.url ?? null;
 
@@ -148,6 +167,69 @@ export function Workflow({ workflowId }: { workflowId: string }) {
       }
       await delay(250);
       finishStep(i);
+      return;
+    }
+
+    if (JOBS[i].id === "describe") {
+      try {
+        if (!selectedDescribeModel?.key) {
+          throw new Error("اختر نموذجًا وأضف مفتاح API من الإعدادات.");
+        }
+        if (!preview?.url) {
+          throw new Error("ارفع صورة في الخطوة الأولى قبل الاستخراج.");
+        }
+
+        const imageBuffer = await fetch(preview.url).then((r) =>
+          r.arrayBuffer(),
+        );
+        const imageBytes = new Uint8Array(imageBuffer);
+        const result = await generateObject({
+          model: createGoogle({ apiKey: selectedDescribeModel.key })(
+            googleLanguageModelId(selectedDescribeModel.name),
+          ),
+          schema: describeSchema,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "Look at this book cover image. Infer a fitting book title and a back-cover description (one short paragraph). Match the language of any visible text on the cover when possible. Return JSON with bookName and description only.",
+                },
+                { type: "image", image: imageBytes },
+              ],
+            },
+          ],
+        });
+
+        runningRef.current = null;
+        const nextIdx = findNextInvolved(i, involvedRef.current);
+        const shouldAutoRun =
+          nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
+        update((prev) => {
+          const next = new Set(prev.completed).add(i);
+          return {
+            completed: next,
+            runningStep: null,
+            bookConfig: {
+              ...prev.bookConfig,
+              bookName: result.object.bookName.trim(),
+              bookDescription: result.object.description.trim(),
+            },
+          };
+        });
+        if (nextIdx !== null && shouldAutoRun) {
+          void runStep(nextIdx);
+        }
+      } catch (error) {
+        runningRef.current = null;
+        update({ runningStep: null });
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "فشل استخراج اسم الكتاب والوصف.",
+        );
+      }
       return;
     }
 
@@ -231,7 +313,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   };
 
   const toggleInvolved = (id: string, value: boolean) => {
-    if (id === JOBS[0].id) return;
+    if (id === JOBS[0].id || id === "convert") return;
     update((prev) => {
       const nextInvolved = new Set(prev.involved);
       if (value) nextInvolved.add(id);
@@ -325,7 +407,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
               index={i}
               status={status}
               involved={isInvolved}
-              mandatory={job.id === JOBS[0].id}
+              mandatory={job.id === "upload" || job.id === "convert"}
+              hideRun={job.id === "convert"}
               onToggleInvolved={toggleInvolved}
               onRun={() => runStep(i)}
             >
@@ -338,6 +421,29 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                   onPageChange={handlePageChange}
                   bookConfig={bookConfig}
                   onBookConfigChange={handleBookConfigChange}
+                  disabled={!isInvolved}
+                  describeInvolved={involved.has("describe")}
+                />
+              )}
+
+              {job.id === "describe" && (
+                <DescribeStep
+                  ai={describeAi}
+                  onAiChange={(id) => {
+                    update({ describeAi: id });
+                    resetRun();
+                  }}
+                  bookName={bookConfig.bookName}
+                  description={bookConfig.bookDescription ?? ""}
+                  onBookNameChange={(value) =>
+                    handleBookConfigChange({ ...bookConfig, bookName: value })
+                  }
+                  onDescriptionChange={(value) =>
+                    handleBookConfigChange({
+                      ...bookConfig,
+                      bookDescription: value,
+                    })
+                  }
                   disabled={!isInvolved}
                 />
               )}
@@ -355,6 +461,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                     resetRun();
                   }}
                   outputImage={outputImage}
+                  bookName={bookConfig.bookName}
                   disabled={!isInvolved}
                 />
               )}

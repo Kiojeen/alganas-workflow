@@ -7,6 +7,7 @@ export type WorkflowState = {
   preview: Preview | null;
   busy: boolean;
   ai: string;
+  describeAi: string;
   prompt: string;
   runningStep: number | null;
   completed: Set<number>;
@@ -22,6 +23,8 @@ const defaultBookConfig: BookConfig = {
   autoChapter: false,
   chapterLabel: "الفصل",
   bookName: "",
+  bookNameEnabled: false,
+  bookDescription: "",
   coverSide: "rtl",
   coverColor: "",
   stripeForeground: "#f4efe6",
@@ -39,12 +42,13 @@ export function createDefaultWorkflowState(
     preview: null,
     busy: false,
     ai: "",
+    describeAi: "",
     prompt:
       "Extend the book cover seamlessly to fit an A4 portrait canvas. Preserve the original cover exactly as it is, including all text, typography, logos, illustrations, and layout. Only generate new content in the empty areas outside the original image by naturally extending the existing background, colors, textures, patterns, and design elements. Match the original artistic style, lighting, and composition. Do not crop, redraw, modify, or replace any part of the original cover.",
     runningStep: null,
     completed: new Set(),
     outputImage: null,
-    involved: new Set(jobIds.filter((id) => id !== "generate")),
+    involved: new Set(jobIds),
     bookConfig: { ...defaultBookConfig },
     canvasImage: null,
   };

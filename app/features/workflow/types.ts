@@ -27,6 +27,8 @@ export type BookConfig = {
   autoChapter: boolean;
   chapterLabel: string;
   bookName: string;
+  bookNameEnabled: boolean;
+  bookDescription: string;
   coverSide: CoverSide;
   coverColor: string;
   stripeForeground: string;

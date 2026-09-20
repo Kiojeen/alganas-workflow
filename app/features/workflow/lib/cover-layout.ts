@@ -18,6 +18,7 @@ export const STRIPE_TEXT =
 export type CoverChapter = {
   pages: number;
   label: string;
+  index: number;
 };
 
 export type DrawCoverOptions = {
@@ -33,6 +34,7 @@ export type DrawCoverOptions = {
   chapterLabelColor: string;
   chapterLabelX: number;
   chapterLabelY: number;
+  stripeText?: string;
 };
 
 export function spineWidthCm(pages: number): number {
@@ -47,25 +49,35 @@ export function cmToPx(cm: number, dpi: number): number {
   return (cm / 2.54) * dpi;
 }
 
+export function fileSafeName(value: string, fallback = "cover") {
+  const cleaned = value
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 80);
+  return cleaned || fallback;
+}
+
 export function resolveChapters(config: BookConfig): CoverChapter[] {
   const totalPages = Math.max(1, config.numPages || 1);
   const baseLabel = config.chapterLabel.trim() || "الفصل";
-
-  if (!config.autoChapter) {
-    return [{ pages: totalPages, label: baseLabel }];
-  }
-
-  const count = Math.max(1, Math.ceil(totalPages / MAX_PAGES_PER_VOLUME));
+  const count = config.autoChapter
+    ? Math.max(1, Math.ceil(totalPages / MAX_PAGES_PER_VOLUME))
+    : Math.max(1, config.numChapters || 1);
   const numbered = count > 1;
   const chapters: CoverChapter[] = [];
   let remaining = totalPages;
 
   for (let i = 1; i <= count; i++) {
-    const pages = Math.min(MAX_PAGES_PER_VOLUME, remaining);
+    const pages =
+      i === count
+        ? remaining
+        : Math.max(1, Math.ceil(remaining / (count - i + 1)));
     remaining -= pages;
     chapters.push({
       pages,
-      label: numbered ? `${baseLabel} ${i}` : baseLabel,
+      label: numbered ? `${baseLabel} ${i}` : "",
+      index: i,
     });
   }
 
@@ -144,6 +156,7 @@ export function drawCoverOnCanvas(
     chapterLabelColor,
     chapterLabelX,
     chapterLabelY,
+    stripeText,
   } = options;
   const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, dpi));
   const heightPx = Math.round(cmToPx(ARTBOARD_HEIGHT_CM, dpi));
@@ -187,7 +200,7 @@ export function drawCoverOnCanvas(
     y: originY,
     width: stripeW,
     height: heightPx,
-    text: STRIPE_TEXT,
+    text: stripeText?.trim() || STRIPE_TEXT,
     color: textFill,
     dpi,
   });

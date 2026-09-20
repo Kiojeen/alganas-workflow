@@ -27,8 +27,8 @@ export function WorkflowHeaderCard({
           <CardTitle>سير عمل أغلفة الكتب</CardTitle>
         </div>
         <CardDescription>
-          ثلاث خطوات: إعداد الغلاف، توليد اختياري بالذكاء الاصطناعي، ثم ترتيب
-          اللوحة وتصدير PDF. الخطوة الأولى إلزامية، ويمكن تعطيل التوليد.
+          ثلاث خطوات أساسية مع استخراج اختياري للاسم والوصف من الغلاف، ثم توليد
+          الصورة وترتيب اللوحة وتصدير PDF.
         </CardDescription>
       </CardHeader>
       <CardContent>
