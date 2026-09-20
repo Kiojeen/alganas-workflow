@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { generateImage } from "ai";
+import { createGoogle } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import { toast } from "sonner";
 
 import { Separator } from "@/components/ui/separator";
@@ -16,11 +19,6 @@ import { renderPdfPage } from "./lib/pdf";
 import type { StepStatus } from "./types";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function blobFromUrl(url: string): Promise<Blob> {
-  const response = await fetch(url);
-  return response.blob();
-}
 
 export function Workflow({ workflowId }: { workflowId: string }) {
   const workflow = useWorkflow(workflowId);
@@ -74,9 +72,12 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     models.find((m) => m.name.trim() && m.key.trim());
   const sourceImage = outputImage ?? preview?.url ?? null;
 
-  const handleBookConfigChange = (config: typeof bookConfig) => {
-    update({ bookConfig: config });
-  };
+  const handleBookConfigChange = useCallback(
+    (config: typeof bookConfig) => {
+      update({ bookConfig: config });
+    },
+    [update],
+  );
 
   const involvedCount = involvedIndices.length;
 
@@ -159,25 +160,25 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           throw new Error("ارفع صورة في الخطوة الأولى قبل التوليد.");
         }
 
-        const form = new FormData();
-        form.append("apiKey", selectedModel.key);
-        form.append("modelId", selectedModel.name);
-        form.append("prompt", prompt);
-        form.append("image", await blobFromUrl(preview.url), "cover.png");
+        const modelId = selectedModel.name.trim();
+        const model = modelId.includes("gpt")
+          ? (createOpenAI({ apiKey: selectedModel.key }).image(modelId) as any)
+          : (createGoogle({ apiKey: selectedModel.key }).image(
+              modelId.includes("/") ? modelId.split("/").pop()! : modelId,
+            ) as any);
 
-        const response = await fetch("/api/generate-cover", {
-          method: "POST",
-          body: form,
+        const imageBytes = await fetch(preview.url).then((r) =>
+          r.arrayBuffer(),
+        );
+
+        const result = await generateImage({
+          model,
+          prompt: { text: prompt, images: [new Uint8Array(imageBytes)] },
+          n: 1,
+          maxRetries: 0,
         });
-        const payload = (await response.json()) as {
-          error?: string;
-          mediaType?: string;
-          base64?: string;
-        };
-        if (!response.ok || !payload.base64) {
-          throw new Error(payload.error || "فشل توليد الصورة.");
-        }
-        const imageUrl = `data:${payload.mediaType ?? "image/png"};base64,${payload.base64}`;
+        const imageData = result.images[0];
+        const imageUrl = `data:${imageData.mediaType};base64,${imageData.base64}`;
         runningRef.current = null;
         const nextIdx = findNextInvolved(i, involvedRef.current);
         const shouldAutoRun =

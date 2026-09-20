@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
@@ -12,14 +13,20 @@ import type { BookConfig, CoverSide } from "../types";
 import {
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
+  BACK_STRIPE_WIDTH_CM,
+  DEFAULT_CHAPTER_LABEL_COLOR,
+  DEFAULT_COVER_COLOR,
+  DEFAULT_STRIPE_FOREGROUND,
   PREVIEW_DPI,
   cmToPx,
   drawCoverOnCanvas,
+  extractPalette,
   loadCoverImage,
   resolveChapters,
   spineWidthCm,
   wrapWidthCm,
 } from "../lib/cover-layout";
+import { CoverColorPicker } from "./cover-color-picker";
 
 export function ConvertStep({
   disabled,
@@ -42,15 +49,55 @@ export function ConvertStep({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const configRef = useRef(bookConfig);
+  configRef.current = bookConfig;
   const chapters = useMemo(() => resolveChapters(bookConfig), [bookConfig]);
   const [chapterIndex, setChapterIndex] = useState(0);
+  const [palette, setPalette] = useState<string[]>([]);
   const chapter = chapters[Math.min(chapterIndex, chapters.length - 1)];
   const spineCm = spineWidthCm(chapter.pages);
   const wrapCm = wrapWidthCm(chapter.pages);
+  const coverColor = bookConfig.coverColor || DEFAULT_COVER_COLOR;
+  const stripeForeground =
+    bookConfig.stripeForeground || DEFAULT_STRIPE_FOREGROUND;
+  const chapterLabelColor =
+    bookConfig.chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
+  const chapterLabelX = bookConfig.chapterLabelX ?? 50;
+  const chapterLabelY = bookConfig.chapterLabelY ?? 88;
 
   useEffect(() => {
     setChapterIndex(0);
   }, [chapters.length, bookConfig.autoChapter, bookConfig.numPages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!sourceImage) {
+      setPalette([]);
+      return;
+    }
+
+    const loadPalette = async () => {
+      try {
+        const image = await loadCoverImage(sourceImage);
+        if (cancelled) return;
+        const colors = extractPalette(image);
+        setPalette(colors);
+        if (!configRef.current.coverColor && colors[0]) {
+          onBookConfigChange({
+            ...configRef.current,
+            coverColor: colors[0],
+          });
+        }
+      } catch {
+        if (!cancelled) setPalette([]);
+      }
+    };
+
+    void loadPalette();
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceImage, onBookConfigChange]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -84,9 +131,15 @@ export function ConvertStep({
         sourceImage: image,
         pages: chapter.pages,
         label: chapter.label,
+        bookName: bookConfig.bookName ?? "",
         coverSide: bookConfig.coverSide ?? "rtl",
         showGuides: showLines,
         dpi: PREVIEW_DPI,
+        coverColor,
+        stripeForeground,
+        chapterLabelColor,
+        chapterLabelX,
+        chapterLabelY,
       });
       fitCanvas();
     };
@@ -104,6 +157,12 @@ export function ConvertStep({
     chapter.pages,
     chapter.label,
     bookConfig.coverSide,
+    bookConfig.bookName,
+    coverColor,
+    stripeForeground,
+    chapterLabelColor,
+    chapterLabelX,
+    chapterLabelY,
     showLines,
   ]);
 
@@ -130,10 +189,16 @@ export function ConvertStep({
             spacing={0}
             className="w-full"
           >
-            <ToggleGroupItem value="rtl" className="flex-1 whitespace-normal text-xs">
+            <ToggleGroupItem
+              value="rtl"
+              className="flex-1 whitespace-normal text-xs"
+            >
               RTL — الغلاف يسار
             </ToggleGroupItem>
-            <ToggleGroupItem value="ltr" className="flex-1 whitespace-normal text-xs">
+            <ToggleGroupItem
+              value="ltr"
+              className="flex-1 whitespace-normal text-xs"
+            >
               LTR — الغلاف يمين
             </ToggleGroupItem>
           </ToggleGroup>
@@ -164,11 +229,94 @@ export function ConvertStep({
         </div>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <CoverColorPicker
+          label="لون الغلاف"
+          value={coverColor}
+          fallback={DEFAULT_COVER_COLOR}
+          onChange={(hex) =>
+            onBookConfigChange({ ...bookConfig, coverColor: hex })
+          }
+          disabled={disabled}
+          swatches={palette}
+        />
+        <CoverColorPicker
+          label="لون نص الشريط"
+          value={stripeForeground}
+          fallback={DEFAULT_STRIPE_FOREGROUND}
+          onChange={(hex) =>
+            onBookConfigChange({ ...bookConfig, stripeForeground: hex })
+          }
+          disabled={disabled}
+          swatches={palette}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <CoverColorPicker
+          label="لون تسمية الفصل"
+          value={chapterLabelColor}
+          fallback={DEFAULT_CHAPTER_LABEL_COLOR}
+          onChange={(hex) =>
+            onBookConfigChange({ ...bookConfig, chapterLabelColor: hex })
+          }
+          disabled={disabled}
+          swatches={palette}
+        />
+        <div className="flex flex-col gap-3">
+          <Label className="text-muted-foreground text-xs font-medium">
+            موضع تسمية الفصل
+          </Label>
+          <div className="flex flex-col gap-1">
+            <div className="text-muted-foreground flex justify-between text-[10px]" dir="ltr">
+              <span>يسار</span>
+              <span>يمين</span>
+            </div>
+            <Slider
+              dir="ltr"
+              min={0}
+              max={100}
+              step={1}
+              disabled={disabled}
+              value={[chapterLabelX]}
+              onValueChange={([value]) =>
+                onBookConfigChange({
+                  ...bookConfig,
+                  chapterLabelX: value,
+                })
+              }
+              aria-label="يسار ويمين"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="text-muted-foreground flex justify-between text-[10px]" dir="ltr">
+              <span>أعلى</span>
+              <span>أسفل</span>
+            </div>
+            <Slider
+              dir="ltr"
+              min={0}
+              max={100}
+              step={1}
+              disabled={disabled}
+              value={[chapterLabelY]}
+              onValueChange={([value]) =>
+                onBookConfigChange({
+                  ...bookConfig,
+                  chapterLabelY: value,
+                })
+              }
+              aria-label="أعلى وأسفل"
+            />
+          </div>
+        </div>
+      </div>
+
       <p className="text-muted-foreground text-xs leading-relaxed">
         اللوحة ثابتة {ARTBOARD_WIDTH_CM}×{ARTBOARD_HEIGHT_CM} سم. الغلاف بحجم A4
         (21×29.7 سم) ملاصق للكعب، والكعب {spineCm.toFixed(2)} سم من{" "}
-        {chapter.pages} صفحة (عدد الصفحات ÷ 200). العرض الكلي للغلاف{" "}
-        {wrapCm.toFixed(2)} سم، والفراغ على الأطراف مسموح.
+        {chapter.pages} صفحة. الوجه الآخر شريط بعرض {BACK_STRIPE_WIDTH_CM} سم.
+        العرض الكلي {wrapCm.toFixed(2)} سم.
       </p>
 
       {chapters.length > 1 && (

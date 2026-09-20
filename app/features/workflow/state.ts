@@ -21,7 +21,13 @@ const defaultBookConfig: BookConfig = {
   numChapters: 1,
   autoChapter: false,
   chapterLabel: "الفصل",
+  bookName: "",
   coverSide: "rtl",
+  coverColor: "",
+  stripeForeground: "#f4efe6",
+  chapterLabelColor: "#ffffff",
+  chapterLabelX: 50,
+  chapterLabelY: 88,
 };
 
 export function createDefaultWorkflowState(

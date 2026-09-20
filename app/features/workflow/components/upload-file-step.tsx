@@ -97,6 +97,24 @@ export function UploadFileStep({
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
+          اسم الكتاب
+        </Label>
+        <Input
+          value={bookConfig.bookName ?? ""}
+          disabled={disabled}
+          onChange={(e) =>
+            onBookConfigChange({
+              ...bookConfig,
+              bookName: e.target.value,
+            })
+          }
+          placeholder="يظهر على كعب الكتاب"
+          className="h-8"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-muted-foreground text-xs font-medium">
           تسمية الفصل
         </Label>
         <Input

@@ -26,6 +26,12 @@ export type BookConfig = {
   numChapters: number;
   autoChapter: boolean;
   chapterLabel: string;
+  bookName: string;
   coverSide: CoverSide;
+  coverColor: string;
+  stripeForeground: string;
+  chapterLabelColor: string;
+  chapterLabelX: number;
+  chapterLabelY: number;
 };
 

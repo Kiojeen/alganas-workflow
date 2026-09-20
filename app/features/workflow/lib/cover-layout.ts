@@ -6,8 +6,14 @@ export const ARTBOARD_WIDTH_CM = 47;
 export const ARTBOARD_HEIGHT_CM = 29.7;
 export const PAGES_PER_SPINE_CM = 200;
 export const MAX_PAGES_PER_VOLUME = 720;
+export const BACK_STRIPE_WIDTH_CM = 15;
 export const PREVIEW_DPI = 150;
 export const EXPORT_DPI = 200;
+export const DEFAULT_COVER_COLOR = "#5c5044";
+export const DEFAULT_STRIPE_FOREGROUND = "#f4efe6";
+export const DEFAULT_CHAPTER_LABEL_COLOR = "#ffffff";
+export const STRIPE_TEXT =
+  "The afternoon light slipped across the desk and caught the edge of a half-open notebook. Outside, a dry wind moved through the trees as if turning pages of its own. Someone had left a cup of tea to cool beside a stack of letters, each one waiting for a reply that might never come. In that quiet, even the smallest mark of ink felt like a beginning.";
 
 export type CoverChapter = {
   pages: number;
@@ -18,9 +24,15 @@ export type DrawCoverOptions = {
   sourceImage: HTMLImageElement | null;
   pages: number;
   label: string;
+  bookName: string;
   coverSide: CoverSide;
   showGuides: boolean;
   dpi: number;
+  coverColor: string;
+  stripeForeground: string;
+  chapterLabelColor: string;
+  chapterLabelX: number;
+  chapterLabelY: number;
 };
 
 export function spineWidthCm(pages: number): number {
@@ -44,6 +56,7 @@ export function resolveChapters(config: BookConfig): CoverChapter[] {
   }
 
   const count = Math.max(1, Math.ceil(totalPages / MAX_PAGES_PER_VOLUME));
+  const numbered = count > 1;
   const chapters: CoverChapter[] = [];
   let remaining = totalPages;
 
@@ -52,7 +65,7 @@ export function resolveChapters(config: BookConfig): CoverChapter[] {
     remaining -= pages;
     chapters.push({
       pages,
-      label: `${baseLabel} ${i}`,
+      label: numbered ? `${baseLabel} ${i}` : baseLabel,
     });
   }
 
@@ -71,13 +84,72 @@ export function loadCoverImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
+export function extractPalette(
+  image: HTMLImageElement,
+  maxColors = 8,
+): string[] {
+  const sample = document.createElement("canvas");
+  const size = 64;
+  sample.width = size;
+  sample.height = size;
+  const ctx = sample.getContext("2d");
+  if (!ctx) return [DEFAULT_COVER_COLOR];
+
+  ctx.drawImage(image, 0, 0, size, size);
+  const data = ctx.getImageData(0, 0, size, size).data;
+  const buckets = new Map<string, { r: number; g: number; b: number; n: number }>();
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 80) continue;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const key = `${r >> 4}-${g >> 4}-${b >> 4}`;
+    const current = buckets.get(key);
+    if (current) {
+      current.r += r;
+      current.g += g;
+      current.b += b;
+      current.n += 1;
+    } else {
+      buckets.set(key, { r, g, b, n: 1 });
+    }
+  }
+
+  return [...buckets.values()]
+    .sort((a, b) => b.n - a.n)
+    .slice(0, maxColors)
+    .map((bucket) => {
+      const r = Math.round(bucket.r / bucket.n);
+      const g = Math.round(bucket.g / bucket.n);
+      const b = Math.round(bucket.b / bucket.n);
+      return rgbToHex(r, g, b);
+    });
+}
+
 export function drawCoverOnCanvas(
   canvas: HTMLCanvasElement,
   options: DrawCoverOptions,
 ) {
-  const { sourceImage, pages, label, coverSide, showGuides, dpi } = options;
+  const {
+    sourceImage,
+    pages,
+    label,
+    bookName,
+    coverSide,
+    showGuides,
+    dpi,
+    coverColor,
+    stripeForeground,
+    chapterLabelColor,
+    chapterLabelX,
+    chapterLabelY,
+  } = options;
   const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, dpi));
   const heightPx = Math.round(cmToPx(ARTBOARD_HEIGHT_CM, dpi));
+  const fill = coverColor || DEFAULT_COVER_COLOR;
+  const textFill = stripeForeground || DEFAULT_STRIPE_FOREGROUND;
+  const labelColor = chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
 
   canvas.width = widthPx;
   canvas.height = heightPx;
@@ -85,7 +157,7 @@ export function drawCoverOnCanvas(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  ctx.fillStyle = "#f3efe6";
+  ctx.fillStyle = mixHex(fill, "#f3efe6", 0.72);
   ctx.fillRect(0, 0, widthPx, heightPx);
 
   const wrapCm = wrapWidthCm(pages);
@@ -98,39 +170,57 @@ export function drawCoverOnCanvas(
 
   const frontOnLeft = coverSide === "rtl";
   const frontX = frontOnLeft ? originX : originX + a4W + spineW;
-  const spineX = frontOnLeft ? originX + a4W : originX + a4W;
+  const spineX = originX + a4W;
   const backX = frontOnLeft ? originX + a4W + spineW : originX;
 
-  ctx.fillStyle = "#d8d0c2";
+  ctx.fillStyle = fill;
   ctx.fillRect(backX, originY, a4W, heightPx);
-
-  const spineFill = sampleSpineColor(sourceImage, frontOnLeft);
-  ctx.fillStyle = spineFill;
   ctx.fillRect(spineX, originY, Math.max(1, spineW), heightPx);
+
+  const stripeW = cmToPx(Math.min(BACK_STRIPE_WIDTH_CM, A4_WIDTH_CM) * fitScale, dpi);
+  const stripeX = frontOnLeft ? backX + a4W - stripeW : backX;
+  ctx.fillStyle = shiftHex(fill, -18);
+  ctx.fillRect(stripeX, originY, stripeW, heightPx);
+
+  drawStripeParagraph(ctx, {
+    x: stripeX,
+    y: originY,
+    width: stripeW,
+    height: heightPx,
+    text: STRIPE_TEXT,
+    color: textFill,
+    dpi,
+  });
+
+  drawSpineTitle(ctx, {
+    x: spineX,
+    width: spineW,
+    height: heightPx,
+    title: bookName,
+    fill,
+    rtl: frontOnLeft,
+  });
 
   ctx.fillStyle = "#e7e1d4";
   ctx.fillRect(frontX, originY, a4W, heightPx);
 
   if (sourceImage && sourceImage.naturalWidth > 0) {
     drawImageCovering(ctx, sourceImage, frontX, originY, a4W, heightPx);
-
-    ctx.save();
-    ctx.globalAlpha = 0.18;
-    ctx.filter = "blur(12px)";
-    drawImageCovering(ctx, sourceImage, backX, originY, a4W, heightPx);
-    ctx.restore();
-    ctx.fillStyle = "rgba(20, 16, 12, 0.28)";
-    ctx.fillRect(backX, originY, a4W, heightPx);
   }
 
-  drawSpineLabel(ctx, {
-    x: spineX,
-    width: spineW,
-    height: heightPx,
-    label,
-    fill: spineFill,
-    rtl: frontOnLeft,
-  });
+  if (label) {
+    drawCoverTitle(ctx, {
+      x: frontX,
+      y: originY,
+      width: a4W,
+      height: heightPx,
+      label,
+      color: labelColor,
+      dpi,
+      xRatio: chapterLabelX,
+      yRatio: chapterLabelY,
+    });
+  }
 
   if (showGuides) {
     ctx.save();
@@ -155,7 +245,10 @@ function drawImageCovering(
   width: number,
   height: number,
 ) {
-  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+  const scale = Math.max(
+    width / image.naturalWidth,
+    height / image.naturalHeight,
+  );
   const drawW = image.naturalWidth * scale;
   const drawH = image.naturalHeight * scale;
   const dx = x + (width - drawW) / 2;
@@ -169,63 +262,165 @@ function drawImageCovering(
   ctx.restore();
 }
 
-function sampleSpineColor(
-  image: HTMLImageElement | null,
-  fromLeftEdge: boolean,
-): string {
-  if (!image) return "#5c5044";
+function drawCoverTitle(
+  ctx: CanvasRenderingContext2D,
+  args: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    label: string;
+    color: string;
+    dpi: number;
+    xRatio: number;
+    yRatio: number;
+  },
+) {
+  const pad = cmToPx(1.2, args.dpi);
+  const xRatio = Math.min(1, Math.max(0, (args.xRatio ?? 50) / 100));
+  const yRatio = Math.min(1, Math.max(0, (args.yRatio ?? 88) / 100));
+  const textX = args.x + pad + (args.width - pad * 2) * xRatio;
+  const textY = args.y + pad + (args.height - pad * 2) * yRatio;
 
-  const sample = document.createElement("canvas");
-  sample.width = 8;
-  sample.height = 8;
-  const ctx = sample.getContext("2d");
-  if (!ctx) return "#5c5044";
-
-  const sx = fromLeftEdge ? 0 : Math.max(0, image.naturalWidth - 8);
-  ctx.drawImage(image, sx, 0, 8, image.naturalHeight, 0, 0, 8, 8);
-  const data = ctx.getImageData(0, 0, 8, 8).data;
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  const count = data.length / 4;
-  for (let i = 0; i < data.length; i += 4) {
-    r += data[i];
-    g += data[i + 1];
-    b += data[i + 2];
-  }
-  return `rgb(${Math.round(r / count)}, ${Math.round(g / count)}, ${Math.round(b / count)})`;
+  ctx.save();
+  ctx.fillStyle = args.color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.direction = "ltr";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+  ctx.shadowBlur = Math.max(4, args.dpi * 0.04);
+  const fontSize = Math.min(cmToPx(0.9, args.dpi), args.width * 0.08);
+  ctx.font = `700 ${fontSize}px "Segoe UI", "Noto Naskh Arabic", sans-serif`;
+  ctx.fillText(args.label, textX, textY, args.width - pad * 2);
+  ctx.restore();
 }
 
-function luminance(fill: string): number {
-  const match = fill.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-  if (!match) return 0.3;
-  const r = Number(match[1]) / 255;
-  const g = Number(match[2]) / 255;
-  const b = Number(match[3]) / 255;
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function drawSpineLabel(
+function drawSpineTitle(
   ctx: CanvasRenderingContext2D,
   args: {
     x: number;
     width: number;
     height: number;
-    label: string;
+    title: string;
     fill: string;
     rtl: boolean;
   },
 ) {
-  if (args.width < 8 || !args.label) return;
+  const title = args.title.trim();
+  if (!title || args.width < 6) return;
 
   ctx.save();
   ctx.translate(args.x + args.width / 2, args.height / 2);
   ctx.rotate(args.rtl ? Math.PI / 2 : -Math.PI / 2);
-  ctx.fillStyle = luminance(args.fill) > 0.55 ? "#1c1814" : "#f7f3ea";
+  ctx.fillStyle = hexLuminance(args.fill) > 0.55 ? "#1c1814" : "#f7f3ea";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const fontSize = Math.min(args.width * 0.55, args.height * 0.045);
-  ctx.font = `600 ${Math.max(10, fontSize)}px "Segoe UI", "Noto Naskh Arabic", sans-serif`;
-  ctx.fillText(args.label, 0, 0, args.height * 0.86);
+  const fontSize = Math.min(args.width * 0.55, args.height * 0.04);
+  ctx.font = `600 ${Math.max(9, fontSize)}px "Segoe UI", "Noto Naskh Arabic", sans-serif`;
+  ctx.fillText(title, 0, 0, args.height * 0.86);
   ctx.restore();
+}
+
+function drawStripeParagraph(
+  ctx: CanvasRenderingContext2D,
+  args: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    text: string;
+    color: string;
+    dpi: number;
+  },
+) {
+  if (!args.text) return;
+
+  const pad = cmToPx(0.9, args.dpi);
+  const maxWidth = args.width - pad * 2;
+  const fontSize = cmToPx(0.42, args.dpi);
+  const lineHeight = fontSize * 1.45;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(args.x, args.y, args.width, args.height);
+  ctx.clip();
+  ctx.fillStyle = args.color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.direction = "ltr";
+  ctx.font = `400 ${fontSize}px Georgia, "Times New Roman", serif`;
+
+  const lines = wrapParagraph(ctx, args.text, maxWidth);
+  const startY =
+    args.y + args.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+  const x = args.x + args.width / 2;
+  for (const [index, line] of lines.entries()) {
+    const y = startY + index * lineHeight;
+    if (y < args.y + pad || y > args.y + args.height - pad) continue;
+    ctx.fillText(line, x, y, maxWidth);
+  }
+  ctx.restore();
+}
+
+function wrapParagraph(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (ctx.measureText(next).width <= maxWidth) {
+      current = next;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${[r, g, b]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function parseHex(hex: string): [number, number, number] {
+  const value = hex.replace("#", "");
+  const full =
+    value.length === 3
+      ? value
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : value.padEnd(6, "0").slice(0, 6);
+  return [
+    Number.parseInt(full.slice(0, 2), 16),
+    Number.parseInt(full.slice(2, 4), 16),
+    Number.parseInt(full.slice(4, 6), 16),
+  ];
+}
+
+function shiftHex(hex: string, amount: number): string {
+  const [r, g, b] = parseHex(hex);
+  const clamp = (n: number) => Math.max(0, Math.min(255, n + amount));
+  return rgbToHex(clamp(r), clamp(g), clamp(b));
+}
+
+function mixHex(a: string, b: string, amount: number): string {
+  const [ar, ag, ab] = parseHex(a);
+  const [br, bg, bb] = parseHex(b);
+  const mix = (left: number, right: number) =>
+    Math.round(left + (right - left) * amount);
+  return rgbToHex(mix(ar, br), mix(ag, bg), mix(ab, bb));
+}
+
+function hexLuminance(hex: string): number {
+  const [r, g, b] = parseHex(hex).map((value) => value / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }

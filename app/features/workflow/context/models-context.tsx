@@ -23,7 +23,8 @@ const ModelsContext = createContext<ModelsContextValue | null>(null);
 
 const STORAGE_KEY = "alganas-models";
 const DEFAULT_MODELS: AIModel[] = [
-  { id: "Gemini", name: "gemini/gemini-3.1-flash-lite-image", key: "REVOKED_API_KEY" },
+  { id: "gemini", name: "gemini/gemini-3.1-flash-lite-image", key: "" },
+  { id: "gpt-image-2.5-sunburst", name: "gpt-image-2.5-sunburst", key: "" },
 ];
 
 function loadModels(): AIModel[] {
@@ -48,7 +49,6 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   }, [models]);
 
   const addModel = (name: string, key: string) => {
-    if (!name.trim()) return;
     setModels((prev) => [
       ...prev,
       { id: crypto.randomUUID(), name: name.trim(), key },

@@ -38,9 +38,15 @@ export async function exportCoverPdf(args: {
       sourceImage: image,
       pages: chapter.pages,
       label: chapter.label,
+      bookName: args.bookConfig.bookName ?? "",
       coverSide: args.bookConfig.coverSide ?? "rtl",
       showGuides: args.showGuides,
       dpi: EXPORT_DPI,
+      coverColor: args.bookConfig.coverColor,
+      stripeForeground: args.bookConfig.stripeForeground,
+      chapterLabelColor: args.bookConfig.chapterLabelColor,
+      chapterLabelX: args.bookConfig.chapterLabelX ?? 50,
+      chapterLabelY: args.bookConfig.chapterLabelY ?? 88,
     });
 
     const blob = await new Promise<Blob>((resolve, reject) => {

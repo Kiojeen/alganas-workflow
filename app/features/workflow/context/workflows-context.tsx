@@ -114,10 +114,17 @@ export function useWorkflows() {
 export function useWorkflow(id: string | null) {
   const { workflows, updateState } = useWorkflows();
   const instance = id ? workflows.find((w) => w.id === id) : undefined;
+  const update = useCallback(
+    (change: StateChange) => {
+      if (!id) return;
+      updateState(id, change);
+    },
+    [id, updateState],
+  );
   if (!instance) return null;
   return {
     name: instance.name,
     state: instance.state,
-    update: (change: StateChange) => updateState(instance.id, change),
+    update,
   };
 }
