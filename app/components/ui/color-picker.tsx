@@ -70,6 +70,7 @@ export const ColorPicker = ({
   const [lightness, setLightness] = useState(initial.lightness() || 50)
   const [alpha, setAlpha] = useState((initial.alpha() ?? 1) * 100)
   const [mode, setMode] = useState("hex")
+  const lastHex = useRef(initial.hex())
   const onChangeRef = useRef(onChange)
   const skipNotify = useRef(true)
   onChangeRef.current = onChange
@@ -77,6 +78,10 @@ export const ColorPicker = ({
   useEffect(() => {
     if (value == null) return
     const color = Color(value)
+    const hex = color.hex()
+    if (hex.toLowerCase() === lastHex.current.toLowerCase()) return
+    lastHex.current = hex
+    skipNotify.current = true
     setHue(color.hue() || 0)
     setSaturation(color.saturationl())
     setLightness(color.lightness())
@@ -91,6 +96,9 @@ export const ColorPicker = ({
     const callback = onChangeRef.current
     if (!callback) return
     const color = Color.hsl(hue, saturation, lightness).alpha(alpha / 100)
+    const hex = color.hex()
+    if (hex.toLowerCase() === lastHex.current.toLowerCase()) return
+    lastHex.current = hex
     const rgba = color.rgb().array()
     callback([rgba[0], rgba[1], rgba[2], alpha / 100])
   }, [hue, saturation, lightness, alpha])

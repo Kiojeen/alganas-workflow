@@ -1,6 +1,7 @@
 import {
   CheckmarkCircle01Icon,
   CircleLock01Icon,
+  Clock01Icon,
   PlayCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -61,8 +62,12 @@ export function StepNode({
   }
 
   return (
-    <div className="bg-secondary text-secondary-foreground ring-border flex size-8 items-center justify-center rounded-full ring-1">
-      <span className="text-xs font-semibold">{index + 1}</span>
+    <div
+      className="text-muted-foreground flex size-8 flex-col items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/50 bg-background"
+      title={`الخطوة ${index + 1} لم تُنفَّذ بعد`}
+      aria-label={`الخطوة ${index + 1} لم تُنفَّذ بعد`}
+    >
+      <HugeiconsIcon icon={Clock01Icon} className="size-3.5" strokeWidth={2} />
     </div>
   );
 }

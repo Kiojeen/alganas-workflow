@@ -12,6 +12,8 @@ export const EXPORT_DPI = 200;
 export const DEFAULT_COVER_COLOR = "#5c5044";
 export const DEFAULT_STRIPE_FOREGROUND = "#f4efe6";
 export const DEFAULT_CHAPTER_LABEL_COLOR = "#ffffff";
+export const SPINE_MARK_WIDTH_CM = 0.1;
+export const SPINE_MARK_HEIGHT_CM = 0.2;
 export const STRIPE_TEXT =
   "The afternoon light slipped across the desk and caught the edge of a half-open notebook. Outside, a dry wind moved through the trees as if turning pages of its own. Someone had left a cup of tea to cool beside a stack of letters, each one waiting for a reply that might never come. In that quiet, even the smallest mark of ink felt like a beginning.";
 
@@ -35,6 +37,7 @@ export type DrawCoverOptions = {
   chapterLabelX: number;
   chapterLabelY: number;
   stripeText?: string;
+  spineMarkColor?: string;
 };
 
 export function spineWidthCm(pages: number): number {
@@ -58,21 +61,23 @@ export function fileSafeName(value: string, fallback = "cover") {
   return cleaned || fallback;
 }
 
+export function chapterPageCap(config: BookConfig): number {
+  return Math.max(1, config.maxPagesPerChapter || MAX_PAGES_PER_VOLUME);
+}
+
 export function resolveChapters(config: BookConfig): CoverChapter[] {
   const totalPages = Math.max(1, config.numPages || 1);
   const baseLabel = config.chapterLabel.trim() || "الفصل";
-  const count = config.autoChapter
-    ? Math.max(1, Math.ceil(totalPages / MAX_PAGES_PER_VOLUME))
-    : Math.max(1, config.numChapters || 1);
+  const cap = chapterPageCap(config);
+  const count = config.multiChapter
+    ? Math.max(1, Math.ceil(totalPages / cap))
+    : 1;
   const numbered = count > 1;
   const chapters: CoverChapter[] = [];
   let remaining = totalPages;
 
   for (let i = 1; i <= count; i++) {
-    const pages =
-      i === count
-        ? remaining
-        : Math.max(1, Math.ceil(remaining / (count - i + 1)));
+    const pages = i === count ? remaining : Math.min(cap, remaining);
     remaining -= pages;
     chapters.push({
       pages,
@@ -157,6 +162,7 @@ export function drawCoverOnCanvas(
     chapterLabelX,
     chapterLabelY,
     stripeText,
+    spineMarkColor,
   } = options;
   const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, dpi));
   const heightPx = Math.round(cmToPx(ARTBOARD_HEIGHT_CM, dpi));
@@ -212,6 +218,15 @@ export function drawCoverOnCanvas(
     title: bookName,
     fill,
     rtl: frontOnLeft,
+  });
+
+  drawSpineMarks(ctx, {
+    x: spineX,
+    y: originY,
+    width: spineW,
+    height: heightPx,
+    dpi,
+    color: spineMarkColor?.trim() || contrastHex(fill),
   });
 
   ctx.fillStyle = "#e7e1d4";
@@ -308,6 +323,27 @@ function drawCoverTitle(
   ctx.restore();
 }
 
+function drawSpineMarks(
+  ctx: CanvasRenderingContext2D,
+  args: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    dpi: number;
+    color: string;
+  },
+) {
+  const markW = Math.max(1, cmToPx(SPINE_MARK_WIDTH_CM, args.dpi));
+  const markH = Math.max(1, cmToPx(SPINE_MARK_HEIGHT_CM, args.dpi));
+  const x = args.x + args.width / 2 - markW / 2;
+  ctx.save();
+  ctx.fillStyle = args.color;
+  ctx.fillRect(x, args.y, markW, markH);
+  ctx.fillRect(x, args.y + args.height - markH, markW, markH);
+  ctx.restore();
+}
+
 function drawSpineTitle(
   ctx: CanvasRenderingContext2D,
   args: {
@@ -358,7 +394,6 @@ function drawStripeParagraph(
   ctx.rect(args.x, args.y, args.width, args.height);
   ctx.clip();
   ctx.fillStyle = args.color;
-  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.direction = "ltr";
   ctx.font = `400 ${fontSize}px Georgia, "Times New Roman", serif`;
@@ -366,13 +401,41 @@ function drawStripeParagraph(
   const lines = wrapParagraph(ctx, args.text, maxWidth);
   const startY =
     args.y + args.height / 2 - ((lines.length - 1) * lineHeight) / 2;
-  const x = args.x + args.width / 2;
+  const left = args.x + pad;
+  const centerX = args.x + args.width / 2;
   for (const [index, line] of lines.entries()) {
     const y = startY + index * lineHeight;
     if (y < args.y + pad || y > args.y + args.height - pad) continue;
-    ctx.fillText(line, x, y, maxWidth);
+    const isLast = index === lines.length - 1;
+    drawJustifiedLine(ctx, line, centerX, left, y, maxWidth, isLast);
   }
   ctx.restore();
+}
+
+function drawJustifiedLine(
+  ctx: CanvasRenderingContext2D,
+  line: string,
+  centerX: number,
+  left: number,
+  y: number,
+  maxWidth: number,
+  isLast: boolean,
+) {
+  const words = line.split(/\s+/).filter(Boolean);
+  if (isLast || words.length < 2) {
+    ctx.textAlign = "center";
+    ctx.fillText(line, centerX, y, maxWidth);
+    return;
+  }
+
+  const total = words.reduce((sum, word) => sum + ctx.measureText(word).width, 0);
+  const gap = (maxWidth - total) / (words.length - 1);
+  let x = left;
+  ctx.textAlign = "left";
+  for (const word of words) {
+    ctx.fillText(word, x, y);
+    x += ctx.measureText(word).width + gap;
+  }
 }
 
 function wrapParagraph(
@@ -436,4 +499,8 @@ function mixHex(a: string, b: string, amount: number): string {
 function hexLuminance(hex: string): number {
   const [r, g, b] = parseHex(hex).map((value) => value / 255);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+export function contrastHex(hex: string): string {
+  return hexLuminance(hex) > 0.55 ? "#1c1814" : "#f7f3ea";
 }

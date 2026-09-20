@@ -20,7 +20,7 @@ export const JOBS: Job[] = [
     id: "describe",
     title: "استخراج اسم الكتاب ووصفه",
     description:
-      "أرسل الغلاف إلى Gemini لاستخراج اسم الكتاب ووصف له. يمكن تعطيلها للكتابة يدويًا.",
+      "حرّر اسم الكتاب ووصفه هنا، أو استخرجهما من الغلاف عبر Gemini.",
     icon: TextFontIcon,
     autoRun: false,
   },

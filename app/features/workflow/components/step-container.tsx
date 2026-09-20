@@ -1,4 +1,4 @@
-import { CheckmarkCircle01Icon, PlayIcon } from "@hugeicons/core-free-icons";
+import { CheckmarkCircle01Icon, PlayIcon, RefreshIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 
 import type { Job, StepStatus } from "../types";
+import { StepBadge } from "./step-badge";
 import { StepNode } from "./step-node";
 
 export function StepContainer({
@@ -17,8 +18,11 @@ export function StepContainer({
   involved,
   mandatory,
   hideRun,
+  allowRerun,
+  lockContent,
   onToggleInvolved,
   onRun,
+  onRerun,
   children,
 }: {
   job: Job;
@@ -27,10 +31,15 @@ export function StepContainer({
   involved: boolean;
   mandatory: boolean;
   hideRun?: boolean;
+  allowRerun?: boolean;
+  lockContent?: boolean;
   onToggleInvolved: (id: string, value: boolean) => void;
   onRun: () => void;
+  onRerun?: () => void;
   children?: React.ReactNode;
 }) {
+  const contentLocked = lockContent ?? !involved;
+
   return (
     <div className="flex gap-3">
       <div className="flex flex-col items-center pt-2.5">
@@ -39,8 +48,10 @@ export function StepContainer({
 
       <Card
         className={cn(
-          "flex-1 transition-all border",
+          "flex-1 border transition-all",
           status === "muted" && "opacity-60 saturate-0",
+          status === "pending" &&
+            "border-dashed border-muted-foreground/40 bg-muted/15",
         )}
       >
         <CardHeader className="flex flex-row items-center gap-3 space-y-0">
@@ -48,7 +59,8 @@ export function StepContainer({
             className={cn(
               "bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md",
               status === "ready" && "bg-primary text-primary-foreground",
-              status === "pending" && "bg-secondary text-secondary-foreground",
+              status === "pending" &&
+                "border-muted-foreground/40 text-muted-foreground border border-dashed bg-transparent",
               status === "running" && "bg-primary text-primary-foreground",
               status === "done" && "bg-primary/10 text-primary",
             )}
@@ -57,13 +69,22 @@ export function StepContainer({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{job.title}</p>
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-medium">{job.title}</p>
+              <StepBadge status={status} />
+            </div>
             <p className="text-muted-foreground truncate text-xs">
               {job.description}
             </p>
           </div>
 
-          <RunSlot status={status} onRun={onRun} hideRun={hideRun} />
+          <RunSlot
+            status={status}
+            onRun={onRun}
+            onRerun={onRerun}
+            hideRun={hideRun}
+            allowRerun={allowRerun}
+          />
 
           {!mandatory && (
             <Switch
@@ -78,7 +99,7 @@ export function StepContainer({
         <CardContent>
           <div
             className={cn(
-              !involved && "pointer-events-none opacity-60 saturate-0",
+              contentLocked && "pointer-events-none opacity-60 saturate-0",
             )}
           >
             {children}
@@ -92,11 +113,15 @@ export function StepContainer({
 function RunSlot({
   status,
   onRun,
+  onRerun,
   hideRun,
+  allowRerun,
 }: {
   status: StepStatus;
   onRun: () => void;
+  onRerun?: () => void;
   hideRun?: boolean;
+  allowRerun?: boolean;
 }) {
   if (hideRun) {
     if (status === "running") return <Spinner />;
@@ -118,6 +143,20 @@ function RunSlot({
   }
   if (status === "running") {
     return <Spinner />;
+  }
+  if (status === "done" && allowRerun) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onRerun ?? onRun}
+        className="gap-1"
+        aria-label="إعادة التشغيل"
+      >
+        <HugeiconsIcon icon={RefreshIcon} className="size-3.5" />
+        إعادة التشغيل
+      </Button>
+    );
   }
   if (status === "done") {
     return (

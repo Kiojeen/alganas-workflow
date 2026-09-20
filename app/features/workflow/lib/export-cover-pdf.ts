@@ -51,6 +51,7 @@ export async function exportCoverPdf(args: {
       chapterLabelX: args.bookConfig.chapterLabelX ?? 50,
       chapterLabelY: args.bookConfig.chapterLabelY ?? 88,
       stripeText: args.bookConfig.bookDescription,
+      spineMarkColor: args.bookConfig.spineMarkColor,
     });
 
     const blob = await new Promise<Blob>((resolve, reject) => {

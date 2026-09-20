@@ -23,16 +23,16 @@ export type CoverSide = "ltr" | "rtl";
 
 export type BookConfig = {
   numPages: number;
-  numChapters: number;
-  autoChapter: boolean;
+  multiChapter: boolean;
+  maxPagesPerChapter: number;
   chapterLabel: string;
   bookName: string;
-  bookNameEnabled: boolean;
   bookDescription: string;
   coverSide: CoverSide;
   coverColor: string;
   stripeForeground: string;
   chapterLabelColor: string;
+  spineMarkColor: string;
   chapterLabelX: number;
   chapterLabelY: number;
 };

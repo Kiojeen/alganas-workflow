@@ -21,6 +21,7 @@ import {
   DEFAULT_STRIPE_FOREGROUND,
   PREVIEW_DPI,
   cmToPx,
+  contrastHex,
   drawCoverOnCanvas,
   extractPalette,
   loadCoverImage,
@@ -33,6 +34,7 @@ import { CoverColorPicker } from "./cover-color-picker";
 export function ConvertStep({
   disabled,
   sourceImage,
+  awaitingGeneratedCover,
   bookConfig,
   onBookConfigChange,
   showLines,
@@ -42,6 +44,7 @@ export function ConvertStep({
 }: {
   disabled: boolean;
   sourceImage: string | null;
+  awaitingGeneratedCover?: boolean;
   bookConfig: BookConfig;
   onBookConfigChange: (config: BookConfig) => void;
   showLines: boolean;
@@ -56,6 +59,7 @@ export function ConvertStep({
   const chapters = useMemo(() => resolveChapters(bookConfig), [bookConfig]);
   const [chapterIndex, setChapterIndex] = useState(0);
   const [palette, setPalette] = useState<string[]>([]);
+  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const chapter = chapters[Math.min(chapterIndex, chapters.length - 1)];
   const spineCm = spineWidthCm(chapter.pages);
   const wrapCm = wrapWidthCm(chapter.pages);
@@ -66,22 +70,31 @@ export function ConvertStep({
     bookConfig.chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
   const chapterLabelX = bookConfig.chapterLabelX ?? 50;
   const chapterLabelY = bookConfig.chapterLabelY ?? 88;
+  const spineMarkColor =
+    bookConfig.spineMarkColor || contrastHex(coverColor);
 
   useEffect(() => {
     setChapterIndex(0);
-  }, [chapters.length, bookConfig.autoChapter, bookConfig.numPages, bookConfig.numChapters]);
+  }, [
+    chapters.length,
+    bookConfig.multiChapter,
+    bookConfig.numPages,
+    bookConfig.maxPagesPerChapter,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
     if (!sourceImage) {
       setPalette([]);
+      setLoadedImage(null);
       return;
     }
 
-    const loadPalette = async () => {
+    const load = async () => {
       try {
         const image = await loadCoverImage(sourceImage);
         if (cancelled) return;
+        setLoadedImage(image);
         const colors = extractPalette(image);
         setPalette(colors);
         if (!configRef.current.coverColor && colors[0]) {
@@ -91,11 +104,14 @@ export function ConvertStep({
           });
         }
       } catch {
-        if (!cancelled) setPalette([]);
+        if (!cancelled) {
+          setPalette([]);
+          setLoadedImage(null);
+        }
       }
     };
 
-    void loadPalette();
+    void load();
     return () => {
       cancelled = true;
     };
@@ -105,9 +121,6 @@ export function ConvertStep({
     const container = containerRef.current;
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
-
-    let cancelled = false;
-    let resizeObserver: ResizeObserver | null = null;
 
     const fitCanvas = () => {
       const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, PREVIEW_DPI));
@@ -119,18 +132,9 @@ export function ConvertStep({
       canvas.style.height = `${heightPx * scale}px`;
     };
 
-    const render = async () => {
-      let image: HTMLImageElement | null = null;
-      if (sourceImage) {
-        try {
-          image = await loadCoverImage(sourceImage);
-        } catch {
-          image = null;
-        }
-      }
-      if (cancelled || !canvasRef.current) return;
-      drawCoverOnCanvas(canvasRef.current, {
-        sourceImage: image,
+    const frame = requestAnimationFrame(() => {
+      drawCoverOnCanvas(canvas, {
+        sourceImage: loadedImage,
         pages: chapter.pages,
         label: chapter.label,
         bookName: bookConfig.bookName ?? "",
@@ -143,20 +147,20 @@ export function ConvertStep({
         chapterLabelX,
         chapterLabelY,
         stripeText: bookConfig.bookDescription,
+        spineMarkColor,
       });
       fitCanvas();
-    };
+    });
 
-    void render();
-    resizeObserver = new ResizeObserver(fitCanvas);
+    const resizeObserver = new ResizeObserver(fitCanvas);
     resizeObserver.observe(container);
 
     return () => {
-      cancelled = true;
-      resizeObserver?.disconnect();
+      cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
     };
   }, [
-    sourceImage,
+    loadedImage,
     chapter.pages,
     chapter.label,
     bookConfig.coverSide,
@@ -167,6 +171,7 @@ export function ConvertStep({
     chapterLabelColor,
     chapterLabelX,
     chapterLabelY,
+    spineMarkColor,
     showLines,
   ]);
 
@@ -184,7 +189,7 @@ export function ConvertStep({
             onValueChange={(value) => {
               if (!value) return;
               onBookConfigChange({
-                ...bookConfig,
+                ...configRef.current,
                 coverSide: value as CoverSide,
               });
             }}
@@ -239,7 +244,7 @@ export function ConvertStep({
           value={coverColor}
           fallback={DEFAULT_COVER_COLOR}
           onChange={(hex) =>
-            onBookConfigChange({ ...bookConfig, coverColor: hex })
+            onBookConfigChange({ ...configRef.current, coverColor: hex })
           }
           disabled={disabled}
           swatches={palette}
@@ -249,7 +254,7 @@ export function ConvertStep({
           value={stripeForeground}
           fallback={DEFAULT_STRIPE_FOREGROUND}
           onChange={(hex) =>
-            onBookConfigChange({ ...bookConfig, stripeForeground: hex })
+            onBookConfigChange({ ...configRef.current, stripeForeground: hex })
           }
           disabled={disabled}
           swatches={palette}
@@ -262,7 +267,20 @@ export function ConvertStep({
           value={chapterLabelColor}
           fallback={DEFAULT_CHAPTER_LABEL_COLOR}
           onChange={(hex) =>
-            onBookConfigChange({ ...bookConfig, chapterLabelColor: hex })
+            onBookConfigChange({
+              ...configRef.current,
+              chapterLabelColor: hex,
+            })
+          }
+          disabled={disabled}
+          swatches={palette}
+        />
+        <CoverColorPicker
+          label="لون علامات الكعب"
+          value={spineMarkColor}
+          fallback={contrastHex(coverColor)}
+          onChange={(hex) =>
+            onBookConfigChange({ ...configRef.current, spineMarkColor: hex })
           }
           disabled={disabled}
           swatches={palette}
@@ -290,7 +308,7 @@ export function ConvertStep({
               value={[chapterLabelX]}
               onValueChange={([value]) =>
                 onBookConfigChange({
-                  ...bookConfig,
+                  ...configRef.current,
                   chapterLabelX: value,
                 })
               }
@@ -316,7 +334,7 @@ export function ConvertStep({
               value={[chapterLabelY]}
               onValueChange={([value]) =>
                 onBookConfigChange({
-                  ...bookConfig,
+                  ...configRef.current,
                   chapterLabelY: value,
                 })
               }
@@ -332,6 +350,13 @@ export function ConvertStep({
         {chapter.pages} صفحة. الوجه الآخر شريط بعرض {BACK_STRIPE_WIDTH_CM} سم.
         العرض الكلي {wrapCm.toFixed(2)} سم.
       </p>
+
+      {awaitingGeneratedCover && (
+        <p className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
+          الغلاف الأصلي مخفي هنا لأن توليد الصورة مفعّل. سيظهر الغلاف بعد تشغيل
+          خطوة الذكاء الاصطناعي.
+        </p>
+      )}
 
       {chapters.length > 1 && (
         <div className="flex flex-wrap gap-2">

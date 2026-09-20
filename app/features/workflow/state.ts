@@ -19,16 +19,16 @@ export type WorkflowState = {
 
 const defaultBookConfig: BookConfig = {
   numPages: 720,
-  numChapters: 1,
-  autoChapter: false,
+  multiChapter: false,
+  maxPagesPerChapter: 720,
   chapterLabel: "الفصل",
   bookName: "",
-  bookNameEnabled: false,
   bookDescription: "",
   coverSide: "rtl",
   coverColor: "",
   stripeForeground: "#f4efe6",
   chapterLabelColor: "#ffffff",
+  spineMarkColor: "",
   chapterLabelX: 50,
   chapterLabelY: 88,
 };

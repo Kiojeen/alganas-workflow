@@ -2,12 +2,17 @@ import { FileUploadIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import type { BookConfig, Preview } from "../types";
+import {
+  MAX_PAGES_PER_VOLUME,
+  PAGES_PER_SPINE_CM,
+  resolveChapters,
+  spineWidthCm,
+} from "../lib/cover-layout";
 import { Separator } from "@/components/ui/separator";
 import { ImagePreview } from "./image-preview";
 
@@ -20,7 +25,6 @@ export function UploadFileStep({
   bookConfig,
   onBookConfigChange,
   disabled,
-  describeInvolved,
 }: {
   preview: Preview | null;
   pdfPage: number;
@@ -30,136 +34,142 @@ export function UploadFileStep({
   bookConfig: BookConfig;
   onBookConfigChange: (config: BookConfig) => void;
   disabled: boolean;
-  describeInvolved: boolean;
 }) {
-  const chaptersDisabled = bookConfig.autoChapter;
-  const autoChapters =
-    bookConfig.numPages > 720 ? Math.ceil(bookConfig.numPages / 720) : 1;
+  const chapters = resolveChapters(bookConfig);
+  const cap = bookConfig.maxPagesPerChapter || MAX_PAGES_PER_VOLUME;
+  const singleSpine = spineWidthCm(Math.max(1, bookConfig.numPages || 1));
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-muted-foreground text-xs font-medium">
-            عدد الصفحات
-          </Label>
-          <Input
-            type="number"
-            min={1}
-            value={bookConfig.numPages}
-            disabled={disabled}
-            onChange={(e) =>
-              onBookConfigChange({
-                ...bookConfig,
-                numPages: Number(e.target.value) || 0,
-              })
-            }
-            className="h-8"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-muted-foreground text-xs font-medium">
-            عدد الفصول
-          </Label>
-          <Input
-            type="number"
-            min={1}
-            value={
-              bookConfig.autoChapter ? autoChapters : bookConfig.numChapters
-            }
-            disabled={disabled || chaptersDisabled}
-            onChange={(e) =>
-              onBookConfigChange({
-                ...bookConfig,
-                numChapters: Number(e.target.value) || 1,
-              })
-            }
-            className="h-8"
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Checkbox
-          checked={bookConfig.autoChapter}
-          onCheckedChange={(checked) =>
-            onBookConfigChange({
-              ...bookConfig,
-              autoChapter: Boolean(checked),
-            })
-          }
-          disabled={disabled}
-          id="auto-chapter"
-        />
-        <Label htmlFor="auto-chapter" className="text-xs font-medium">
-          تقسيم تلقائي إلى فصول (كل فصل ≤ 720 صفحة). إن لم تُفعّل يبقى الكتاب
-          مجلدًا واحدًا بعدد صفحات كبير.
-        </Label>
-      </div>
-
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <Label className="text-muted-foreground text-xs font-medium">
-            اسم الكتاب
-          </Label>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="book-name-enabled" className="text-xs font-medium">
-              تفعيل
-            </Label>
-            <Switch
-              id="book-name-enabled"
-              checked={bookConfig.bookNameEnabled !== false && !describeInvolved}
-              disabled={disabled || describeInvolved}
-              onCheckedChange={(checked) =>
-                onBookConfigChange({
-                  ...bookConfig,
-                  bookNameEnabled: Boolean(checked),
-                })
-              }
-            />
-          </div>
-        </div>
-        {describeInvolved && (
-          <p className="text-muted-foreground text-[11px]">
-            الاسم سيُستخرج في خطوة Gemini التالية.
-          </p>
-        )}
+        <Label className="text-muted-foreground text-xs font-medium">
+          عدد صفحات الكتاب
+        </Label>
         <Input
-          value={bookConfig.bookName ?? ""}
-          disabled={
-            disabled ||
-            describeInvolved ||
-            bookConfig.bookNameEnabled === false
-          }
+          type="number"
+          min={1}
+          value={bookConfig.numPages}
+          disabled={disabled}
           onChange={(e) =>
             onBookConfigChange({
               ...bookConfig,
-              bookName: e.target.value,
+              numPages: Number(e.target.value) || 0,
             })
           }
-          placeholder="يظهر على كعب الكتاب"
           className="h-8"
         />
+        {!bookConfig.multiChapter && (
+          <p className="text-muted-foreground text-[11px]">
+            كعب الكتاب {singleSpine.toFixed(2)} سم (كل {PAGES_PER_SPINE_CM} صفحة
+            = 1 سم).
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
-          تسمية الفصل
+          الفصول
         </Label>
-        <Input
-          value={bookConfig.chapterLabel}
+        <ToggleGroup
+          type="single"
+          value={bookConfig.multiChapter ? "multi" : "single"}
           disabled={disabled}
-          onChange={(e) =>
+          onValueChange={(value) => {
+            if (!value) return;
             onBookConfigChange({
               ...bookConfig,
-              chapterLabel: e.target.value,
-            })
-          }
-          placeholder="مثال: chapter, volume, part"
-          className="h-8"
-        />
+              multiChapter: value === "multi",
+              maxPagesPerChapter:
+                bookConfig.maxPagesPerChapter || MAX_PAGES_PER_VOLUME,
+            });
+          }}
+          variant="outline"
+          size="sm"
+          spacing={0}
+          className="w-full"
+        >
+          <ToggleGroupItem
+            value="single"
+            className="flex-1 whitespace-normal text-xs"
+          >
+            فصل واحد
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="multi"
+            className="flex-1 whitespace-normal text-xs"
+          >
+            أكثر من فصل
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
+
+      {bookConfig.multiChapter && (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-muted-foreground text-xs font-medium">
+              الحد الأقصى لصفحات الفصل
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              value={cap}
+              disabled={disabled}
+              onChange={(e) =>
+                onBookConfigChange({
+                  ...bookConfig,
+                  maxPagesPerChapter: Math.max(
+                    1,
+                    Number(e.target.value) || MAX_PAGES_PER_VOLUME,
+                  ),
+                })
+              }
+              className="h-8"
+            />
+            <p className="text-muted-foreground text-[11px]">
+              نقسم إجمالي الصفحات على هذا الحد. كل فصل يأخذ حتى {cap} صفحة وكعبًا
+              محسوبًا من عدد صفحاته.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-muted-foreground text-xs font-medium">
+              تسمية الفصل
+            </Label>
+            <Input
+              value={bookConfig.chapterLabel}
+              disabled={disabled}
+              onChange={(e) =>
+                onBookConfigChange({
+                  ...bookConfig,
+                  chapterLabel: e.target.value,
+                })
+              }
+              placeholder="مثال: chapter, volume, part"
+              className="h-8"
+            />
+          </div>
+
+          <div className="rounded-md border px-3 py-2">
+            <p className="text-muted-foreground mb-1.5 text-[11px]">
+              {chapters.length} {chapters.length === 1 ? "فصل" : "فصول"}
+            </p>
+            <ul className="space-y-1 text-xs">
+              {chapters.map((chapter) => (
+                <li
+                  key={chapter.index}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span>{chapter.label || `الفصل ${chapter.index}`}</span>
+                  <span className="text-muted-foreground font-mono" dir="ltr">
+                    {chapter.pages} صفحة · {spineWidthCm(chapter.pages).toFixed(2)}{" "}
+                    سم
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
 
       <Separator />
       <Label

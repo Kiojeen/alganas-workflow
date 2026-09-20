@@ -1,72 +1,89 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
   type ReactNode,
 } from "react";
 
-export type AIModel = {
-  id: string;
-  name: string;
-  key: string;
-};
+import {
+  DEFAULT_CATALOG,
+  loadProviderCatalog,
+  type CatalogModel,
+  type ProviderId,
+} from "../lib/provider-models";
+
+type ProviderKeys = Record<ProviderId, string>;
 
 type ModelsContextValue = {
-  models: AIModel[];
-  addModel: (name: string, key: string) => void;
-  updateModel: (id: string, field: "name" | "key", value: string) => void;
-  removeModel: (id: string) => void;
+  keys: ProviderKeys;
+  setKey: (provider: ProviderId, key: string) => void;
+  models: CatalogModel[];
 };
 
 const ModelsContext = createContext<ModelsContextValue | null>(null);
 
-const STORAGE_KEY = "alganas-models";
-const DEFAULT_MODELS: AIModel[] = [
-  { id: "gemini", name: "gemini/gemini-3.1-flash-lite-image", key: "" },
-  { id: "gpt-image-2.5-sunburst", name: "gpt-image-2.5-sunburst", key: "" },
-];
+const STORAGE_KEY = "alganas-provider-keys";
+const LEGACY_STORAGE_KEY = "alganas-models";
+const EMPTY_KEYS: ProviderKeys = { openai: "", google: "" };
 
-function loadModels(): AIModel[] {
-  if (typeof window === "undefined") return DEFAULT_MODELS;
+function loadKeys(): ProviderKeys {
+  if (typeof window === "undefined") return EMPTY_KEYS;
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) return parsed as AIModel[];
+      const parsed = JSON.parse(saved) as Partial<ProviderKeys>;
+      return {
+        openai: parsed.openai ?? "",
+        google: parsed.google ?? "",
+      };
+    }
+    const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy) as { name?: string; key?: string }[];
+      if (Array.isArray(parsed)) {
+        const keys = { ...EMPTY_KEYS };
+        for (const item of parsed) {
+          const name = item.name ?? "";
+          const key = item.key ?? "";
+          if (!key) continue;
+          if (/gpt|openai|dall/i.test(name)) keys.openai = key;
+          if (/gemini|google|imagen/i.test(name)) keys.google = key;
+        }
+        return keys;
+      }
     }
   } catch {
     // ignore malformed storage
   }
-  return DEFAULT_MODELS;
+  return EMPTY_KEYS;
 }
 
 export function ModelsProvider({ children }: { children: ReactNode }) {
-  const [models, setModels] = useState<AIModel[]>(loadModels);
+  const [keys, setKeys] = useState<ProviderKeys>(loadKeys);
+  const [models, setModels] = useState<CatalogModel[]>(DEFAULT_CATALOG);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(models));
-  }, [models]);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+  }, [keys]);
 
-  const addModel = (name: string, key: string) => {
-    setModels((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), name: name.trim(), key },
-    ]);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    void loadProviderCatalog(keys).then((next) => {
+      if (!cancelled) setModels(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [keys]);
 
-  const updateModel = (id: string, field: "name" | "key", value: string) =>
-    setModels((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)),
-    );
-
-  const removeModel = (id: string) =>
-    setModels((prev) => prev.filter((m) => m.id !== id));
+  const setKey = useCallback((provider: ProviderId, key: string) => {
+    setKeys((prev) => ({ ...prev, [provider]: key }));
+  }, []);
 
   return (
-    <ModelsContext.Provider
-      value={{ models, addModel, updateModel, removeModel }}
-    >
+    <ModelsContext.Provider value={{ keys, setKey, models }}>
       {children}
     </ModelsContext.Provider>
   );

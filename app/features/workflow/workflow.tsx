@@ -18,6 +18,7 @@ import { useModels } from "./context/models-context";
 import { JOBS } from "./jobs";
 import { exportCoverPdf } from "./lib/export-cover-pdf";
 import { renderPdfPage } from "./lib/pdf";
+import { modelsByKind } from "./lib/provider-models";
 import type { StepStatus } from "./types";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -27,17 +28,21 @@ const describeSchema = z.object({
   description: z.string(),
 });
 
-function googleLanguageModelId(name: string) {
-  const id = name.includes("/") ? (name.split("/").pop() ?? name) : name.trim();
-  if (!id || /gpt|dall|imagen/i.test(id) || /image/i.test(id)) {
-    return "gemini-2.5-flash";
-  }
-  return id;
+function languageModel(provider: "openai" | "google", key: string, modelId: string) {
+  return provider === "openai"
+    ? createOpenAI({ apiKey: key })(modelId)
+    : createGoogle({ apiKey: key })(modelId);
+}
+
+function imageModel(provider: "openai" | "google", key: string, modelId: string) {
+  return provider === "openai"
+    ? createOpenAI({ apiKey: key }).image(modelId)
+    : createGoogle({ apiKey: key }).image(modelId);
 }
 
 export function Workflow({ workflowId }: { workflowId: string }) {
   const workflow = useWorkflow(workflowId);
-  const { models } = useModels();
+  const { models, keys } = useModels();
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
   const involvedRef = useRef<Set<string>>(
     workflow?.state.involved ?? new Set(),
@@ -83,13 +88,16 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     bookConfig,
   } = state;
 
-  const selectedModel =
-    models.find((m) => m.id === ai) ??
-    models.find((m) => m.name.trim() && m.key.trim());
+  const textModels = modelsByKind(models, "text");
+  const imageModels = modelsByKind(models, "image");
   const selectedDescribeModel =
-    models.find((m) => m.id === describeAi) ??
-    models.find((m) => m.name.trim() && m.key.trim());
-  const sourceImage = outputImage ?? preview?.url ?? null;
+    textModels.find((m) => m.id === describeAi) ?? textModels[0];
+  const selectedImageModel =
+    imageModels.find((m) => m.id === ai) ?? imageModels[0];
+  const generateInvolved = involved.has("generate");
+  const sourceImage = generateInvolved
+    ? outputImage
+    : (outputImage ?? preview?.url ?? null);
 
   const handleBookConfigChange = useCallback(
     (config: typeof bookConfig) => {
@@ -112,7 +120,11 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
   const exportPdf = async () => {
     if (!sourceImage) {
-      toast.error("ارفع صورة غلاف أولاً.");
+      toast.error(
+        generateInvolved
+          ? "شغّل توليد الصورة أولاً قبل التصدير."
+          : "ارفع صورة غلاف أولاً.",
+      );
       return;
     }
     setExporting(true);
@@ -146,6 +158,23 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     }
   };
 
+  const rerunStep = (i: number) => {
+    if (runningRef.current !== null) return;
+    if (!involvedRef.current.has(JOBS[i].id)) return;
+    const generateIdx = JOBS.findIndex((job) => job.id === "generate");
+    const nextCompleted = new Set(completedRef.current);
+    for (const idx of [...nextCompleted]) {
+      if (idx >= i) nextCompleted.delete(idx);
+    }
+    completedRef.current = nextCompleted;
+    update({
+      completed: nextCompleted,
+      runningStep: null,
+      ...(generateIdx >= i ? { outputImage: null } : {}),
+    });
+    void delay(50).then(() => runStep(i));
+  };
+
   const runStep = async (i: number) => {
     if (runningRef.current !== null) return;
     if (completedRef.current.has(i)) return;
@@ -172,8 +201,12 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
     if (JOBS[i].id === "describe") {
       try {
-        if (!selectedDescribeModel?.key) {
-          throw new Error("اختر نموذجًا وأضف مفتاح API من الإعدادات.");
+        if (!selectedDescribeModel) {
+          throw new Error("اختر نموذج نص/رؤية من القائمة.");
+        }
+        const apiKey = keys[selectedDescribeModel.provider]?.trim();
+        if (!apiKey) {
+          throw new Error("أضف مفتاح API من الإعدادات.");
         }
         if (!preview?.url) {
           throw new Error("ارفع صورة في الخطوة الأولى قبل الاستخراج.");
@@ -184,8 +217,10 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         );
         const imageBytes = new Uint8Array(imageBuffer);
         const result = await generateObject({
-          model: createGoogle({ apiKey: selectedDescribeModel.key })(
-            googleLanguageModelId(selectedDescribeModel.name),
+          model: languageModel(
+            selectedDescribeModel.provider,
+            apiKey,
+            selectedDescribeModel.modelId,
           ),
           schema: describeSchema,
           messages: [
@@ -235,19 +270,22 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
     if (JOBS[i].id === "generate") {
       try {
-        if (!selectedModel?.key) {
-          throw new Error("اختر نموذجًا وأضف مفتاح API من الإعدادات.");
+        if (!selectedImageModel) {
+          throw new Error("اختر نموذج توليد صور من القائمة.");
+        }
+        const apiKey = keys[selectedImageModel.provider]?.trim();
+        if (!apiKey) {
+          throw new Error("أضف مفتاح API من الإعدادات.");
         }
         if (!preview?.url) {
           throw new Error("ارفع صورة في الخطوة الأولى قبل التوليد.");
         }
 
-        const modelId = selectedModel.name.trim();
-        const model = modelId.includes("gpt")
-          ? (createOpenAI({ apiKey: selectedModel.key }).image(modelId) as any)
-          : (createGoogle({ apiKey: selectedModel.key }).image(
-              modelId.includes("/") ? modelId.split("/").pop()! : modelId,
-            ) as any);
+        const model = imageModel(
+          selectedImageModel.provider,
+          apiKey,
+          selectedImageModel.modelId,
+        ) as any;
 
         const imageBytes = await fetch(preview.url).then((r) =>
           r.arrayBuffer(),
@@ -409,8 +447,11 @@ export function Workflow({ workflowId }: { workflowId: string }) {
               involved={isInvolved}
               mandatory={job.id === "upload" || job.id === "convert"}
               hideRun={job.id === "convert"}
+              allowRerun={job.id === "describe" || job.id === "generate"}
+              lockContent={job.id === "describe" ? false : !isInvolved}
               onToggleInvolved={toggleInvolved}
               onRun={() => runStep(i)}
+              onRerun={() => rerunStep(i)}
             >
               {job.id === "upload" && (
                 <UploadFileStep
@@ -422,7 +463,6 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                   bookConfig={bookConfig}
                   onBookConfigChange={handleBookConfigChange}
                   disabled={!isInvolved}
-                  describeInvolved={involved.has("describe")}
                 />
               )}
 
@@ -431,7 +471,6 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                   ai={describeAi}
                   onAiChange={(id) => {
                     update({ describeAi: id });
-                    resetRun();
                   }}
                   bookName={bookConfig.bookName}
                   description={bookConfig.bookDescription ?? ""}
@@ -444,7 +483,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                       bookDescription: value,
                     })
                   }
-                  disabled={!isInvolved}
+                  extractEnabled={isInvolved}
                 />
               )}
 
@@ -453,12 +492,10 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                   ai={ai}
                   onAiChange={(id) => {
                     update({ ai: id });
-                    resetRun();
                   }}
                   prompt={prompt}
                   onPromptChange={(value) => {
                     update({ prompt: value });
-                    resetRun();
                   }}
                   outputImage={outputImage}
                   bookName={bookConfig.bookName}
@@ -470,6 +507,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                 <ConvertStep
                   disabled={!isInvolved}
                   sourceImage={sourceImage}
+                  awaitingGeneratedCover={generateInvolved && !outputImage}
                   bookConfig={bookConfig}
                   onBookConfigChange={handleBookConfigChange}
                   showLines={showLines}

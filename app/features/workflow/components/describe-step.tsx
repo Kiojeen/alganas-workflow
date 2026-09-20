@@ -1,15 +1,8 @@
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 
-import { useModels } from "../context";
+import { ModelSelect } from "./model-select";
 
 export function DescribeStep({
   ai,
@@ -18,7 +11,7 @@ export function DescribeStep({
   description,
   onBookNameChange,
   onDescriptionChange,
-  disabled,
+  extractEnabled,
 }: {
   ai: string;
   onAiChange: (id: string) => void;
@@ -26,55 +19,30 @@ export function DescribeStep({
   description: string;
   onBookNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
-  disabled: boolean;
+  extractEnabled: boolean;
 }) {
-  const { models } = useModels();
-  const named = models.filter((m) => m.name.trim());
-  const selectedAi = named.some((m) => m.id === ai) ? ai : (named[0]?.id ?? "");
-
   return (
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground text-xs leading-relaxed">
-        عند التشغيل يُرسل الغلاف إلى Gemini لاستخراج اسم الكتاب ووصف قصير. عطّل
-        الخطوة لكتابة الاسم يدويًا في الخطوة الأولى.
+        اسم الكتاب يُحرَّر هنا. عند تفعيل الاستخراج يُرسل الغلاف إلى نموذج
+        نص/رؤية لاقتراح الاسم والوصف.
       </p>
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-muted-foreground text-xs font-medium">
-          نموذج الذكاء الاصطناعي
-        </Label>
-        <Select
-          value={selectedAi || undefined}
-          onValueChange={onAiChange}
-          disabled={disabled}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="اختر نموذج Gemini" />
-          </SelectTrigger>
-          <SelectContent>
-            {named.length === 0 ? (
-              <div className="text-muted-foreground px-2 py-1.5 text-xs">
-                لاتتوفر نماذج حتى الآن
-              </div>
-            ) : (
-              named.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  {model.name}
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+      <ModelSelect
+        kind="text"
+        value={ai}
+        onChange={onAiChange}
+        disabled={!extractEnabled}
+        placeholder="اختر نموذج نص أو رؤية"
+      />
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
-          اسم الكتاب المستخرج
+          اسم الكتاب
         </Label>
         <Input
           value={bookName}
-          disabled={disabled}
           onChange={(e) => onBookNameChange(e.target.value)}
-          placeholder="يظهر بعد التشغيل"
+          placeholder="يظهر على كعب الكتاب"
           className="h-8"
         />
       </div>
@@ -85,7 +53,6 @@ export function DescribeStep({
         </Label>
         <Textarea
           value={description}
-          disabled={disabled}
           onChange={(e) => onDescriptionChange(e.target.value)}
           placeholder="وصف يظهر على شريط الوجه الآخر"
           rows={4}

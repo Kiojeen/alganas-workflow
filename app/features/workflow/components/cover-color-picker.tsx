@@ -1,4 +1,5 @@
 import Color from "color";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +39,23 @@ export function CoverColorPicker({
   disabled: boolean;
   swatches?: string[];
 }) {
-  const current = value || fallback;
+  const committed = value || fallback;
+  const [local, setLocal] = useState(committed);
+  const dragging = useRef(false);
+  const frame = useRef(0);
+
+  useEffect(() => {
+    if (dragging.current) return;
+    setLocal(committed);
+  }, [committed]);
+
+  const commit = (hex: string) => {
+    setLocal(hex);
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      if (hex.toLowerCase() !== committed.toLowerCase()) onChange(hex);
+    });
+  };
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -51,10 +68,14 @@ export function CoverColorPicker({
               type="button"
               disabled={disabled}
               title={hex}
-              onClick={() => onChange(hex)}
+              onClick={() => {
+                dragging.current = false;
+                setLocal(hex);
+                onChange(hex);
+              }}
               className={cn(
                 "size-7 rounded-md border shadow-xs transition-transform disabled:opacity-50",
-                current.toLowerCase() === hex.toLowerCase()
+                local.toLowerCase() === hex.toLowerCase()
                   ? "ring-primary ring-2 ring-offset-1"
                   : "hover:scale-105",
               )}
@@ -63,7 +84,11 @@ export function CoverColorPicker({
           ))}
         </div>
       )}
-      <Popover>
+      <Popover
+        onOpenChange={(open) => {
+          if (!open) dragging.current = false;
+        }}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -73,15 +98,24 @@ export function CoverColorPicker({
           >
             <span
               className="size-4 rounded-sm border"
-              style={{ backgroundColor: current }}
+              style={{ backgroundColor: local }}
             />
-            <span className="font-mono text-xs">{current}</span>
+            <span className="font-mono text-xs">{local}</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 gap-3">
+        <PopoverContent
+          align="start"
+          className="w-64 gap-3"
+          onPointerDown={() => {
+            dragging.current = true;
+          }}
+          onPointerUp={() => {
+            dragging.current = false;
+          }}
+        >
           <ColorPicker
-            value={current}
-            onChange={(rgb) => onChange(toHex(rgb))}
+            value={local}
+            onChange={(rgb) => commit(toHex(rgb))}
             className="h-auto w-full gap-3"
           >
             <ColorPickerSelection className="h-28 rounded-md" />

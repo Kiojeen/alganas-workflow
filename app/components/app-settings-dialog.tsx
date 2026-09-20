@@ -1,15 +1,9 @@
 import { useState } from "react";
 import { useModels } from "@/features/workflow/context";
-import {
-  Delete02Icon,
-  Key01Icon,
-  PlusSignIcon,
-  ViewIcon,
-  ViewOffIcon,
-} from "@hugeicons/core-free-icons";
+import { PROVIDERS } from "@/features/workflow/lib/provider-models";
+import { Key01Icon, ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +22,7 @@ function AppSettingsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { models, addModel, updateModel, removeModel } = useModels();
+  const { keys, setKey } = useModels();
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
 
   return (
@@ -37,51 +31,32 @@ function AppSettingsDialog({
         <DialogHeader>
           <DialogTitle>الإعدادات</DialogTitle>
           <DialogDescription>
-            إدارة مساحة العمل واتصالات نماذج الذكاء الاصطناعي.
+            مفاتيح OpenAI وGoogle AI. لا يمكن إعادة تسمية الحقول أو إضافة مزودين.
           </DialogDescription>
         </DialogHeader>
 
         <Separator />
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">مفاتيح نماذج الذكاء الاصطناعي</Label>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => addModel("", "")}
-              className="h-7 gap-1 text-xs"
-            >
-              <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
-              إضافة نموذج
-            </Button>
-          </div>
-
+          <Label className="text-sm font-medium">مفاتيح واجهة البرمجة</Label>
           <div className="space-y-2">
-            {models.map((model) => (
-              <div key={model.id} className="flex items-center gap-2">
+            {PROVIDERS.map((provider) => (
+              <div key={provider.id} className="flex items-center gap-2">
                 <div className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md border">
                   <HugeiconsIcon
                     icon={Key01Icon}
                     className="text-muted-foreground size-4"
                   />
                 </div>
-
-                <Input
-                  placeholder="الاسم (مثال: OpenAI)"
-                  value={model.name}
-                  onChange={(e) =>
-                    updateModel(model.id, "name", e.target.value)
-                  }
-                  className="flex-1"
-                />
-
+                <div className="w-28 shrink-0 text-sm font-medium">
+                  {provider.label}
+                </div>
                 <div className="relative flex-1">
                   <Input
-                    type={revealed[model.id] ? "text" : "password"}
+                    type={revealed[provider.id] ? "text" : "password"}
                     placeholder="مفتاح API"
-                    value={model.key}
-                    onChange={(e) => updateModel(model.id, "key", e.target.value)}
+                    value={keys[provider.id]}
+                    onChange={(e) => setKey(provider.id, e.target.value)}
                     className="pr-8"
                   />
                   <button
@@ -89,26 +64,17 @@ function AppSettingsDialog({
                     onClick={() =>
                       setRevealed((prev) => ({
                         ...prev,
-                        [model.id]: !prev[model.id],
+                        [provider.id]: !prev[provider.id],
                       }))
                     }
                     className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
                   >
                     <HugeiconsIcon
-                      icon={revealed[model.id] ? ViewOffIcon : ViewIcon}
+                      icon={revealed[provider.id] ? ViewOffIcon : ViewIcon}
                       className="size-4"
                     />
                   </button>
                 </div>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive size-8 shrink-0"
-                  onClick={() => removeModel(model.id)}
-                >
-                  <HugeiconsIcon icon={Delete02Icon} className="size-4" />
-                </Button>
               </div>
             ))}
           </div>

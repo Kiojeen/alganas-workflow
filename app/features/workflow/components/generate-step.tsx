@@ -3,18 +3,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-import { useModels } from "../context";
 import { fileSafeName } from "../lib/cover-layout";
 import { ImagePreview } from "./image-preview";
+import { ModelSelect } from "./model-select";
 
 export function GenerateStep({
   ai,
@@ -33,44 +26,15 @@ export function GenerateStep({
   bookName?: string;
   disabled: boolean;
 }) {
-  const { models } = useModels();
-  const named = models.filter((m) => m.name.trim());
-
-  const selectedAi = named.some((m) => m.id === ai) ? ai : (named[0]?.id ?? "");
-
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-xs leading-relaxed">
-        هذه الخطوة مفعّلة تلقائيًا. عطّل المفتاح أعلاه لتمرير الصورة مباشرة إلى
-        ترتيب الغلاف.
-      </p>
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-muted-foreground text-xs font-medium">
-          نموذج الذكاء الاصطناعي
-        </Label>
-        <Select
-          value={selectedAi || undefined}
-          onValueChange={onAiChange}
-          disabled={disabled}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="اختر نموذجًا (يمكنك إضافة المزيد من الإعدادات)" />
-          </SelectTrigger>
-          <SelectContent>
-            {named.length === 0 ? (
-              <div className="text-muted-foreground px-2 py-1.5 text-xs">
-                لاتتوفر نماذج حتى الآن
-              </div>
-            ) : (
-              named.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  {model.name}
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+      <ModelSelect
+        kind="image"
+        value={ai}
+        onChange={onAiChange}
+        disabled={disabled}
+        placeholder="اختر نموذج توليد صور"
+      />
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">

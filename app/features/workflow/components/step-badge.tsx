@@ -36,9 +36,12 @@ export function StepBadge({ status }: { status: StepStatus }) {
 
   if (status === "pending") {
     return (
-      <Badge variant="outline" className="gap-1">
+      <Badge
+        variant="outline"
+        className="border-dashed text-muted-foreground gap-1"
+      >
         <HugeiconsIcon icon={Clock01Icon} className="size-2.5" strokeWidth={2} />
-        قيد الانتظار
+        لم تُنفَّذ بعد
       </Badge>
     );
   }
