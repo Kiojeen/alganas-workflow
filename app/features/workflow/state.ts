@@ -1,6 +1,9 @@
 import { JOBS } from "./jobs";
 import type { BookConfig, Preview } from "./types";
 
+export const DEFAULT_GENERATE_PROMPT =
+  "Extend the book cover seamlessly to fit an A4 portrait canvas. Preserve the original cover exactly as it is, including all text, typography, logos, illustrations, and layout. Only generate new content in the empty areas outside the original image by naturally extending the existing background, colors, textures, patterns, and design elements. Match the original artistic style, lighting, and composition. Do not crop, redraw, modify, or replace any part of the original cover.";
+
 export type WorkflowState = {
   file: File | null;
   pdfPage: number;
@@ -26,6 +29,7 @@ const defaultBookConfig: BookConfig = {
   bookName: "",
   bookDescription: "",
   coverSide: "rtl",
+  pageSize: "a4",
   fontPair: "montserrat",
   coverColor: "",
   stripeColor: "",
@@ -46,8 +50,7 @@ export function createDefaultWorkflowState(
     busy: false,
     ai: "",
     describeAi: "",
-    prompt:
-      "Extend the book cover seamlessly to fit an A4 portrait canvas. Preserve the original cover exactly as it is, including all text, typography, logos, illustrations, and layout. Only generate new content in the empty areas outside the original image by naturally extending the existing background, colors, textures, patterns, and design elements. Match the original artistic style, lighting, and composition. Do not crop, redraw, modify, or replace any part of the original cover.",
+    prompt: DEFAULT_GENERATE_PROMPT,
     runningStep: null,
     completed: new Set(),
     outputImage: null,

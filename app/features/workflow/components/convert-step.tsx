@@ -21,13 +21,11 @@ import {
   getCoverFontPair,
   type CoverFontPair,
 } from "../lib/cover-fonts";
-import type { BookConfig, CoverSide } from "../types";
+import { useModels } from "../context";
+import type { BookConfig, CoverPageSize, CoverSide } from "../types";
 import {
-  A4_HEIGHT_CM,
-  A4_WIDTH_CM,
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
-  BACK_STRIPE_WIDTH_CM,
   DEFAULT_CHAPTER_LABEL_COLOR,
   DEFAULT_COVER_COLOR,
   DEFAULT_STRIPE_FOREGROUND,
@@ -37,6 +35,7 @@ import {
   drawCoverOnCanvas,
   extractPalette,
   loadCoverImage,
+  pageDimsCm,
   resolveChapters,
   shiftHex,
   spineWidthCm,
@@ -65,6 +64,7 @@ export function ConvertStep({
   onExport: () => void;
   exporting: boolean;
 }) {
+  const { pagesPerSpineCm, stripeA4, stripeA5 } = useModels();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const configRef = useRef(bookConfig);
@@ -77,8 +77,11 @@ export function ConvertStep({
   const fontPair = getCoverFontPair(bookConfig.fontPair);
   const chapter = chapters[Math.min(chapterIndex, chapters.length - 1)];
   const hasChapters = chapters.length > 1;
-  const spineCm = spineWidthCm(chapter.pages);
-  const wrapCm = wrapWidthCm(chapter.pages);
+  const pageSize = bookConfig.pageSize ?? "a4";
+  const pageDims = pageDimsCm(pageSize);
+  const stripeLayout = pageSize === "a5" ? stripeA5 : stripeA4;
+  const spineCm = spineWidthCm(chapter.pages, pagesPerSpineCm);
+  const wrapCm = wrapWidthCm(chapter.pages, pagesPerSpineCm, pageDims.width);
   const coverColor = bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeColor = bookConfig.stripeColor || shiftHex(coverColor, -18);
   const stripeForeground =
@@ -179,6 +182,11 @@ export function ConvertStep({
         titleFont: fontPair.titleFamily,
         descriptionFont: fontPair.descriptionFamily,
         chapterNumber: hasChapters ? String(chapter.index) : undefined,
+        pagesPerSpineCm,
+        pageSize,
+        stripeWidthCm: stripeLayout.widthCm,
+        stripeInsetCm: stripeLayout.insetCm,
+        stripeEdgeGapCm: stripeLayout.edgeGapCm,
       });
       fitCanvas();
     });
@@ -210,11 +218,16 @@ export function ConvertStep({
     fontPair.titleFamily,
     fontPair.descriptionFamily,
     fontsReady,
+    pagesPerSpineCm,
+    pageSize,
+    stripeLayout.widthCm,
+    stripeLayout.insetCm,
+    stripeLayout.edgeGapCm,
   ]);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
           <Label className="text-muted-foreground text-xs font-medium">
             موضع الغلاف الأمامي
@@ -264,6 +277,30 @@ export function ConvertStep({
                     : "Castoro"}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-muted-foreground text-xs font-medium">
+            حجم الغلاف
+          </Label>
+          <Select
+            value={pageSize}
+            disabled={disabled}
+            onValueChange={(value) =>
+              onBookConfigChange({
+                ...configRef.current,
+                pageSize: value as CoverPageSize,
+              })
+            }
+          >
+            <SelectTrigger className="w-full" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="a4">A4 — 21×29.7 سم</SelectItem>
+              <SelectItem value="a5">A5 — 14.8×21 سم</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -365,7 +402,7 @@ export function ConvertStep({
                   <span>يمين</span>
                 </div>
                 <span className="font-mono text-xs text-foreground" dir="ltr">
-                  {((chapterLabelX / 100) * A4_WIDTH_CM).toFixed(1)} cm
+                  {((chapterLabelX / 100) * pageDims.width).toFixed(1)} cm
                 </span>
               </div>
               <Slider
@@ -391,7 +428,7 @@ export function ConvertStep({
                   <span>أسفل</span>
                 </div>
                 <span className="font-mono text-xs text-foreground" dir="ltr">
-                  {((chapterLabelY / 100) * A4_HEIGHT_CM).toFixed(1)} cm
+                  {((chapterLabelY / 100) * pageDims.height).toFixed(1)} cm
                 </span>
               </div>
               <Slider
@@ -415,10 +452,11 @@ export function ConvertStep({
       ) : null}
 
       <p className="text-muted-foreground text-xs leading-relaxed">
-        اللوحة ثابتة {ARTBOARD_WIDTH_CM}×{ARTBOARD_HEIGHT_CM} سم. الغلاف بحجم A4
-        (21×29.7 سم) ملاصق للكعب، والكعب {spineCm.toFixed(2)} سم من{" "}
-        {chapter.pages} صفحة. الوجه الآخر شريط بعرض {BACK_STRIPE_WIDTH_CM} سم.
-        العرض الكلي {wrapCm.toFixed(2)} سم.
+        اللوحة ثابتة {ARTBOARD_WIDTH_CM}×{ARTBOARD_HEIGHT_CM} سم. الغلاف{" "}
+        {pageSize.toUpperCase()} ({pageDims.width}×{pageDims.height} سم) ملاصق
+        للكعب، والكعب {spineCm.toFixed(2)} سم من {chapter.pages} صفحة. الوجه
+        الآخر شريط بعرض {stripeLayout.widthCm} سم. العرض الكلي {wrapCm.toFixed(2)}{" "}
+        سم.
       </p>
 
       {awaitingGeneratedCover && (

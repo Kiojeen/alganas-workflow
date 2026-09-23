@@ -219,6 +219,10 @@ async function drawVectorCover(args: {
   pages: number;
   label: string;
   chapterNumber?: string;
+  pagesPerSpineCm?: number;
+  stripeWidthCm?: number;
+  stripeInsetCm?: number;
+  stripeEdgeGapCm?: number;
 }) {
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
@@ -241,6 +245,13 @@ async function drawVectorCover(args: {
   const layout = layoutCoverCm(
     args.pages,
     (args.bookConfig.coverSide ?? "rtl") as CoverSide,
+    args.pagesPerSpineCm,
+    args.bookConfig.pageSize ?? "a4",
+    {
+      widthCm: args.stripeWidthCm,
+      insetCm: args.stripeInsetCm,
+      edgeGapCm: args.stripeEdgeGapCm,
+    },
   );
   const fillHex = args.bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeFillHex =
@@ -296,8 +307,8 @@ async function drawVectorCover(args: {
   page.drawRectangle({ ...spine, color: color(fillHex) });
   page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
 
-  const padX = cmToPt(STRIPE_INSET_CM);
-  const padY = cmToPt(STRIPE_INSET_CM);
+  const padX = cmToPt(args.stripeInsetCm ?? STRIPE_INSET_CM);
+  const padY = cmToPt(args.stripeInsetCm ?? STRIPE_INSET_CM);
   const maxWidth = stripe.width - padX * 2;
   const fontSize = cmToPt(0.42);
   const lineHeight = fontSize * 1.45;
@@ -354,10 +365,11 @@ async function drawVectorCover(args: {
       : 0;
     const numBlock = chapterNumber ? numFull + gap : 0;
     const block = numBlock + titleLen;
-    const minTop = markH + gap;
-    const maxTop = pageHeight - markH - gap;
+    const minTop = spine.y + markH + gap;
+    const maxTop = spine.y + spine.height - markH - gap;
+    const midY = spine.y + spine.height / 2;
     const groupTop = Math.min(
-      Math.max(pageHeight / 2 + block / 2, minTop + block),
+      Math.max(midY + block / 2, minTop + block),
       maxTop,
     );
     const topEdge = groupTop - block;
@@ -391,14 +403,14 @@ async function drawVectorCover(args: {
   const markX = cmToPt(layout.spineX + layout.spineW / 2) - markW / 2;
   page.drawRectangle({
     x: markX,
-    y: pageHeight - markH,
+    y: spine.y + spine.height - markH,
     width: markW,
     height: markH,
     color: color(markHex),
   });
   page.drawRectangle({
     x: markX,
-    y: 0,
+    y: spine.y,
     width: markW,
     height: markH,
     color: color(markHex),
@@ -437,8 +449,8 @@ async function drawVectorCover(args: {
     for (const xCm of xs) {
       const x = cmToPt(xCm);
       page.drawLine({
-        start: { x, y: 0 },
-        end: { x, y: pageHeight },
+        start: { x, y: spine.y },
+        end: { x, y: spine.y + spine.height },
         thickness: 0.6,
         color: rgb(0.27, 0.24, 0.19),
         opacity: 0.55,
@@ -454,6 +466,10 @@ export async function exportCoverPdf(args: {
   sourceUrl: string;
   bookConfig: BookConfig;
   showGuides: boolean;
+  pagesPerSpineCm?: number;
+  stripeWidthCm?: number;
+  stripeInsetCm?: number;
+  stripeEdgeGapCm?: number;
 }) {
   const chapters = resolveChapters(args.bookConfig);
   const bookTitle = fileSafeName(args.bookConfig.bookName ?? "", "cover");
@@ -466,6 +482,10 @@ export async function exportCoverPdf(args: {
       pages: chapter.pages,
       label: chapter.label,
       chapterNumber: chapters.length > 1 ? String(chapter.index) : undefined,
+      pagesPerSpineCm: args.pagesPerSpineCm,
+      stripeWidthCm: args.stripeWidthCm,
+      stripeInsetCm: args.stripeInsetCm,
+      stripeEdgeGapCm: args.stripeEdgeGapCm,
     });
     const copy = new Uint8Array(bytes.byteLength);
     copy.set(bytes);

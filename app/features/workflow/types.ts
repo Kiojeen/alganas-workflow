@@ -22,6 +22,8 @@ export type StepStatus = "muted" | "ready" | "pending" | "running" | "done";
 
 export type CoverSide = "ltr" | "rtl";
 
+export type CoverPageSize = "a4" | "a5";
+
 export type BookConfig = {
   numPages: number;
   multiChapter: boolean;
@@ -31,6 +33,7 @@ export type BookConfig = {
   bookName: string;
   bookDescription: string;
   coverSide: CoverSide;
+  pageSize: CoverPageSize;
   fontPair: CoverFontPair;
   coverColor: string;
   stripeColor: string;
