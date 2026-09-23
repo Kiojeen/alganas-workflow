@@ -52,6 +52,88 @@ export function cmToPx(cm: number, dpi: number): number {
   return (cm / 2.54) * dpi;
 }
 
+export function cmToPt(cm: number): number {
+  return (cm / 2.54) * 72;
+}
+
+export type CoverLayoutCm = {
+  fitScale: number;
+  a4W: number;
+  spineW: number;
+  wrapW: number;
+  originX: number;
+  originY: number;
+  height: number;
+  frontX: number;
+  backX: number;
+  spineX: number;
+  stripeX: number;
+  stripeW: number;
+  frontOnLeft: boolean;
+};
+
+export function layoutCoverCm(
+  pages: number,
+  coverSide: CoverSide,
+): CoverLayoutCm {
+  const wrapCm = wrapWidthCm(pages);
+  const fitScale = wrapCm > ARTBOARD_WIDTH_CM ? ARTBOARD_WIDTH_CM / wrapCm : 1;
+  const a4W = A4_WIDTH_CM * fitScale;
+  const spineW = spineWidthCm(pages) * fitScale;
+  const wrapW = a4W * 2 + spineW;
+  const originX = (ARTBOARD_WIDTH_CM - wrapW) / 2;
+  const originY = 0;
+  const height = ARTBOARD_HEIGHT_CM;
+  const frontOnLeft = coverSide === "rtl";
+  const frontX = frontOnLeft ? originX : originX + a4W + spineW;
+  const spineX = originX + a4W;
+  const backX = frontOnLeft ? originX + a4W + spineW : originX;
+  const stripeW = Math.min(BACK_STRIPE_WIDTH_CM, A4_WIDTH_CM) * fitScale;
+  const stripeX = frontOnLeft ? backX + a4W - stripeW : backX;
+  return {
+    fitScale,
+    a4W,
+    spineW,
+    wrapW,
+    originX,
+    originY,
+    height,
+    frontX,
+    backX,
+    spineX,
+    stripeX,
+    stripeW,
+    frontOnLeft,
+  };
+}
+
+export function wrapWords(
+  text: string,
+  maxWidth: number,
+  widthOf: (value: string) => number,
+): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (widthOf(next) <= maxWidth) {
+      current = next;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+export function hexToRgb01(hex: string): { r: number; g: number; b: number } {
+  const [r, g, b] = parseHex(hex);
+  return { r: r / 255, g: g / 255, b: b / 255 };
+}
+
 export function fileSafeName(value: string, fallback = "cover") {
   const cleaned = value
     .trim()
@@ -169,6 +251,8 @@ export function drawCoverOnCanvas(
   const fill = coverColor || DEFAULT_COVER_COLOR;
   const textFill = stripeForeground || DEFAULT_STRIPE_FOREGROUND;
   const labelColor = chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
+  const layout = layoutCoverCm(pages, coverSide);
+  const p = (cm: number) => cmToPx(cm, dpi);
 
   canvas.width = widthPx;
   canvas.height = heightPx;
@@ -179,25 +263,21 @@ export function drawCoverOnCanvas(
   ctx.fillStyle = fill;
   ctx.fillRect(0, 0, widthPx, heightPx);
 
-  const wrapCm = wrapWidthCm(pages);
-  const fitScale = wrapCm > ARTBOARD_WIDTH_CM ? ARTBOARD_WIDTH_CM / wrapCm : 1;
-  const a4W = cmToPx(A4_WIDTH_CM * fitScale, dpi);
-  const spineW = cmToPx(spineWidthCm(pages) * fitScale, dpi);
-  const wrapW = a4W * 2 + spineW;
-  const originX = (widthPx - wrapW) / 2;
-  const originY = 0;
-
-  const frontOnLeft = coverSide === "rtl";
-  const frontX = frontOnLeft ? originX : originX + a4W + spineW;
-  const spineX = originX + a4W;
-  const backX = frontOnLeft ? originX + a4W + spineW : originX;
+  const originY = p(layout.originY);
+  const a4W = p(layout.a4W);
+  const spineW = p(layout.spineW);
+  const wrapW = p(layout.wrapW);
+  const originX = p(layout.originX);
+  const frontX = p(layout.frontX);
+  const spineX = p(layout.spineX);
+  const backX = p(layout.backX);
+  const stripeW = p(layout.stripeW);
+  const stripeX = p(layout.stripeX);
+  const frontOnLeft = layout.frontOnLeft;
 
   ctx.fillStyle = fill;
   ctx.fillRect(backX, originY, a4W, heightPx);
   ctx.fillRect(spineX, originY, Math.max(1, spineW), heightPx);
-
-  const stripeW = cmToPx(Math.min(BACK_STRIPE_WIDTH_CM, A4_WIDTH_CM) * fitScale, dpi);
-  const stripeX = frontOnLeft ? backX + a4W - stripeW : backX;
   ctx.fillStyle = shiftHex(fill, -18);
   ctx.fillRect(stripeX, originY, stripeW, heightPx);
 
@@ -398,7 +478,7 @@ function drawStripeParagraph(
   ctx.direction = "ltr";
   ctx.font = `400 ${fontSize}px Georgia, "Times New Roman", serif`;
 
-  const lines = wrapParagraph(ctx, args.text, maxWidth);
+  const lines = wrapWords(args.text, maxWidth, (value) => ctx.measureText(value).width);
   const startY =
     args.y + args.height / 2 - ((lines.length - 1) * lineHeight) / 2;
   const left = args.x + pad;
@@ -438,28 +518,6 @@ function drawJustifiedLine(
   }
 }
 
-function wrapParagraph(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (ctx.measureText(next).width <= maxWidth) {
-      current = next;
-    } else {
-      if (current) lines.push(current);
-      current = word;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
 function rgbToHex(r: number, g: number, b: number): string {
   return `#${[r, g, b]
     .map((value) => value.toString(16).padStart(2, "0"))
@@ -482,7 +540,7 @@ function parseHex(hex: string): [number, number, number] {
   ];
 }
 
-function shiftHex(hex: string, amount: number): string {
+export function shiftHex(hex: string, amount: number): string {
   const [r, g, b] = parseHex(hex);
   const clamp = (n: number) => Math.max(0, Math.min(255, n + amount));
   return rgbToHex(clamp(r), clamp(g), clamp(b));
