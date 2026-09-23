@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import type { CoverFontPair } from "./lib/cover-fonts";
 
 export type IconType = ComponentProps<typeof HugeiconsIcon>["icon"];
 
@@ -29,7 +30,9 @@ export type BookConfig = {
   bookName: string;
   bookDescription: string;
   coverSide: CoverSide;
+  fontPair: CoverFontPair;
   coverColor: string;
+  stripeColor: string;
   stripeForeground: string;
   chapterLabelColor: string;
   spineMarkColor: string;

@@ -32,12 +32,16 @@ export type DrawCoverOptions = {
   showGuides: boolean;
   dpi: number;
   coverColor: string;
+  stripeColor?: string;
   stripeForeground: string;
   chapterLabelColor: string;
   chapterLabelX: number;
   chapterLabelY: number;
   stripeText?: string;
   spineMarkColor?: string;
+  titleFont?: string;
+  descriptionFont?: string;
+  chapterNumber?: string;
 };
 
 export function spineWidthCm(pages: number): number {
@@ -239,18 +243,25 @@ export function drawCoverOnCanvas(
     showGuides,
     dpi,
     coverColor,
+    stripeColor,
     stripeForeground,
     chapterLabelColor,
     chapterLabelX,
     chapterLabelY,
     stripeText,
     spineMarkColor,
+    titleFont,
+    descriptionFont,
+    chapterNumber,
   } = options;
   const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, dpi));
   const heightPx = Math.round(cmToPx(ARTBOARD_HEIGHT_CM, dpi));
   const fill = coverColor || DEFAULT_COVER_COLOR;
+  const stripeFill = stripeColor?.trim() || shiftHex(fill, -18);
   const textFill = stripeForeground || DEFAULT_STRIPE_FOREGROUND;
   const labelColor = chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
+  const titleFamily = titleFont || "CoverMontserratTitle";
+  const descriptionFamily = descriptionFont || "CoverMontserratDescription";
   const layout = layoutCoverCm(pages, coverSide);
   const p = (cm: number) => cmToPx(cm, dpi);
 
@@ -278,7 +289,7 @@ export function drawCoverOnCanvas(
   ctx.fillStyle = fill;
   ctx.fillRect(backX, originY, a4W, heightPx);
   ctx.fillRect(spineX, originY, Math.max(1, spineW), heightPx);
-  ctx.fillStyle = shiftHex(fill, -18);
+  ctx.fillStyle = stripeFill;
   ctx.fillRect(stripeX, originY, stripeW, heightPx);
 
   drawStripeParagraph(ctx, {
@@ -289,15 +300,20 @@ export function drawCoverOnCanvas(
     text: stripeText?.trim() || STRIPE_TEXT,
     color: textFill,
     dpi,
+    fontFamily: descriptionFamily,
   });
 
   drawSpineTitle(ctx, {
     x: spineX,
+    y: originY,
     width: spineW,
     height: heightPx,
     title: bookName,
+    chapterNumber,
     fill,
     rtl: frontOnLeft,
+    fontFamily: titleFamily,
+    dpi,
   });
 
   drawSpineMarks(ctx, {
@@ -327,6 +343,7 @@ export function drawCoverOnCanvas(
       dpi,
       xRatio: chapterLabelX,
       yRatio: chapterLabelY,
+      fontFamily: titleFamily,
     });
   }
 
@@ -382,6 +399,7 @@ function drawCoverTitle(
     dpi: number;
     xRatio: number;
     yRatio: number;
+    fontFamily: string;
   },
 ) {
   const pad = cmToPx(1.2, args.dpi);
@@ -398,7 +416,7 @@ function drawCoverTitle(
   ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
   ctx.shadowBlur = Math.max(4, args.dpi * 0.04);
   const fontSize = Math.min(cmToPx(0.9, args.dpi), args.width * 0.08);
-  ctx.font = `700 ${fontSize}px "Segoe UI", "Noto Naskh Arabic", sans-serif`;
+  ctx.font = `700 ${fontSize}px "${args.fontFamily}", sans-serif`;
   ctx.fillText(args.label, textX, textY, args.width - pad * 2);
   ctx.restore();
 }
@@ -428,25 +446,62 @@ function drawSpineTitle(
   ctx: CanvasRenderingContext2D,
   args: {
     x: number;
+    y: number;
     width: number;
     height: number;
     title: string;
+    chapterNumber?: string;
     fill: string;
     rtl: boolean;
+    fontFamily: string;
+    dpi: number;
   },
 ) {
   const title = args.title.trim();
-  if (!title || args.width < 6) return;
+  const chapterNumber = args.chapterNumber?.trim() ?? "";
+  if ((!title && !chapterNumber) || args.width < 6) return;
+
+  const ink = hexLuminance(args.fill) > 0.55 ? "#1c1814" : "#f7f3ea";
+  const markH = cmToPx(SPINE_MARK_HEIGHT_CM, args.dpi);
+  const gap = cmToPx(0.1, args.dpi);
+  const cx = args.x + args.width / 2;
+  const fontSize = Math.min(args.width * 0.55, args.height * 0.04);
+  const numSize = fontSize;
+  const maxTitle = args.height * 0.86;
 
   ctx.save();
-  ctx.translate(args.x + args.width / 2, args.height / 2);
-  ctx.rotate(args.rtl ? Math.PI / 2 : -Math.PI / 2);
-  ctx.fillStyle = hexLuminance(args.fill) > 0.55 ? "#1c1814" : "#f7f3ea";
+  ctx.font = `600 ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
+  const titleLen = title
+    ? Math.min(ctx.measureText(title).width, maxTitle)
+    : 0;
+  ctx.restore();
+
+  const numBlock = chapterNumber ? Math.max(9, numSize) + gap : 0;
+  const block = numBlock + titleLen;
+  const minTop = args.y + markH + gap;
+  const maxTop = args.y + args.height - markH - gap - block;
+  const top = Math.min(Math.max(args.y + args.height / 2 - block / 2, minTop), maxTop);
+
+  if (chapterNumber) {
+    ctx.save();
+    ctx.fillStyle = ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.font = `600 ${Math.max(9, numSize)}px "${args.fontFamily}", sans-serif`;
+    ctx.fillText(chapterNumber, cx, top, args.width * 0.92);
+    ctx.restore();
+  }
+
+  if (!title) return;
+
+  ctx.save();
+  ctx.translate(cx, top + numBlock + titleLen / 2);
+  ctx.rotate(args.rtl ? -Math.PI / 2 : Math.PI / 2);
+  ctx.fillStyle = ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const fontSize = Math.min(args.width * 0.55, args.height * 0.04);
-  ctx.font = `600 ${Math.max(9, fontSize)}px "Segoe UI", "Noto Naskh Arabic", sans-serif`;
-  ctx.fillText(title, 0, 0, args.height * 0.86);
+  ctx.font = `600 ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
+  ctx.fillText(title, 0, 0, maxTitle);
   ctx.restore();
 }
 
@@ -460,6 +515,7 @@ function drawStripeParagraph(
     text: string;
     color: string;
     dpi: number;
+    fontFamily: string;
   },
 ) {
   if (!args.text) return;
@@ -476,7 +532,7 @@ function drawStripeParagraph(
   ctx.fillStyle = args.color;
   ctx.textBaseline = "middle";
   ctx.direction = "ltr";
-  ctx.font = `400 ${fontSize}px Georgia, "Times New Roman", serif`;
+  ctx.font = `400 ${fontSize}px "${args.fontFamily}", serif`;
 
   const lines = wrapWords(args.text, maxWidth, (value) => ctx.measureText(value).width);
   const startY =

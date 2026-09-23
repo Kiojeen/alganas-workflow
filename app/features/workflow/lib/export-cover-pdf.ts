@@ -1,14 +1,14 @@
 import fontkit from "@pdf-lib/fontkit";
 import {
   PDFDocument,
-  StandardFonts,
   clip,
-  degrees,
   endPath,
   popGraphicsState,
   pushGraphicsState,
   rectangle,
   rgb,
+  rotateDegrees,
+  translate,
   type PDFFont,
   type PDFImage,
   type PDFPage,
@@ -16,6 +16,7 @@ import {
 } from "pdf-lib";
 
 import type { BookConfig, CoverSide } from "../types";
+import { fetchCoverFontBytes, getCoverFontPair } from "./cover-fonts";
 import {
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
@@ -180,16 +181,51 @@ function drawJustifiedLine(
   }
 }
 
+function drawCenteredSpineTitle(
+  page: PDFPage,
+  text: string,
+  font: PDFFont,
+  size: number,
+  cx: number,
+  cy: number,
+  angle: number,
+  fill: RGB,
+) {
+  const width = font.widthOfTextAtSize(text, size);
+  const ascent = font.heightAtSize(size, { descender: false });
+  const descent = font.heightAtSize(size, { descender: true }) - ascent;
+  const midline = (ascent - descent) / 2;
+
+  page.pushOperators(
+    pushGraphicsState(),
+    translate(cx, cy),
+    rotateDegrees(angle),
+  );
+  page.drawText(text, {
+    x: -width / 2,
+    y: -midline,
+    size,
+    font,
+    color: fill,
+  });
+  page.pushOperators(popGraphicsState());
+}
+
 async function drawVectorCover(args: {
   sourceUrl: string;
   bookConfig: BookConfig;
   showGuides: boolean;
   pages: number;
   label: string;
+  chapterNumber?: string;
 }) {
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-  const times = await pdf.embedFont(StandardFonts.TimesRoman);
+  const pair = getCoverFontPair(args.bookConfig.fontPair);
+  const titleBuffer = await fetchCoverFontBytes(pair.titleFile);
+  const descriptionBuffer = await fetchCoverFontBytes(pair.descriptionFile);
+  const titleFont = await pdf.embedFont(new Uint8Array(titleBuffer));
+  const descriptionFont = await pdf.embedFont(new Uint8Array(descriptionBuffer));
   let arabic: PDFFont | null = null;
   try {
     arabic = await pdf.embedFont(await loadNotoFont());
@@ -206,6 +242,8 @@ async function drawVectorCover(args: {
     (args.bookConfig.coverSide ?? "rtl") as CoverSide,
   );
   const fillHex = args.bookConfig.coverColor || DEFAULT_COVER_COLOR;
+  const stripeFillHex =
+    args.bookConfig.stripeColor?.trim() || shiftHex(fillHex, -18);
   const stripeHex =
     args.bookConfig.stripeForeground || DEFAULT_STRIPE_FOREGROUND;
   const labelHex =
@@ -255,14 +293,14 @@ async function drawVectorCover(args: {
 
   page.drawRectangle({ ...back, color: color(fillHex) });
   page.drawRectangle({ ...spine, color: color(fillHex) });
-  page.drawRectangle({ ...stripe, color: color(shiftHex(fillHex, -18)) });
+  page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
 
   const pad = cmToPt(0.9);
   const maxWidth = stripe.width - pad * 2;
   const fontSize = cmToPt(0.42);
   const lineHeight = fontSize * 1.45;
   const stripeFont =
-    hasArabic(stripeText) && arabic ? arabic : times;
+    hasArabic(stripeText) && arabic ? arabic : descriptionFont;
   const lines = wrapWords(stripeText, maxWidth, (value) =>
     stripeFont.widthOfTextAtSize(value, fontSize),
   );
@@ -288,35 +326,61 @@ async function drawVectorCover(args: {
   }
 
   const title = bookName.trim();
-  if (title && layout.spineW > 0.08) {
-    const spineFont = hasArabic(title) && arabic ? arabic : times;
-    const size = Math.min(cmToPt(layout.spineW * 0.55), cmToPt(layout.height * 0.04));
-    const textW = Math.min(
-      spineFont.widthOfTextAtSize(title, size),
-      cmToPt(layout.height * 0.86),
+  const chapterNumber = args.chapterNumber?.trim() ?? "";
+  const spineInk = color(contrastHex(fillHex));
+  const cx = cmToPt(layout.spineX + layout.spineW / 2);
+
+  if ((title || chapterNumber) && layout.spineW > 0.08) {
+    const numberFont = titleFont;
+    const spineFont = hasArabic(title) && arabic ? arabic : titleFont;
+    const size = Math.min(
+      cmToPt(layout.spineW * 0.55),
+      cmToPt(layout.height * 0.04),
     );
-    const cx = cmToPt(layout.spineX + layout.spineW / 2);
-    const ink = color(contrastHex(fillHex));
-    if (layout.frontOnLeft) {
-      page.drawText(title, {
-        x: cx - size * 0.32,
-        y: pageHeight / 2 - textW / 2,
-        size,
-        font: spineFont,
-        color: ink,
-        rotate: degrees(90),
-        maxWidth: cmToPt(layout.height * 0.86),
+    const numSize = size;
+    const gap = cmToPt(0.1);
+    const markH = cmToPt(SPINE_MARK_HEIGHT_CM);
+    const maxTitle = cmToPt(layout.height * 0.86);
+    const titleLen = title
+      ? Math.min(spineFont.widthOfTextAtSize(title, size), maxTitle)
+      : 0;
+    const numAscent = chapterNumber
+      ? numberFont.heightAtSize(numSize, { descender: false })
+      : 0;
+    const numFull = chapterNumber
+      ? numberFont.heightAtSize(numSize, { descender: true })
+      : 0;
+    const numBlock = chapterNumber ? numFull + gap : 0;
+    const block = numBlock + titleLen;
+    const minTop = markH + gap;
+    const maxTop = pageHeight - markH - gap;
+    const groupTop = Math.min(
+      Math.max(pageHeight / 2 + block / 2, minTop + block),
+      maxTop,
+    );
+    const topEdge = groupTop - block;
+
+    if (chapterNumber) {
+      const numWidth = numberFont.widthOfTextAtSize(chapterNumber, numSize);
+      page.drawText(chapterNumber, {
+        x: cx - numWidth / 2,
+        y: topEdge + block - numAscent,
+        size: numSize,
+        font: numberFont,
+        color: spineInk,
       });
-    } else {
-      page.drawText(title, {
-        x: cx + size * 0.32,
-        y: pageHeight / 2 + textW / 2,
+    }
+    if (title) {
+      drawCenteredSpineTitle(
+        page,
+        title,
+        spineFont,
         size,
-        font: spineFont,
-        color: ink,
-        rotate: degrees(-90),
-        maxWidth: cmToPt(layout.height * 0.86),
-      });
+        cx,
+        topEdge + titleLen / 2,
+        layout.frontOnLeft ? 90 : -90,
+        spineInk,
+      );
     }
   }
 
@@ -342,7 +406,7 @@ async function drawVectorCover(args: {
   drawCoverImage(page, coverImage, front);
 
   if (args.label) {
-    const labelFont = hasArabic(args.label) && arabic ? arabic : times;
+    const labelFont = hasArabic(args.label) && arabic ? arabic : titleFont;
     const padLabel = cmToPt(1.2);
     const xRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelX ?? 50) / 100));
     const yRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelY ?? 88) / 100));
@@ -399,6 +463,7 @@ export async function exportCoverPdf(args: {
       showGuides: args.showGuides,
       pages: chapter.pages,
       label: chapter.label,
+      chapterNumber: chapters.length > 1 ? String(chapter.index) : undefined,
     });
     const copy = new Uint8Array(bytes.byteLength);
     copy.set(bytes);
