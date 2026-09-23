@@ -176,7 +176,7 @@ export function drawCoverOnCanvas(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  ctx.fillStyle = mixHex(fill, "#f3efe6", 0.72);
+  ctx.fillStyle = fill;
   ctx.fillRect(0, 0, widthPx, heightPx);
 
   const wrapCm = wrapWidthCm(pages);
@@ -486,14 +486,6 @@ function shiftHex(hex: string, amount: number): string {
   const [r, g, b] = parseHex(hex);
   const clamp = (n: number) => Math.max(0, Math.min(255, n + amount));
   return rgbToHex(clamp(r), clamp(g), clamp(b));
-}
-
-function mixHex(a: string, b: string, amount: number): string {
-  const [ar, ag, ab] = parseHex(a);
-  const [br, bg, bb] = parseHex(b);
-  const mix = (left: number, right: number) =>
-    Math.round(left + (right - left) * amount);
-  return rgbToHex(mix(ar, br), mix(ag, bg), mix(ab, bb));
 }
 
 function hexLuminance(hex: string): number {

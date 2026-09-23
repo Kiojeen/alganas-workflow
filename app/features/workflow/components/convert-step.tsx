@@ -376,8 +376,11 @@ export function ConvertStep({
 
       <div
         ref={containerRef}
-        className="bg-muted/40 flex min-h-48 w-full items-center justify-center overflow-hidden rounded-md border"
-        style={{ aspectRatio: `${ARTBOARD_WIDTH_CM} / ${ARTBOARD_HEIGHT_CM}` }}
+        className="flex min-h-48 w-full items-center justify-center overflow-hidden rounded-md border"
+        style={{
+          aspectRatio: `${ARTBOARD_WIDTH_CM} / ${ARTBOARD_HEIGHT_CM}`,
+          backgroundColor: coverColor,
+        }}
       >
         <canvas ref={canvasRef} className="block max-h-full max-w-full" />
       </div>
