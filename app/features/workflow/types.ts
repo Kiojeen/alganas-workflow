@@ -27,6 +27,7 @@ export type BookConfig = {
   multiChapter: boolean;
   maxPagesPerChapter: number;
   chapterLabel: string;
+  chapterLabelUppercase: boolean;
   bookName: string;
   bookDescription: string;
   coverSide: CoverSide;

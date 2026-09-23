@@ -22,6 +22,7 @@ const defaultBookConfig: BookConfig = {
   multiChapter: false,
   maxPagesPerChapter: 720,
   chapterLabel: "الفصل",
+  chapterLabelUppercase: false,
   bookName: "",
   bookDescription: "",
   coverSide: "rtl",

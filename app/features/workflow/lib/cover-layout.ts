@@ -7,6 +7,7 @@ export const ARTBOARD_HEIGHT_CM = 29.7;
 export const PAGES_PER_SPINE_CM = 200;
 export const MAX_PAGES_PER_VOLUME = 720;
 export const BACK_STRIPE_WIDTH_CM = 15;
+export const STRIPE_INSET_CM = 1;
 export const PREVIEW_DPI = 150;
 export const EXPORT_DPI = 200;
 export const DEFAULT_COVER_COLOR = "#5c5044";
@@ -16,6 +17,8 @@ export const SPINE_MARK_WIDTH_CM = 0.1;
 export const SPINE_MARK_HEIGHT_CM = 0.2;
 export const STRIPE_TEXT =
   "The afternoon light slipped across the desk and caught the edge of a half-open notebook. Outside, a dry wind moved through the trees as if turning pages of its own. Someone had left a cup of tea to cool beside a stack of letters, each one waiting for a reply that might never come. In that quiet, even the smallest mark of ink felt like a beginning.";
+
+export const CHAPTER_LABEL_OPTIONS = ["volume", "chapter", "الفصل"] as const;
 
 export type CoverChapter = {
   pages: number;
@@ -153,7 +156,10 @@ export function chapterPageCap(config: BookConfig): number {
 
 export function resolveChapters(config: BookConfig): CoverChapter[] {
   const totalPages = Math.max(1, config.numPages || 1);
-  const baseLabel = config.chapterLabel.trim() || "الفصل";
+  const rawLabel = config.chapterLabel.trim() || "الفصل";
+  const baseLabel = config.chapterLabelUppercase
+    ? rawLabel.toLocaleUpperCase()
+    : rawLabel;
   const cap = chapterPageCap(config);
   const count = config.multiChapter
     ? Math.max(1, Math.ceil(totalPages / cap))
@@ -520,8 +526,9 @@ function drawStripeParagraph(
 ) {
   if (!args.text) return;
 
-  const pad = cmToPx(0.9, args.dpi);
-  const maxWidth = args.width - pad * 2;
+  const padX = cmToPx(STRIPE_INSET_CM, args.dpi);
+  const padY = cmToPx(STRIPE_INSET_CM, args.dpi);
+  const maxWidth = args.width - padX * 2;
   const fontSize = cmToPx(0.42, args.dpi);
   const lineHeight = fontSize * 1.45;
 
@@ -537,11 +544,11 @@ function drawStripeParagraph(
   const lines = wrapWords(args.text, maxWidth, (value) => ctx.measureText(value).width);
   const startY =
     args.y + args.height / 2 - ((lines.length - 1) * lineHeight) / 2;
-  const left = args.x + pad;
+  const left = args.x + padX;
   const centerX = args.x + args.width / 2;
   for (const [index, line] of lines.entries()) {
     const y = startY + index * lineHeight;
-    if (y < args.y + pad || y > args.y + args.height - pad) continue;
+    if (y < args.y + padY || y > args.y + args.height - padY) continue;
     const isLast = index === lines.length - 1;
     drawJustifiedLine(ctx, line, centerX, left, y, maxWidth, isLast);
   }

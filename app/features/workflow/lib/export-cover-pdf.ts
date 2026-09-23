@@ -25,6 +25,7 @@ import {
   DEFAULT_STRIPE_FOREGROUND,
   SPINE_MARK_HEIGHT_CM,
   SPINE_MARK_WIDTH_CM,
+  STRIPE_INSET_CM,
   STRIPE_TEXT,
   cmToPt,
   contrastHex,
@@ -295,8 +296,9 @@ async function drawVectorCover(args: {
   page.drawRectangle({ ...spine, color: color(fillHex) });
   page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
 
-  const pad = cmToPt(0.9);
-  const maxWidth = stripe.width - pad * 2;
+  const padX = cmToPt(STRIPE_INSET_CM);
+  const padY = cmToPt(STRIPE_INSET_CM);
+  const maxWidth = stripe.width - padX * 2;
   const fontSize = cmToPt(0.42);
   const lineHeight = fontSize * 1.45;
   const stripeFont =
@@ -306,11 +308,11 @@ async function drawVectorCover(args: {
   );
   const blockHeight = (lines.length - 1) * lineHeight;
   const startY = stripe.y + stripe.height / 2 + blockHeight / 2 - fontSize * 0.35;
-  const left = stripe.x + pad;
+  const left = stripe.x + padX;
   const centerX = stripe.x + stripe.width / 2;
   for (const [index, line] of lines.entries()) {
     const y = startY - index * lineHeight;
-    if (y < stripe.y + pad || y > stripe.y + stripe.height - pad) continue;
+    if (y < stripe.y + padY || y > stripe.y + stripe.height - padY) continue;
     drawJustifiedLine(
       page,
       stripeFont,

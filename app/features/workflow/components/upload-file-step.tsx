@@ -1,13 +1,22 @@
 import { FileUploadIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import type { BookConfig, Preview } from "../types";
 import {
+  CHAPTER_LABEL_OPTIONS,
   MAX_PAGES_PER_VOLUME,
   PAGES_PER_SPINE_CM,
   resolveChapters,
@@ -38,6 +47,9 @@ export function UploadFileStep({
   const chapters = resolveChapters(bookConfig);
   const cap = bookConfig.maxPagesPerChapter || MAX_PAGES_PER_VOLUME;
   const singleSpine = spineWidthCm(Math.max(1, bookConfig.numPages || 1));
+  const chapterLabel =
+    CHAPTER_LABEL_OPTIONS.find((option) => option === bookConfig.chapterLabel) ??
+    "الفصل";
 
   return (
     <div className="flex flex-col gap-4">
@@ -135,18 +147,40 @@ export function UploadFileStep({
             <Label className="text-muted-foreground text-xs font-medium">
               تسمية الفصل
             </Label>
-            <Input
-              value={bookConfig.chapterLabel}
+            <Select
+              value={chapterLabel}
               disabled={disabled}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 onBookConfigChange({
                   ...bookConfig,
-                  chapterLabel: e.target.value,
+                  chapterLabel: value,
                 })
               }
-              placeholder="مثال: chapter, volume, part"
-              className="h-8"
-            />
+            >
+              <SelectTrigger className="w-full" size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CHAPTER_LABEL_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox
+                checked={bookConfig.chapterLabelUppercase === true}
+                disabled={disabled}
+                onCheckedChange={(checked) =>
+                  onBookConfigChange({
+                    ...bookConfig,
+                    chapterLabelUppercase: checked === true,
+                  })
+                }
+              />
+              أحرف كبيرة
+            </label>
           </div>
 
           <div className="rounded-md border px-3 py-2">
