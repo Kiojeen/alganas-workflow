@@ -7,7 +7,8 @@ export const ARTBOARD_HEIGHT_CM = 29.7;
 export const PAGES_PER_SPINE_CM = 200;
 export const MAX_PAGES_PER_VOLUME = 720;
 export const BACK_STRIPE_WIDTH_CM = 15;
-export const STRIPE_INSET_CM = 1;
+export const STRIPE_EDGE_GAP_CM = 1.5;
+export const STRIPE_INSET_CM = 1.5;
 export const PREVIEW_DPI = 150;
 export const EXPORT_DPI = 200;
 export const DEFAULT_COVER_COLOR = "#5c5044";
@@ -95,8 +96,12 @@ export function layoutCoverCm(
   const frontX = frontOnLeft ? originX : originX + a4W + spineW;
   const spineX = originX + a4W;
   const backX = frontOnLeft ? originX + a4W + spineW : originX;
-  const stripeW = Math.min(BACK_STRIPE_WIDTH_CM, A4_WIDTH_CM) * fitScale;
-  const stripeX = frontOnLeft ? backX + a4W - stripeW : backX;
+  const edgeGap = STRIPE_EDGE_GAP_CM * fitScale;
+  const stripeW =
+    Math.min(BACK_STRIPE_WIDTH_CM, A4_WIDTH_CM - STRIPE_EDGE_GAP_CM) * fitScale;
+  const stripeX = frontOnLeft
+    ? backX + a4W - stripeW - edgeGap
+    : backX + edgeGap;
   return {
     fitScale,
     a4W,
