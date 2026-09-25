@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { generateImage, generateObject } from "ai";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { generateImage, generateObject } from "ai";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -10,14 +17,14 @@ import { Separator } from "@/components/ui/separator";
 import { ConvertStep } from "./components/convert-step";
 import { DescribeStep } from "./components/describe-step";
 import { GenerateStep } from "./components/generate-step";
-import { UploadFileStep } from "./components/upload-file-step";
 import { StepContainer } from "./components/step-container";
+import { UploadFileStep } from "./components/upload-file-step";
 import { WorkflowHeaderCard } from "./components/workflow-header-card";
 import { useWorkflow } from "./context";
 import { useModels } from "./context/models-context";
 import { JOBS } from "./jobs";
-import { exportCoverPdf } from "./lib/export-cover-pdf";
 import { downloadDataUrl, fileSafeName } from "./lib/cover-layout";
+import { exportCoverPdf } from "./lib/export-cover-pdf";
 import { renderPdfPage } from "./lib/pdf";
 import { modelsByKind } from "./lib/provider-models";
 import type { StepStatus } from "./types";
@@ -29,13 +36,21 @@ const describeSchema = z.object({
   description: z.string(),
 });
 
-function languageModel(provider: "openai" | "google", key: string, modelId: string) {
+function languageModel(
+  provider: "openai" | "google",
+  key: string,
+  modelId: string,
+) {
   return provider === "openai"
     ? createOpenAI({ apiKey: key })(modelId)
     : createGoogle({ apiKey: key })(modelId);
 }
 
-function imageModel(provider: "openai" | "google", key: string, modelId: string) {
+function imageModel(
+  provider: "openai" | "google",
+  key: string,
+  modelId: string,
+) {
   return provider === "openai"
     ? createOpenAI({ apiKey: key }).image(modelId)
     : createGoogle({ apiKey: key }).image(modelId);
@@ -52,6 +67,9 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     workflow?.state.completed ?? new Set(),
   );
   const runningRef = useRef<number | null>(workflow?.state.runningStep ?? null);
+  const autoRunRef = useRef<Record<string, boolean>>(
+    workflow?.state.stepAutoRun ?? {},
+  );
   const [showLines, setShowLines] = useState(true);
   const [exporting, setExporting] = useState(false);
 
@@ -67,6 +85,9 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   useEffect(() => {
     runningRef.current = workflow?.state.runningStep ?? null;
   }, [workflow?.state.runningStep]);
+  useEffect(() => {
+    autoRunRef.current = workflow?.state.stepAutoRun ?? {};
+  }, [workflow?.state.stepAutoRun]);
 
   const involvedIndices = useMemo(() => {
     const inv = workflow?.state.involved;
@@ -155,7 +176,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   const finishStep = (i: number) => {
     runningRef.current = null;
     const nextIdx = findNextInvolved(i, involvedRef.current);
-    const shouldAutoRun = nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
+    const shouldAutoRun =
+      nextIdx !== null && Boolean(autoRunRef.current[JOBS[nextIdx].id]);
     update((prev) => {
       const next = new Set(prev.completed).add(i);
       return { completed: next, runningStep: null };
@@ -247,7 +269,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         runningRef.current = null;
         const nextIdx = findNextInvolved(i, involvedRef.current);
         const shouldAutoRun =
-          nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
+          nextIdx !== null && Boolean(autoRunRef.current[JOBS[nextIdx].id]);
         update((prev) => {
           const next = new Set(prev.completed).add(i);
           return {
@@ -312,7 +334,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         runningRef.current = null;
         const nextIdx = findNextInvolved(i, involvedRef.current);
         const shouldAutoRun =
-          nextIdx !== null && (JOBS[nextIdx].autoRun ?? true);
+          nextIdx !== null && Boolean(autoRunRef.current[JOBS[nextIdx].id]);
         update((prev) => {
           const next = new Set(prev.completed).add(i);
           return {
@@ -447,88 +469,108 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         {JOBS.map((job, i) => {
           const status = statusOf(i);
           const isInvolved = involved.has(job.id);
+          const canAutoRun = job.id === "describe" || job.id === "generate";
 
           return (
-            <StepContainer
-              key={job.id}
-              job={job}
-              index={i}
-              status={status}
-              involved={isInvolved}
-              mandatory={job.id === "upload" || job.id === "convert"}
-              hideRun={job.id === "convert"}
-              allowRerun={job.id === "describe" || job.id === "generate"}
-              lockContent={job.id === "describe" ? false : !isInvolved}
-              onToggleInvolved={toggleInvolved}
-              onRun={() => runStep(i)}
-              onRerun={() => rerunStep(i)}
-            >
-              {job.id === "upload" && (
-                <UploadFileStep
-                  preview={preview}
-                  pdfPage={state.pdfPage}
-                  busy={busy}
-                  onFile={handleFile}
-                  onPageChange={handlePageChange}
-                  bookConfig={bookConfig}
-                  onBookConfigChange={handleBookConfigChange}
-                  disabled={!isInvolved}
-                />
-              )}
+            <Fragment key={job.id}>
+              <div className="relative mt-8 flex items-center gap-2 md:hidden">
+                <Separator className="flex-1" />
+                <span className="text-muted-foreground shrink-0 px-2 text-sm font-medium">
+                  {job.title}
+                </span>
+                <Separator className="flex-1" />
+              </div>
 
-              {job.id === "describe" && (
-                <DescribeStep
-                  ai={describeAi}
-                  onAiChange={(id) => {
-                    update({ describeAi: id });
-                  }}
-                  bookName={bookConfig.bookName}
-                  description={bookConfig.bookDescription ?? ""}
-                  onBookNameChange={(value) =>
-                    handleBookConfigChange({ ...bookConfig, bookName: value })
-                  }
-                  onDescriptionChange={(value) =>
-                    handleBookConfigChange({
-                      ...bookConfig,
-                      bookDescription: value,
-                    })
-                  }
-                  extractEnabled={isInvolved}
-                />
-              )}
+              <StepContainer
+                job={job}
+                index={i}
+                status={status}
+                involved={isInvolved}
+                mandatory={job.id === "upload" || job.id === "convert"}
+                hideRun={job.id === "convert"}
+                allowRerun={job.id === "describe" || job.id === "generate"}
+                lockContent={job.id === "describe" ? false : !isInvolved}
+                autoRun={Boolean(state.stepAutoRun?.[job.id])}
+                showAutoRun={canAutoRun}
+                onToggleAutoRun={(value) =>
+                  update((prev) => ({
+                    stepAutoRun: {
+                      ...(prev.stepAutoRun ?? {}),
+                      [job.id]: value,
+                    },
+                  }))
+                }
+                onToggleInvolved={toggleInvolved}
+                onRun={() => runStep(i)}
+                onRerun={() => rerunStep(i)}
+              >
+                {job.id === "upload" && (
+                  <UploadFileStep
+                    preview={preview}
+                    pdfPage={state.pdfPage}
+                    busy={busy}
+                    onFile={handleFile}
+                    onPageChange={handlePageChange}
+                    bookConfig={bookConfig}
+                    onBookConfigChange={handleBookConfigChange}
+                    disabled={!isInvolved}
+                  />
+                )}
 
-              {job.id === "generate" && (
-                <GenerateStep
-                  ai={ai}
-                  onAiChange={(id) => {
-                    update({ ai: id });
-                  }}
-                  prompt={prompt}
-                  onPromptChange={(value) => {
-                    update({ prompt: value });
-                  }}
-                  outputImage={outputImage}
-                  bookName={bookConfig.bookName}
-                  disabled={!isInvolved}
-                />
-              )}
+                {job.id === "describe" && (
+                  <DescribeStep
+                    ai={describeAi}
+                    onAiChange={(id) => {
+                      update({ describeAi: id });
+                    }}
+                    bookName={bookConfig.bookName}
+                    description={bookConfig.bookDescription ?? ""}
+                    onBookNameChange={(value) =>
+                      handleBookConfigChange({ ...bookConfig, bookName: value })
+                    }
+                    onDescriptionChange={(value) =>
+                      handleBookConfigChange({
+                        ...bookConfig,
+                        bookDescription: value,
+                      })
+                    }
+                    extractEnabled={isInvolved}
+                  />
+                )}
 
-              {job.id === "convert" && (
-                <ConvertStep
-                  disabled={!isInvolved}
-                  sourceImage={sourceImage}
-                  awaitingGeneratedCover={generateInvolved && !outputImage}
-                  bookConfig={bookConfig}
-                  onBookConfigChange={handleBookConfigChange}
-                  showLines={showLines}
-                  setShowLines={setShowLines}
-                  onExport={() => {
-                    void exportPdf().catch(() => undefined);
-                  }}
-                  exporting={exporting}
-                />
-              )}
-            </StepContainer>
+                {job.id === "generate" && (
+                  <GenerateStep
+                    ai={ai}
+                    onAiChange={(id) => {
+                      update({ ai: id });
+                    }}
+                    prompt={prompt}
+                    onPromptChange={(value) => {
+                      update({ prompt: value });
+                    }}
+                    outputImage={outputImage}
+                    bookName={bookConfig.bookName}
+                    disabled={!isInvolved}
+                  />
+                )}
+
+                {job.id === "convert" && (
+                  <ConvertStep
+                    disabled={!isInvolved}
+                    sourceImage={sourceImage}
+                    awaitingGeneratedCover={generateInvolved && !outputImage}
+                    bookConfig={bookConfig}
+                    onBookConfigChange={handleBookConfigChange}
+                    showLines={showLines}
+                    setShowLines={setShowLines}
+                    onExport={() => {
+                      void exportPdf().catch(() => undefined);
+                    }}
+                    exporting={exporting}
+                  />
+                )}
+              </StepContainer>
+            </Fragment>
           );
         })}
       </div>

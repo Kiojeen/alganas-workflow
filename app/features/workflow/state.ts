@@ -16,6 +16,7 @@ export type WorkflowState = {
   completed: Set<number>;
   outputImage: string | null;
   involved: Set<string>;
+  stepAutoRun: Record<string, boolean>;
   bookConfig: BookConfig;
   canvasImage: string | null;
 };
@@ -45,6 +46,9 @@ const defaultBookConfig: BookConfig = {
 
 export function createDefaultWorkflowState(
   jobIds: readonly string[] = JOBS.map((j) => j.id),
+  stepAutoRun: Record<string, boolean> = Object.fromEntries(
+    JOBS.map((job) => [job.id, job.autoRun ?? false]),
+  ),
 ): WorkflowState {
   return {
     file: null,
@@ -58,6 +62,7 @@ export function createDefaultWorkflowState(
     completed: new Set(),
     outputImage: null,
     involved: new Set(jobIds),
+    stepAutoRun: { ...stepAutoRun },
     bookConfig: { ...defaultBookConfig },
     canvasImage: null,
   };

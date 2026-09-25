@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useWorkflows } from "@/features/workflow";
+import { useWorkflows, workflowTitle } from "@/features/workflow";
 import {
   Cancel01Icon,
   PlusSignIcon,
@@ -79,6 +79,7 @@ export function AppSidebar() {
               ) : (
                 workflows.map((wf) => {
                   const isActive = wf.id === currentId;
+                  const title = workflowTitle(wf);
                   return (
                     <SidebarMenuItem
                       key={wf.id}
@@ -93,15 +94,15 @@ export function AppSidebar() {
                         <SidebarMenuButton
                           size="lg"
                           isActive={isActive}
-                          tooltip={wf.name}
+                          tooltip={title}
                           onClick={() => select(wf.id)}
                           className="flex-1 group-data-[state=collapsed]:p-2!"
 
-                          title={state === "expanded" ? wf.name : undefined}
+                          title={state === "expanded" ? title : undefined}
                         >
                           <HugeiconsIcon icon={WorkflowSquare01Icon} />
                           <span className="truncate group-data-[state=collapsed]:hidden">
-                            {wf.name}
+                            {title}
                           </span>
                         </SidebarMenuButton>
 
@@ -113,9 +114,9 @@ export function AppSidebar() {
                             remove(wf.id);
                           }}
                           className="text-muted-foreground hover:text-destructive group-data-[state=collapsed]:hidden"
-                          aria-label={`حذف ${wf.name}`}
+                          aria-label={`حذف ${title}`}
 
-                          title={`حذف ${wf.name}`}
+                          title={`حذف ${title}`}
                         >
                           <HugeiconsIcon icon={TrashIcon} strokeWidth={2} />
                         </Button>

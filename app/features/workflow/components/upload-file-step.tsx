@@ -652,14 +652,26 @@ function DraftNumberInput({
 
   return (
     <Input
-      type="text"
+      type="number"
       inputMode="numeric"
-
+      step={1}
       value={draft ?? String(value)}
       disabled={disabled}
       aria-invalid={invalid}
       className={className}
-      onChange={(e) => setDraft(e.target.value.replace(/\D/g, ""))}
+      onChange={(e) => {
+        const next = e.target.value;
+        const fromSpinner = !(e.nativeEvent as InputEvent).inputType;
+        if (fromSpinner && next !== "") {
+          const parsed = Number(next);
+          if (Number.isFinite(parsed)) {
+            onCommit(parsed);
+            setDraft(null);
+            return;
+          }
+        }
+        setDraft(next);
+      }}
       onBlur={() => {
         const text = draft;
         setDraft(null);

@@ -19,6 +19,7 @@ import {
   type CatalogModel,
   type ProviderId,
 } from "../lib/provider-models";
+import { JOBS } from "../jobs";
 import { DEFAULT_GENERATE_PROMPT } from "../state";
 
 type ProviderKeys = Record<ProviderId, string>;
@@ -43,6 +44,8 @@ type ModelsContextValue = {
   stripeA5: StripeLayoutCm;
   updateStripeA4: (patch: Partial<StripeLayoutCm>) => void;
   updateStripeA5: (patch: Partial<StripeLayoutCm>) => void;
+  stepAutoRun: Record<string, boolean>;
+  setStepAutoRun: (jobId: string, value: boolean) => void;
 };
 
 const ModelsContext = createContext<ModelsContextValue | null>(null);
@@ -51,6 +54,10 @@ const STORAGE_KEY = "alganas-provider-keys";
 const PREFS_STORAGE_KEY = "alganas-prefs";
 const LEGACY_STORAGE_KEY = "alganas-models";
 const EMPTY_KEYS: ProviderKeys = { openai: "", google: "" };
+
+function defaultStepAutoRun(): Record<string, boolean> {
+  return Object.fromEntries(JOBS.map((job) => [job.id, job.autoRun ?? false]));
+}
 
 const DEFAULT_PROMPTS: SavedPrompt[] = [
   {
@@ -118,17 +125,30 @@ function parseStripe(
   };
 }
 
+function loadStepAutoRun(stored: unknown): Record<string, boolean> {
+  const defaults = defaultStepAutoRun();
+  if (!stored || typeof stored !== "object") return defaults;
+  const record = stored as Record<string, unknown>;
+  for (const job of JOBS) {
+    const value = record[job.id];
+    if (typeof value === "boolean") defaults[job.id] = value;
+  }
+  return defaults;
+}
+
 function loadPrefs(): {
   prompts: SavedPrompt[];
   pagesPerSpineCm: number;
   stripeA4: StripeLayoutCm;
   stripeA5: StripeLayoutCm;
+  stepAutoRun: Record<string, boolean>;
 } {
   const fallback = {
     prompts: DEFAULT_PROMPTS,
     pagesPerSpineCm: PAGES_PER_SPINE_CM,
     stripeA4: { ...DEFAULT_STRIPE_LAYOUT_A4 },
     stripeA5: { ...DEFAULT_STRIPE_LAYOUT_A5 },
+    stepAutoRun: defaultStepAutoRun(),
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -141,6 +161,7 @@ function loadPrefs(): {
         stripeWidthA5Cm?: number;
         stripeA4?: Partial<StripeLayoutCm>;
         stripeA5?: Partial<StripeLayoutCm>;
+        stepAutoRun?: Record<string, boolean>;
       };
       const prompts = Array.isArray(parsed.prompts)
         ? parsed.prompts
@@ -175,6 +196,7 @@ function loadPrefs(): {
           fallback.stripeA5,
           10.6,
         ),
+        stepAutoRun: loadStepAutoRun(parsed.stepAutoRun),
       };
     }
   } catch {
@@ -198,6 +220,9 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const [stripeA5, setStripeA5] = useState<StripeLayoutCm>(
     () => loadPrefs().stripeA5,
   );
+  const [stepAutoRun, setStepAutoRunState] = useState<Record<string, boolean>>(
+    () => loadPrefs().stepAutoRun,
+  );
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
@@ -211,9 +236,10 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         pagesPerSpineCm,
         stripeA4,
         stripeA5,
+        stepAutoRun,
       }),
     );
-  }, [prompts, pagesPerSpineCm, stripeA4, stripeA5]);
+  }, [prompts, pagesPerSpineCm, stripeA4, stripeA5, stepAutoRun]);
 
   useEffect(() => {
     let cancelled = false;
@@ -265,6 +291,10 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     setStripeA5((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  const setStepAutoRun = useCallback((jobId: string, value: boolean) => {
+    setStepAutoRunState((prev) => ({ ...prev, [jobId]: value }));
+  }, []);
+
   return (
     <ModelsContext.Provider
       value={{
@@ -281,6 +311,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         stripeA5,
         updateStripeA4,
         updateStripeA5,
+        stepAutoRun,
+        setStepAutoRun,
       }}
     >
       {children}

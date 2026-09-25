@@ -20,6 +20,9 @@ export function StepContainer({
   hideRun,
   allowRerun,
   lockContent,
+  autoRun,
+  showAutoRun,
+  onToggleAutoRun,
   onToggleInvolved,
   onRun,
   onRerun,
@@ -33,6 +36,9 @@ export function StepContainer({
   hideRun?: boolean;
   allowRerun?: boolean;
   lockContent?: boolean;
+  autoRun?: boolean;
+  showAutoRun?: boolean;
+  onToggleAutoRun?: (value: boolean) => void;
   onToggleInvolved: (id: string, value: boolean) => void;
   onRun: () => void;
   onRerun?: () => void;
@@ -42,19 +48,19 @@ export function StepContainer({
 
   return (
     <div className="flex gap-3">
-      <div className="flex flex-col items-center pt-2.5">
+      <div className="hidden flex-col items-center pt-2.5 md:flex">
         <StepNode status={status} index={index} />
       </div>
 
       <Card
         className={cn(
-          "flex-1 border transition-all",
+          "min-w-0 flex-1 border transition-all max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:py-0 max-md:ring-0",
           status === "muted" && "opacity-60 saturate-0",
           status === "pending" &&
-            "border-dashed border-muted-foreground/40 bg-muted/15",
+            "md:border-dashed md:border-muted-foreground/40 md:bg-muted/15",
         )}
       >
-        <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+        <CardHeader className="hidden flex-row items-center gap-3 space-y-0 md:flex">
           <div
             className={cn(
               "bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md",
@@ -78,6 +84,17 @@ export function StepContainer({
             </p>
           </div>
 
+          {showAutoRun && (
+            <label className="flex items-center gap-2 text-xs">
+              تشغيل تلقائي
+              <Switch
+                checked={autoRun === true}
+                onCheckedChange={(value) => onToggleAutoRun?.(value)}
+                aria-label={`تشغيل تلقائي لـ ${job.title}`}
+              />
+            </label>
+          )}
+
           <RunSlot
             status={status}
             onRun={onRun}
@@ -96,7 +113,32 @@ export function StepContainer({
           )}
         </CardHeader>
 
-        <CardContent>
+        {(showAutoRun || !mandatory) && (
+          <div className="mb-3 flex items-center justify-end gap-4 md:hidden">
+            {showAutoRun && (
+              <label className="flex items-center gap-2 text-xs">
+                تشغيل تلقائي
+                <Switch
+                  checked={autoRun === true}
+                  onCheckedChange={(value) => onToggleAutoRun?.(value)}
+                  aria-label={`تشغيل تلقائي لـ ${job.title}`}
+                />
+              </label>
+            )}
+            {!mandatory && (
+              <label className="flex items-center gap-2 text-xs">
+                تفعيل
+                <Switch
+                  checked={involved}
+                  onCheckedChange={(value) => onToggleInvolved(job.id, value)}
+                  aria-label={`تبديل مشاركة ${job.title}`}
+                />
+              </label>
+            )}
+          </div>
+        )}
+
+        <CardContent className="max-md:px-0">
           <div
             className={cn(
               contentLocked && "pointer-events-none opacity-60 saturate-0",
