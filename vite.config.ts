@@ -3,7 +3,14 @@ import tailwindcss from "@tailwindcss/vite";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import { defineConfig } from "vite";
 
-export default defineConfig({
+import { pagesPaths } from "./pages-base.ts";
+
+export default defineConfig(({ command }) => ({
+  base: pagesPaths().viteBase,
   resolve: { tsconfigPaths: true },
-  plugins: [tailwindcss(), reactRouter(), basicSsl()],
-});
+  plugins: [
+    tailwindcss(),
+    reactRouter(),
+    ...(command === "serve" ? [basicSsl()] : []),
+  ],
+}));

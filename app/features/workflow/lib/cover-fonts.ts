@@ -1,5 +1,10 @@
 export type CoverFontPair = "montserrat" | "castoro";
 
+function publicFile(path: string) {
+  const base = import.meta.env.BASE_URL ?? "/";
+  return `${base}${path.replace(/^\//, "")}`;
+}
+
 export const COVER_FONT_PAIRS: {
   id: CoverFontPair;
   label: string;
@@ -11,16 +16,16 @@ export const COVER_FONT_PAIRS: {
   {
     id: "montserrat",
     label: "Montserrat",
-    titleFile: "/MONTSERRAT-BOLD.TTF",
-    descriptionFile: "/MONTSERRAT-REGULAR.TTF",
+    titleFile: publicFile("/MONTSERRAT-BOLD.TTF"),
+    descriptionFile: publicFile("/MONTSERRAT-REGULAR.TTF"),
     titleFamily: "CoverMontserratTitle",
     descriptionFamily: "CoverMontserratDescription",
   },
   {
     id: "castoro",
     label: "Castoro",
-    titleFile: "/CASTORO-REGULAR.TTF",
-    descriptionFile: "/CASTORO-ITALIC.TTF",
+    titleFile: publicFile("/CASTORO-REGULAR.TTF"),
+    descriptionFile: publicFile("/CASTORO-ITALIC.TTF"),
     titleFamily: "CoverCastoroTitle",
     descriptionFamily: "CoverCastoroDescription",
   },
