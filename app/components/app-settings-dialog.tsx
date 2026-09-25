@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useModels } from "@/features/workflow/context";
 import {
   DEFAULT_STRIPE_LAYOUT_A4,
@@ -10,12 +10,15 @@ import { JOBS } from "@/features/workflow/jobs";
 import { PROVIDERS } from "@/features/workflow/lib/provider-models";
 import {
   Delete02Icon,
+  Download01Icon,
   Key01Icon,
   PlusSignIcon,
+  Upload01Icon,
   ViewIcon,
   ViewOffIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -57,8 +60,39 @@ function AppSettingsDialog({
     stripeA5,
     updateStripeA4,
     updateStripeA5,
+    exportSettings,
+    importSettings,
   } = useModels();
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const downloadSettings = () => {
+    const file = new Blob([JSON.stringify(exportSettings(), null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(file);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "alganas-settings.json";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const onImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      if (!importSettings(parsed)) {
+        toast.error("ملف الإعدادات غير صالح.");
+        return;
+      }
+      toast.success("تم استيراد الإعدادات.");
+    } catch {
+      toast.error("تعذّر قراءة ملف الإعدادات.");
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -305,6 +339,46 @@ function AppSettingsDialog({
                 />
               </div>
             ))}
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">نسخ الإعدادات</Label>
+          <p className="text-muted-foreground text-[11px]">
+            يضم الملف المفاتيح والنماذج ومقياس الكعب والشريط والتشغيل التلقائي
+            وتعليمات التوليد.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={downloadSettings}
+            >
+              <HugeiconsIcon icon={Download01Icon} className="size-3.5" />
+              تصدير
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() => importInputRef.current?.click()}
+            >
+              <HugeiconsIcon icon={Upload01Icon} className="size-3.5" />
+              استيراد
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(event) => {
+                void onImportFile(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
           </div>
         </div>
       </DialogContent>

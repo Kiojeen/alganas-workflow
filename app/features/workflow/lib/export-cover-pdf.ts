@@ -623,7 +623,7 @@ export async function exportCoverPdf(args: {
       coverImageElement,
       chapterNumber:
         chapters.length > 1
-          ? formatSpineNumber(args.bookConfig.spineNumberLang, chapter.index)
+          ? formatSpineNumber(args.bookConfig.chapterLabel, chapter.index)
           : undefined,
       pagesPerSpineCm: args.pagesPerSpineCm,
       stripeWidthCm: args.stripeWidthCm,

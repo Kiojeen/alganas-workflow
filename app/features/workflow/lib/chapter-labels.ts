@@ -126,10 +126,10 @@ export function isEnglishChapterLabel(value: string | null | undefined): boolean
 }
 
 export function formatSpineNumber(
-  lang: "ar" | "en" | null | undefined,
+  chapterLabel: string | null | undefined,
   index: number,
 ) {
-  if (lang === "en") return String(index);
+  if (isEnglishChapterLabel(chapterLabel)) return String(index);
   return arabicOrdinal(index);
 }
 

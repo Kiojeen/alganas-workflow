@@ -54,6 +54,21 @@ type ModelsContextValue = {
   setDefaultDescribeModel: (id: string) => void;
   defaultImageModel: string;
   setDefaultImageModel: (id: string) => void;
+  exportSettings: () => SettingsFile;
+  importSettings: (raw: unknown) => boolean;
+};
+
+export type SettingsFile = {
+  kind: "alganas-settings";
+  version: 1;
+  keys: ProviderKeys;
+  prompts: SavedPrompt[];
+  pagesPerSpineCm: number;
+  stripeA4: StripeLayoutCm;
+  stripeA5: StripeLayoutCm;
+  stepAutoRun: Record<string, boolean>;
+  defaultDescribeModel: string;
+  defaultImageModel: string;
 };
 
 const ModelsContext = createContext<ModelsContextValue | null>(null);
@@ -252,6 +267,78 @@ function loadPrefs(): {
   return fallback;
 }
 
+function parseSettingsFile(raw: unknown): SettingsFile | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  if (record.kind !== "alganas-settings") return null;
+  const prefs = loadPrefsFromUnknown(record);
+  const keysRaw =
+    record.keys && typeof record.keys === "object"
+      ? (record.keys as Partial<ProviderKeys>)
+      : {};
+  return {
+    kind: "alganas-settings",
+    version: 1,
+    keys: {
+      openai: typeof keysRaw.openai === "string" ? keysRaw.openai : "",
+      google: typeof keysRaw.google === "string" ? keysRaw.google : "",
+    },
+    ...prefs,
+  };
+}
+
+function loadPrefsFromUnknown(parsed: Record<string, unknown>) {
+  const fallback = {
+    prompts: DEFAULT_PROMPTS,
+    pagesPerSpineCm: PAGES_PER_SPINE_CM,
+    stripeA4: { ...DEFAULT_STRIPE_LAYOUT_A4 },
+    stripeA5: { ...DEFAULT_STRIPE_LAYOUT_A5 },
+    stepAutoRun: defaultStepAutoRun(),
+    defaultDescribeModel: DEFAULT_DESCRIBE_MODEL_ID,
+    defaultImageModel: DEFAULT_IMAGE_MODEL_ID,
+  };
+  const prompts = Array.isArray(parsed.prompts)
+    ? parsed.prompts
+        .filter(
+          (item): item is SavedPrompt =>
+            !!item &&
+            typeof item === "object" &&
+            typeof (item as SavedPrompt).id === "string" &&
+            typeof (item as SavedPrompt).name === "string" &&
+            typeof (item as SavedPrompt).text === "string",
+        )
+        .map((item) => ({ id: item.id, name: item.name, text: item.text }))
+    : fallback.prompts;
+  return {
+    prompts: prompts.length > 0 ? prompts : fallback.prompts,
+    pagesPerSpineCm:
+      typeof parsed.pagesPerSpineCm === "number" && parsed.pagesPerSpineCm > 0
+        ? parsed.pagesPerSpineCm
+        : fallback.pagesPerSpineCm,
+    stripeA4: parseStripe(
+      parsed.stripeA4 as Partial<StripeLayoutCm> | undefined,
+      undefined,
+      fallback.stripeA4,
+      15,
+    ),
+    stripeA5: parseStripe(
+      parsed.stripeA5 as Partial<StripeLayoutCm> | undefined,
+      undefined,
+      fallback.stripeA5,
+      10.6,
+    ),
+    stepAutoRun: loadStepAutoRun(parsed.stepAutoRun),
+    defaultDescribeModel: loadModelId(
+      parsed.defaultDescribeModel,
+      fallback.defaultDescribeModel,
+    ),
+    defaultImageModel: loadModelId(
+      parsed.defaultImageModel,
+      fallback.defaultImageModel,
+    ),
+  };
+}
+
 export function ModelsProvider({ children }: { children: ReactNode }) {
   const [keys, setKeys] = useState<ProviderKeys>(loadKeys);
   const [models, setModels] = useState<CatalogModel[]>(DEFAULT_CATALOG);
@@ -367,6 +454,44 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     if (parseModelSelection(id)) setDefaultImageModelState(id);
   }, []);
 
+  const exportSettings = useCallback((): SettingsFile => {
+    return {
+      kind: "alganas-settings",
+      version: 1,
+      keys,
+      prompts,
+      pagesPerSpineCm,
+      stripeA4,
+      stripeA5,
+      stepAutoRun,
+      defaultDescribeModel,
+      defaultImageModel,
+    };
+  }, [
+    keys,
+    prompts,
+    pagesPerSpineCm,
+    stripeA4,
+    stripeA5,
+    stepAutoRun,
+    defaultDescribeModel,
+    defaultImageModel,
+  ]);
+
+  const importSettings = useCallback((raw: unknown) => {
+    const parsed = parseSettingsFile(raw);
+    if (!parsed) return false;
+    setKeys(parsed.keys);
+    setPrompts(parsed.prompts);
+    setPagesPerSpineCmState(parsed.pagesPerSpineCm);
+    setStripeA4(parsed.stripeA4);
+    setStripeA5(parsed.stripeA5);
+    setStepAutoRunState(parsed.stepAutoRun);
+    setDefaultDescribeModelState(parsed.defaultDescribeModel);
+    setDefaultImageModelState(parsed.defaultImageModel);
+    return true;
+  }, []);
+
   return (
     <ModelsContext.Provider
       value={{
@@ -389,6 +514,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         setDefaultDescribeModel,
         defaultImageModel,
         setDefaultImageModel,
+        exportSettings,
+        importSettings,
       }}
     >
       {children}

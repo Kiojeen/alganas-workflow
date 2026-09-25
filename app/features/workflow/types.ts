@@ -24,8 +24,6 @@ export type CoverSide = "ltr" | "rtl";
 
 export type CoverPageSize = "a4" | "a5";
 
-export type SpineNumberLang = "ar" | "en";
-
 export type CoverKind = "wrap" | "page";
 
 export type ChapterDivision = "pages" | "chapters";
@@ -44,7 +42,6 @@ export type BookConfig = {
   coverKind: CoverKind;
   coverSide: CoverSide;
   pageSize: CoverPageSize;
-  spineNumberLang: SpineNumberLang;
   fontPair: CoverFontPair;
   coverColor: string;
   stripeColor: string;

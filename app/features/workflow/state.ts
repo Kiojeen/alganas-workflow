@@ -39,7 +39,6 @@ const defaultBookConfig: BookConfig = {
   coverKind: "wrap",
   coverSide: "rtl",
   pageSize: "a4",
-  spineNumberLang: "ar",
   fontPair: "montserrat",
   coverColor: "",
   stripeColor: "",
