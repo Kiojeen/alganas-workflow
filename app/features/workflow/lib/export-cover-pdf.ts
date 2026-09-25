@@ -17,6 +17,7 @@ import {
 
 import type { BookConfig, CoverSide } from "../types";
 import { showsChapterTitle, unassignedPagesError } from "./chapter-division";
+import { formatSpineNumber } from "./chapter-labels";
 import {
   fetchCoverFontBytes,
   getCoverFontPair,
@@ -28,6 +29,10 @@ import {
   DEFAULT_COVER_COLOR,
   SPINE_MARK_HEIGHT_CM,
   SPINE_MARK_WIDTH_CM,
+  SPINE_TITLE_MIN_GAP_CM,
+  fitSpineTitle,
+  spineNumberFontSize,
+  spineNumberFromTopCm,
   STRIPE_INSET_CM,
   STRIPE_TEXT,
   cmToPt,
@@ -253,32 +258,39 @@ function drawChapterLabel(
   });
 }
 
-function drawCenteredSpineTitle(
+function drawRotatedSpineLines(
   page: PDFPage,
-  text: string,
-  font: PDFFont,
-  size: number,
-  cx: number,
-  cy: number,
-  angle: number,
-  fill: RGB,
+  args: {
+    lines: string[];
+    font: PDFFont;
+    size: number;
+    cx: number;
+    cy: number;
+    angle: number;
+    fill: RGB;
+  },
 ) {
-  const width = font.widthOfTextAtSize(text, size);
+  const { font, size, lines } = args;
   const ascent = font.heightAtSize(size, { descender: false });
   const descent = font.heightAtSize(size, { descender: true }) - ascent;
   const midline = (ascent - descent) / 2;
-
+  const lineGap = size * 0.2;
   page.pushOperators(
     pushGraphicsState(),
-    translate(cx, cy),
-    rotateDegrees(angle),
+    translate(args.cx, args.cy),
+    rotateDegrees(args.angle),
   );
-  page.drawText(text, {
-    x: -width / 2,
-    y: -midline,
-    size,
-    font,
-    color: fill,
+  lines.forEach((line, index) => {
+    const width = font.widthOfTextAtSize(line, size);
+    const offset =
+      lines.length === 1 ? 0 : (index === 0 ? -1 : 1) * ((size + lineGap) / 2);
+    page.drawText(line, {
+      x: -width / 2,
+      y: offset - midline,
+      size,
+      font,
+      color: args.fill,
+    });
   });
   page.pushOperators(popGraphicsState());
 }
@@ -458,57 +470,73 @@ async function drawVectorCover(args: {
   const cx = cmToPt(layout.spineX + layout.spineW / 2);
 
   if ((title || chapterNumber) && layout.spineW > 0.08) {
-    const numberFont = titleFont;
+    const numberFont = fontForText(chapterNumber, titleFont, arabic, pair);
     const spineFont = fontForText(title, titleFont, arabic, pair);
-    const size = Math.min(
+    const baseSize = Math.min(
       cmToPt(layout.spineW * 0.55),
       cmToPt(layout.height * 0.04),
     );
-    const numSize = size;
-    const gap = cmToPt(0.1);
     const markH = cmToPt(SPINE_MARK_HEIGHT_CM);
-    const maxTitle = cmToPt(layout.height * 0.86);
-    const titleLen = title
-      ? Math.min(spineFont.widthOfTextAtSize(title, size), maxTitle)
+    const edge = cmToPt(0.15);
+    const minGap = cmToPt(SPINE_TITLE_MIN_GAP_CM);
+    const spineTop = spine.y + spine.height;
+    const angle = layout.frontOnLeft ? 90 : -90;
+    let numberSize = spineNumberFontSize(baseSize, chapterNumber);
+    const numberFromTop = chapterNumber
+      ? cmToPt(spineNumberFromTopCm(args.bookConfig.pageSize))
       : 0;
-    const numAscent = chapterNumber
-      ? numberFont.heightAtSize(numSize, { descender: false })
+    const zoneBottom = spine.height - markH - edge;
+    if (chapterNumber) {
+      const maxNumberWidth = spine.width * 0.92;
+      const numberWidth = numberFont.widthOfTextAtSize(chapterNumber, numberSize);
+      if (numberWidth > maxNumberWidth && numberWidth > 0) {
+        numberSize *= maxNumberWidth / numberWidth;
+      }
+    }
+    const numberAlong = chapterNumber
+      ? numberFont.heightAtSize(numberSize, { descender: true })
       : 0;
-    const numFull = chapterNumber
-      ? numberFont.heightAtSize(numSize, { descender: true })
-      : 0;
-    const numBlock = chapterNumber ? numFull + gap : 0;
-    const block = numBlock + titleLen;
-    const minTop = spine.y + markH + gap;
-    const maxTop = spine.y + spine.height - markH - gap;
-    const midY = spine.y + spine.height / 2;
-    const groupTop = Math.min(
-      Math.max(midY + block / 2, minTop + block),
-      maxTop,
-    );
-    const topEdge = groupTop - block;
+    const zoneTop = chapterNumber
+      ? numberFromTop + numberAlong + minGap
+      : markH + edge;
+    const fitted = title
+      ? fitSpineTitle({
+          title,
+          maxAlong: Math.max(1, zoneBottom - zoneTop),
+          maxAcross: spine.width,
+          size: baseSize,
+          widthOf: (text, size) => spineFont.widthOfTextAtSize(text, size),
+        })
+      : null;
 
     if (chapterNumber) {
-      const numWidth = numberFont.widthOfTextAtSize(chapterNumber, numSize);
+      const numberWidth = numberFont.widthOfTextAtSize(chapterNumber, numberSize);
+      const ascent = numberFont.heightAtSize(numberSize, { descender: false });
       page.drawText(chapterNumber, {
-        x: cx - numWidth / 2,
-        y: topEdge + block - numAscent,
-        size: numSize,
+        x: cx - numberWidth / 2,
+        y: spineTop - numberFromTop - ascent,
+        size: numberSize,
         font: numberFont,
         color: spineInk,
       });
     }
-    if (title) {
-      drawCenteredSpineTitle(
-        page,
-        title,
-        spineFont,
-        size,
+    if (fitted) {
+      const ideal = spine.height / 2;
+      const minCenter = zoneTop + fitted.along / 2;
+      const maxCenter = zoneBottom - fitted.along / 2;
+      const centerFromTop =
+        minCenter <= maxCenter
+          ? Math.min(Math.max(ideal, minCenter), maxCenter)
+          : (zoneTop + zoneBottom) / 2;
+      drawRotatedSpineLines(page, {
+        lines: fitted.lines,
+        font: spineFont,
+        size: fitted.size,
         cx,
-        topEdge + titleLen / 2,
-        layout.frontOnLeft ? 90 : -90,
-        spineInk,
-      );
+        cy: spineTop - centerFromTop,
+        angle,
+        fill: spineInk,
+      });
     }
   }
 
@@ -593,7 +621,10 @@ export async function exportCoverPdf(args: {
       pages: chapter.pages,
       label: showTitle ? chapter.label : "",
       coverImageElement,
-      chapterNumber: chapters.length > 1 ? String(chapter.index) : undefined,
+      chapterNumber:
+        chapters.length > 1
+          ? formatSpineNumber(args.bookConfig.spineNumberLang, chapter.index)
+          : undefined,
       pagesPerSpineCm: args.pagesPerSpineCm,
       stripeWidthCm: args.stripeWidthCm,
       stripeInsetCm: args.stripeInsetCm,

@@ -44,7 +44,17 @@ export const DEFAULT_COVER_COLOR = "#5c5044";
 export const DEFAULT_STRIPE_FOREGROUND = "#f4efe6";
 export const DEFAULT_CHAPTER_LABEL_COLOR = "#ffffff";
 export const SPINE_MARK_WIDTH_CM = 0.1;
-export const SPINE_MARK_HEIGHT_CM = 0.2;
+export const SPINE_MARK_HEIGHT_CM = 0.7;
+export const SPINE_TITLE_MIN_GAP_CM = 1;
+
+export function spineNumberFromTopCm(pageSize: CoverPageSize = "a4") {
+  return pageSize === "a5" ? 1.5 : 3;
+}
+
+/** Arabic ordinals read larger than digits at the same size. */
+export function spineNumberFontSize(baseSize: number, text: string) {
+  return /[\u0600-\u06FF]/.test(text) ? baseSize * 0.75 : baseSize;
+}
 export const STRIPE_TEXT =
   "The afternoon light slipped across the desk and caught the edge of a half-open notebook. Outside, a dry wind moved through the trees as if turning pages of its own. Someone had left a cup of tea to cool beside a stack of letters, each one waiting for a reply that might never come. In that quiet, even the smallest mark of ink felt like a beginning.";
 
@@ -411,6 +421,7 @@ export function drawCoverOnCanvas(
     fontFamily: titleFamily,
     fontWeight: spineWeight,
     dpi,
+    pageSize,
   });
 
   drawSpineMarks(ctx, {
@@ -592,6 +603,63 @@ function drawSpineMarks(
   ctx.restore();
 }
 
+function splitSpineTitle(title: string, widthOf: (text: string) => number) {
+  const words = title.split(/\s+/).filter(Boolean);
+  if (words.length <= 1) {
+    const chars = Array.from(title);
+    const mid = Math.max(1, Math.ceil(chars.length / 2));
+    return [chars.slice(0, mid).join(""), chars.slice(mid).join("")] as const;
+  }
+  let bestAt = 1;
+  let best = Number.POSITIVE_INFINITY;
+  for (let index = 1; index < words.length; index += 1) {
+    const score = Math.max(
+      widthOf(words.slice(0, index).join(" ")),
+      widthOf(words.slice(index).join(" ")),
+    );
+    if (score < best) {
+      best = score;
+      bestAt = index;
+    }
+  }
+  return [
+    words.slice(0, bestAt).join(" "),
+    words.slice(bestAt).join(" "),
+  ] as const;
+}
+
+/** One line when it fits. Otherwise two shorter lines at a smaller size. */
+export function fitSpineTitle(args: {
+  title: string;
+  maxAlong: number;
+  maxAcross: number;
+  size: number;
+  widthOf: (text: string, size: number) => number;
+}) {
+  const single = args.widthOf(args.title, args.size);
+  if (single <= args.maxAlong) {
+    return { lines: [args.title], size: args.size, along: single };
+  }
+  const [first, second] = splitSpineTitle(args.title, (text) =>
+    args.widthOf(text, args.size),
+  );
+  const longer = Math.max(
+    args.widthOf(first, args.size),
+    args.widthOf(second, args.size),
+  );
+  const acrossGap = args.size * 0.2;
+  const sizeByAcross = Math.max(1, (args.maxAcross * 0.82 - acrossGap) / 2);
+  const sizeByAlong =
+    longer > 0 ? args.size * (args.maxAlong / longer) : args.size;
+  const size = Math.max(1, Math.min(args.size * 0.85, sizeByAcross, sizeByAlong));
+  const scale = size / args.size;
+  return {
+    lines: [first, second],
+    size,
+    along: longer * scale,
+  };
+}
+
 function drawSpineTitle(
   ctx: CanvasRenderingContext2D,
   args: {
@@ -606,6 +674,7 @@ function drawSpineTitle(
     fontFamily: string;
     fontWeight: number;
     dpi: number;
+    pageSize?: CoverPageSize;
   },
 ) {
   const title = args.title.trim();
@@ -614,46 +683,86 @@ function drawSpineTitle(
 
   const ink = contrastHex(args.fill);
   const markH = cmToPx(SPINE_MARK_HEIGHT_CM, args.dpi);
-  const gap = cmToPx(0.1, args.dpi);
+  const edge = cmToPx(0.15, args.dpi);
+  const minGap = cmToPx(SPINE_TITLE_MIN_GAP_CM, args.dpi);
   const cx = args.x + args.width / 2;
-  const fontSize = Math.min(args.width * 0.55, args.height * 0.04);
-  const numSize = fontSize;
-  const maxTitle = args.height * 0.86;
+  const baseSize = Math.min(args.width * 0.55, args.height * 0.04);
+  const family = `"${args.fontFamily}", sans-serif`;
+  const widthOf = (text: string, size: number) => {
+    ctx.font = `${args.fontWeight} ${size}px ${family}`;
+    return ctx.measureText(text).width;
+  };
 
-  ctx.save();
-  ctx.font = `${args.fontWeight} ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
-  const titleLen = title
-    ? Math.min(ctx.measureText(title).width, maxTitle)
+  let numberSize = spineNumberFontSize(baseSize, chapterNumber);
+  const numberFromTop = chapterNumber
+    ? cmToPx(spineNumberFromTopCm(args.pageSize), args.dpi)
     : 0;
-  ctx.restore();
+  const zoneBottom = args.height - markH - edge;
+  if (chapterNumber) {
+    const maxNumberWidth = args.width * 0.92;
+    const numberWidth = widthOf(chapterNumber, numberSize);
+    if (numberWidth > maxNumberWidth && numberWidth > 0) {
+      numberSize *= maxNumberWidth / numberWidth;
+    }
+  }
+  const numberAlong = chapterNumber ? numberSize : 0;
 
-  const numBlock = chapterNumber ? Math.max(9, numSize) + gap : 0;
-  const block = numBlock + titleLen;
-  const minTop = args.y + markH + gap;
-  const maxTop = args.y + args.height - markH - gap - block;
-  const top = Math.min(Math.max(args.y + args.height / 2 - block / 2, minTop), maxTop);
+  const zoneTop = chapterNumber
+    ? numberFromTop + numberAlong + minGap
+    : markH + edge;
+  const maxAlong = Math.max(1, zoneBottom - zoneTop);
+  const fitted = title
+    ? fitSpineTitle({
+        title,
+        maxAlong,
+        maxAcross: args.width,
+        size: baseSize,
+        widthOf,
+      })
+    : null;
+
+  const drawRotated = (
+    lines: string[],
+    size: number,
+    centerFromTop: number,
+  ) => {
+    ctx.save();
+    ctx.translate(cx, args.y + centerFromTop);
+    ctx.rotate(args.rtl ? -Math.PI / 2 : Math.PI / 2);
+    ctx.fillStyle = ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `${args.fontWeight} ${size}px ${family}`;
+    if (lines.length === 1) {
+      ctx.fillText(lines[0], 0, 0);
+    } else {
+      const lineGap = size * 0.2;
+      const offset = (size + lineGap) / 2;
+      ctx.fillText(lines[0], 0, -offset);
+      ctx.fillText(lines[1], 0, offset);
+    }
+    ctx.restore();
+  };
 
   if (chapterNumber) {
     ctx.save();
     ctx.fillStyle = ink;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.font = `${args.fontWeight} ${Math.max(9, numSize)}px "${args.fontFamily}", sans-serif`;
-    ctx.fillText(chapterNumber, cx, top, args.width * 0.92);
+    ctx.font = `${args.fontWeight} ${numberSize}px ${family}`;
+    ctx.fillText(chapterNumber, cx, args.y + numberFromTop, args.width * 0.92);
     ctx.restore();
   }
+  if (!fitted) return;
 
-  if (!title) return;
-
-  ctx.save();
-  ctx.translate(cx, top + numBlock + titleLen / 2);
-  ctx.rotate(args.rtl ? -Math.PI / 2 : Math.PI / 2);
-  ctx.fillStyle = ink;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `${args.fontWeight} ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
-  ctx.fillText(title, 0, 0, maxTitle);
-  ctx.restore();
+  const ideal = args.height / 2;
+  const minCenter = zoneTop + fitted.along / 2;
+  const maxCenter = zoneBottom - fitted.along / 2;
+  const center =
+    minCenter <= maxCenter
+      ? Math.min(Math.max(ideal, minCenter), maxCenter)
+      : (zoneTop + zoneBottom) / 2;
+  drawRotated(fitted.lines, fitted.size, center);
 }
 
 function drawStripeParagraph(

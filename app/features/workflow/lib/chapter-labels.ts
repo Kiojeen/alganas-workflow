@@ -125,6 +125,14 @@ export function isEnglishChapterLabel(value: string | null | undefined): boolean
   return normalizeChapterLabelId(value).startsWith("en:");
 }
 
+export function formatSpineNumber(
+  lang: "ar" | "en" | null | undefined,
+  index: number,
+) {
+  if (lang === "en") return String(index);
+  return arabicOrdinal(index);
+}
+
 export function formatChapterLabel(
   value: string | null | undefined,
   index: number,

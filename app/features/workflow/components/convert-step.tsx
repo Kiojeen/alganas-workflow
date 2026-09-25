@@ -26,7 +26,8 @@ import {
   type CoverFontPair,
 } from "../lib/cover-fonts";
 import { useModels } from "../context";
-import type { BookConfig, CoverPageSize, CoverSide } from "../types";
+import type { BookConfig, CoverPageSize, CoverSide, SpineNumberLang } from "../types";
+import { formatSpineNumber } from "../lib/chapter-labels";
 import {
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
@@ -211,7 +212,10 @@ export function ConvertStep({
         titleWeight: fontPair.titleWeight,
         descriptionWeight: fontPair.descriptionWeight,
         labelWeight: fontPair.labelWeight,
-        chapterNumber: hasChapters ? String(chapter.index) : undefined,
+        chapterNumber:
+          !singlePage && hasChapters
+            ? formatSpineNumber(bookConfig.spineNumberLang, chapter.index)
+            : undefined,
         pagesPerSpineCm,
         pageSize,
         stripeWidthCm: stripeLayout.widthCm,
@@ -236,6 +240,7 @@ export function ConvertStep({
     hasChapters,
     bookConfig.coverSide,
     bookConfig.coverKind,
+    bookConfig.spineNumberLang,
     singlePage,
     boardWidth,
     boardHeight,
@@ -349,6 +354,32 @@ export function ConvertStep({
             </SelectContent>
           </Select>
         </div>
+
+        {!singlePage && (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-muted-foreground text-xs font-medium">
+              لغة رقم الكعب
+            </Label>
+            <Select
+              value={bookConfig.spineNumberLang ?? "ar"}
+              disabled={disabled}
+              onValueChange={(value) =>
+                onBookConfigChange({
+                  ...configRef.current,
+                  spineNumberLang: value as SpineNumberLang,
+                })
+              }
+            >
+              <SelectTrigger className="w-full" size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ar">عربي — الأول</SelectItem>
+                <SelectItem value="en">English — 1</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {allocationError && (
