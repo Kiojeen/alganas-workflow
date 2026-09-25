@@ -72,6 +72,10 @@ export type DrawCoverOptions = {
   spineMarkColor?: string;
   titleFont?: string;
   descriptionFont?: string;
+  labelFont?: string;
+  titleWeight?: number;
+  descriptionWeight?: number;
+  labelWeight?: number;
   chapterNumber?: string;
   pagesPerSpineCm?: number;
   pageSize?: CoverPageSize;
@@ -314,6 +318,10 @@ export function drawCoverOnCanvas(
     spineMarkColor,
     titleFont,
     descriptionFont,
+    labelFont,
+    titleWeight,
+    descriptionWeight,
+    labelWeight,
     chapterNumber,
     pagesPerSpineCm,
     pageSize,
@@ -329,6 +337,10 @@ export function drawCoverOnCanvas(
   const labelColor = chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
   const titleFamily = titleFont || "CoverMontserratTitle";
   const descriptionFamily = descriptionFont || "CoverMontserratDescription";
+  const chapterFamily = labelFont || titleFamily;
+  const spineWeight = titleWeight ?? 600;
+  const stripeWeight = descriptionWeight ?? 400;
+  const chapterWeight = labelWeight ?? 700;
   const layout = layoutCoverCm(pages, coverSide, pagesPerSpineCm, pageSize, {
     widthCm: stripeWidthCm,
     insetCm: stripeInsetCm,
@@ -373,6 +385,7 @@ export function drawCoverOnCanvas(
     color: textFill,
     dpi,
     fontFamily: descriptionFamily,
+    fontWeight: stripeWeight,
     insetCm: stripeInsetCm ?? defaultStripeLayout(pageSize).insetCm,
   });
 
@@ -386,6 +399,7 @@ export function drawCoverOnCanvas(
     fill,
     rtl: frontOnLeft,
     fontFamily: titleFamily,
+    fontWeight: spineWeight,
     dpi,
   });
 
@@ -416,7 +430,8 @@ export function drawCoverOnCanvas(
       dpi,
       xRatio: chapterLabelX,
       yRatio: chapterLabelY,
-      fontFamily: titleFamily,
+      fontFamily: chapterFamily,
+      fontWeight: chapterWeight,
     });
   }
 
@@ -473,6 +488,7 @@ function drawCoverTitle(
     xRatio: number;
     yRatio: number;
     fontFamily: string;
+    fontWeight: number;
   },
 ) {
   const pad = cmToPx(1.2, args.dpi);
@@ -489,7 +505,7 @@ function drawCoverTitle(
   ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
   ctx.shadowBlur = Math.max(4, args.dpi * 0.04);
   const fontSize = Math.min(cmToPx(0.9, args.dpi), args.width * 0.08);
-  ctx.font = `700 ${fontSize}px "${args.fontFamily}", sans-serif`;
+  ctx.font = `${args.fontWeight} ${fontSize}px "${args.fontFamily}", sans-serif`;
   ctx.fillText(args.label, textX, textY, args.width - pad * 2);
   ctx.restore();
 }
@@ -527,6 +543,7 @@ function drawSpineTitle(
     fill: string;
     rtl: boolean;
     fontFamily: string;
+    fontWeight: number;
     dpi: number;
   },
 ) {
@@ -543,7 +560,7 @@ function drawSpineTitle(
   const maxTitle = args.height * 0.86;
 
   ctx.save();
-  ctx.font = `600 ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
+  ctx.font = `${args.fontWeight} ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
   const titleLen = title
     ? Math.min(ctx.measureText(title).width, maxTitle)
     : 0;
@@ -560,7 +577,7 @@ function drawSpineTitle(
     ctx.fillStyle = ink;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.font = `600 ${Math.max(9, numSize)}px "${args.fontFamily}", sans-serif`;
+    ctx.font = `${args.fontWeight} ${Math.max(9, numSize)}px "${args.fontFamily}", sans-serif`;
     ctx.fillText(chapterNumber, cx, top, args.width * 0.92);
     ctx.restore();
   }
@@ -573,7 +590,7 @@ function drawSpineTitle(
   ctx.fillStyle = ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `600 ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
+  ctx.font = `${args.fontWeight} ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
   ctx.fillText(title, 0, 0, maxTitle);
   ctx.restore();
 }
@@ -589,6 +606,7 @@ function drawStripeParagraph(
     color: string;
     dpi: number;
     fontFamily: string;
+    fontWeight: number;
     insetCm?: number;
   },
 ) {
@@ -608,7 +626,7 @@ function drawStripeParagraph(
   ctx.fillStyle = args.color;
   ctx.textBaseline = "middle";
   ctx.direction = "ltr";
-  ctx.font = `400 ${fontSize}px "${args.fontFamily}", serif`;
+  ctx.font = `${args.fontWeight} ${fontSize}px "${args.fontFamily}", serif`;
 
   const lines = wrapWords(args.text, maxWidth, (value) => ctx.measureText(value).width);
   const startY =

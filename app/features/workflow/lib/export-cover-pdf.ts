@@ -17,7 +17,11 @@ import {
 
 import type { BookConfig, CoverSide } from "../types";
 import { unassignedPagesError } from "./chapter-division";
-import { fetchCoverFontBytes, getCoverFontPair } from "./cover-fonts";
+import {
+  fetchCoverFontBytes,
+  getCoverFontPair,
+  type CoverFontSpec,
+} from "./cover-fonts";
 import {
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
@@ -64,6 +68,51 @@ function color(hex: string): RGB {
 
 function hasArabic(value: string) {
   return /[\u0600-\u06FF]/.test(value);
+}
+
+let variationWeight: number | undefined;
+
+const weightingFontkit = {
+  create(buffer: ArrayBuffer | Uint8Array) {
+    const bytes =
+      buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    const font = fontkit.create(bytes) as {
+      getVariation?: (settings: { wght: number }) => unknown;
+    };
+    if (variationWeight == null || typeof font.getVariation !== "function") {
+      return font;
+    }
+    try {
+      return font.getVariation({ wght: variationWeight });
+    } catch {
+      return font;
+    }
+  },
+};
+
+async function embedCoverFace(
+  pdf: PDFDocument,
+  bytes: ArrayBuffer,
+  weight?: number,
+) {
+  variationWeight = weight;
+  try {
+    return await pdf.embedFont(new Uint8Array(bytes), {
+      subset: weight != null,
+    });
+  } finally {
+    variationWeight = undefined;
+  }
+}
+
+function fontForText(
+  text: string,
+  preferred: PDFFont,
+  arabic: PDFFont | null,
+  pair: CoverFontSpec,
+) {
+  if (pair.category === "english" && hasArabic(text) && arabic) return arabic;
+  return preferred;
 }
 
 async function loadNotoFont() {
@@ -226,12 +275,24 @@ async function drawVectorCover(args: {
   stripeEdgeGapCm?: number;
 }) {
   const pdf = await PDFDocument.create();
-  pdf.registerFontkit(fontkit);
+  pdf.registerFontkit(weightingFontkit as unknown as typeof fontkit);
   const pair = getCoverFontPair(args.bookConfig.fontPair);
   const titleBuffer = await fetchCoverFontBytes(pair.titleFile);
-  const descriptionBuffer = await fetchCoverFontBytes(pair.descriptionFile);
-  const titleFont = await pdf.embedFont(new Uint8Array(titleBuffer));
-  const descriptionFont = await pdf.embedFont(new Uint8Array(descriptionBuffer));
+  const titleFont = await embedCoverFace(
+    pdf,
+    titleBuffer,
+    pair.variable ? pair.titleWeight : undefined,
+  );
+  const descriptionFont =
+    pair.descriptionFile === pair.titleFile
+      ? pair.variable
+        ? await embedCoverFace(pdf, titleBuffer, pair.descriptionWeight)
+        : titleFont
+      : await embedCoverFace(
+          pdf,
+          await fetchCoverFontBytes(pair.descriptionFile),
+        );
+  const labelFace = pair.labelFromDescription ? descriptionFont : titleFont;
   let arabic: PDFFont | null = null;
   try {
     arabic = await pdf.embedFont(await loadNotoFont());
@@ -313,8 +374,7 @@ async function drawVectorCover(args: {
   const maxWidth = stripe.width - padX * 2;
   const fontSize = cmToPt(0.42);
   const lineHeight = fontSize * 1.45;
-  const stripeFont =
-    hasArabic(stripeText) && arabic ? arabic : descriptionFont;
+  const stripeFont = fontForText(stripeText, descriptionFont, arabic, pair);
   const lines = wrapWords(stripeText, maxWidth, (value) =>
     stripeFont.widthOfTextAtSize(value, fontSize),
   );
@@ -346,7 +406,7 @@ async function drawVectorCover(args: {
 
   if ((title || chapterNumber) && layout.spineW > 0.08) {
     const numberFont = titleFont;
-    const spineFont = hasArabic(title) && arabic ? arabic : titleFont;
+    const spineFont = fontForText(title, titleFont, arabic, pair);
     const size = Math.min(
       cmToPt(layout.spineW * 0.55),
       cmToPt(layout.height * 0.04),
@@ -421,7 +481,7 @@ async function drawVectorCover(args: {
   drawCoverImage(page, coverImage, front);
 
   if (args.label) {
-    const labelFont = hasArabic(args.label) && arabic ? arabic : titleFont;
+    const labelFont = fontForText(args.label, labelFace, arabic, pair);
     const padLabel = cmToPt(1.2);
     const xRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelX ?? 50) / 100));
     const yRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelY ?? 88) / 100));

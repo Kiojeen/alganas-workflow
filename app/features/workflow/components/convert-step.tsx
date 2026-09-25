@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -16,6 +18,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 
 import {
+  COVER_FONT_CATEGORIES,
   COVER_FONT_PAIRS,
   ensureCoverFonts,
   getCoverFontPair,
@@ -187,6 +190,10 @@ export function ConvertStep({
         spineMarkColor,
         titleFont: fontPair.titleFamily,
         descriptionFont: fontPair.descriptionFamily,
+        labelFont: fontPair.labelFamily,
+        titleWeight: fontPair.titleWeight,
+        descriptionWeight: fontPair.descriptionWeight,
+        labelWeight: fontPair.labelWeight,
         chapterNumber: hasChapters ? String(chapter.index) : undefined,
         pagesPerSpineCm,
         pageSize,
@@ -223,6 +230,10 @@ export function ConvertStep({
     showLines,
     fontPair.titleFamily,
     fontPair.descriptionFamily,
+    fontPair.labelFamily,
+    fontPair.titleWeight,
+    fontPair.descriptionWeight,
+    fontPair.labelWeight,
     fontsReady,
     pagesPerSpineCm,
     pageSize,
@@ -276,12 +287,17 @@ export function ConvertStep({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {COVER_FONT_PAIRS.map((pair) => (
-                <SelectItem key={pair.id} value={pair.id}>
-                  {pair.id === "montserrat"
-                    ? "Montserrat — افتراضي"
-                    : "Castoro"}
-                </SelectItem>
+              {COVER_FONT_CATEGORIES.map((category) => (
+                <SelectGroup key={category.id}>
+                  <SelectLabel>{category.label}</SelectLabel>
+                  {COVER_FONT_PAIRS.filter(
+                    (pair) => pair.category === category.id,
+                  ).map((pair) => (
+                    <SelectItem key={pair.id} value={pair.id}>
+                      {pair.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>
