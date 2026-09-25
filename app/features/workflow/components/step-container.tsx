@@ -113,30 +113,33 @@ export function StepContainer({
           )}
         </CardHeader>
 
-        {(showAutoRun || !mandatory) && (
-          <div className="mb-3 flex items-center justify-end gap-4 md:hidden">
-            {showAutoRun && (
-              <label className="flex items-center gap-2 text-xs">
-                تشغيل تلقائي
-                <Switch
-                  checked={autoRun === true}
-                  onCheckedChange={(value) => onToggleAutoRun?.(value)}
-                  aria-label={`تشغيل تلقائي لـ ${job.title}`}
-                />
-              </label>
-            )}
-            {!mandatory && (
-              <label className="flex items-center gap-2 text-xs">
-                تفعيل
-                <Switch
-                  checked={involved}
-                  onCheckedChange={(value) => onToggleInvolved(job.id, value)}
-                  aria-label={`تبديل مشاركة ${job.title}`}
-                />
-              </label>
-            )}
-          </div>
-        )}
+        <div className="mb-3 flex items-center justify-between gap-3 md:hidden">
+          <StepBadge status={status} />
+          {(showAutoRun || !mandatory) && (
+            <div className="flex items-center gap-4">
+              {showAutoRun && (
+                <label className="flex items-center gap-2 text-xs">
+                  تشغيل تلقائي
+                  <Switch
+                    checked={autoRun === true}
+                    onCheckedChange={(value) => onToggleAutoRun?.(value)}
+                    aria-label={`تشغيل تلقائي لـ ${job.title}`}
+                  />
+                </label>
+              )}
+              {!mandatory && (
+                <label className="flex items-center gap-2 text-xs">
+                  تفعيل
+                  <Switch
+                    checked={involved}
+                    onCheckedChange={(value) => onToggleInvolved(job.id, value)}
+                    aria-label={`تبديل مشاركة ${job.title}`}
+                  />
+                </label>
+              )}
+            </div>
+          )}
+        </div>
 
         <CardContent className="max-md:px-0">
           <div

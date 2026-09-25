@@ -58,7 +58,15 @@ function imageModel(
 
 export function Workflow({ workflowId }: { workflowId: string }) {
   const workflow = useWorkflow(workflowId);
-  const { models, keys, pagesPerSpineCm, stripeA4, stripeA5 } = useModels();
+  const {
+    models,
+    keys,
+    pagesPerSpineCm,
+    stripeA4,
+    stripeA5,
+    defaultDescribeModel,
+    defaultImageModel,
+  } = useModels();
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
   const involvedRef = useRef<Set<string>>(
     workflow?.state.involved ?? new Set(),
@@ -113,9 +121,13 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   const textModels = modelsByKind(models, "text");
   const imageModels = modelsByKind(models, "image");
   const selectedDescribeModel =
-    textModels.find((m) => m.id === describeAi) ?? textModels[0];
+    textModels.find((m) => m.id === describeAi) ??
+    textModels.find((m) => m.id === defaultDescribeModel) ??
+    textModels[0];
   const selectedImageModel =
-    imageModels.find((m) => m.id === ai) ?? imageModels[0];
+    imageModels.find((m) => m.id === ai) ??
+    imageModels.find((m) => m.id === defaultImageModel) ??
+    imageModels[0];
   const generateInvolved = involved.has("generate");
   const sourceImage = generateInvolved
     ? outputImage

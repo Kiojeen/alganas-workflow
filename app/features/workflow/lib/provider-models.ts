@@ -18,6 +18,15 @@ export function modelSelectionId(provider: ProviderId, modelId: string) {
   return `${provider}:${modelId}`;
 }
 
+export const DEFAULT_DESCRIBE_MODEL_ID = modelSelectionId(
+  "google",
+  "gemini-3.5-flash-lite",
+);
+export const DEFAULT_IMAGE_MODEL_ID = modelSelectionId(
+  "openai",
+  "gpt-image-2.5-sunburst",
+);
+
 export function parseModelSelection(id: string | null | undefined) {
   if (!id) return null;
   const index = id.indexOf(":");
@@ -39,10 +48,12 @@ const FALLBACK_MODELS: CatalogModel[] = [
   text("openai", "gpt-5-mini"),
   image("openai", "gpt-image-1"),
   image("openai", "gpt-image-1.5"),
+  image("openai", "gpt-image-2.5-sunburst"),
   image("openai", "dall-e-3"),
   text("google", "gemini-2.5-flash"),
   text("google", "gemini-2.5-pro"),
   text("google", "gemini-2.5-flash-lite"),
+  text("google", "gemini-3.5-flash-lite"),
   text("google", "gemini-2.0-flash"),
   image("google", "gemini-2.5-flash-image"),
   image("google", "gemini-3.1-flash-lite-image"),

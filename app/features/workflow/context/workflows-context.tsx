@@ -33,11 +33,12 @@ const WorkflowsContext = createContext<WorkflowsContextValue | null>(null);
 function createInstance(
   name: string,
   stepAutoRun: Record<string, boolean>,
+  models: { describeAi: string; ai: string },
 ): WorkflowInstance {
   return {
     id: crypto.randomUUID(),
     name,
-    state: createDefaultWorkflowState(undefined, stepAutoRun),
+    state: createDefaultWorkflowState(undefined, stepAutoRun, models),
   };
 }
 
@@ -52,9 +53,13 @@ function applyChange(state: WorkflowState, change: StateChange): WorkflowState {
 }
 
 export function WorkflowsProvider({ children }: { children: ReactNode }) {
-  const { stepAutoRun } = useModels();
+  const { stepAutoRun, defaultDescribeModel, defaultImageModel } = useModels();
+  const defaultModels = {
+    describeAi: defaultDescribeModel,
+    ai: defaultImageModel,
+  };
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>(() => [
-    createInstance("مشروع - 1 -", stepAutoRun),
+    createInstance("مشروع - 1 -", stepAutoRun, defaultModels),
   ]);
   const [currentId, setCurrentId] = useState<string | null>(() => null);
 
@@ -82,12 +87,15 @@ export function WorkflowsProvider({ children }: { children: ReactNode }) {
     setWorkflows((prev) => {
       const next = [
         ...prev,
-        createInstance(`مشروع - ${prev.length + 1} -`, stepAutoRun),
+        createInstance(`مشروع - ${prev.length + 1} -`, stepAutoRun, {
+          describeAi: defaultDescribeModel,
+          ai: defaultImageModel,
+        }),
       ];
       setCurrentId(next[next.length - 1].id);
       return next;
     });
-  }, [stepAutoRun]);
+  }, [stepAutoRun, defaultDescribeModel, defaultImageModel]);
   const remove = useCallback((id: string) => {
     setWorkflows((prev) =>
       prev.filter((w) => {

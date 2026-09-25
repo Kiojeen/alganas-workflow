@@ -1,4 +1,8 @@
 import { JOBS } from "./jobs";
+import {
+  DEFAULT_DESCRIBE_MODEL_ID,
+  DEFAULT_IMAGE_MODEL_ID,
+} from "./lib/provider-models";
 import type { BookConfig, Preview } from "./types";
 
 export const DEFAULT_GENERATE_PROMPT =
@@ -49,14 +53,15 @@ export function createDefaultWorkflowState(
   stepAutoRun: Record<string, boolean> = Object.fromEntries(
     JOBS.map((job) => [job.id, job.autoRun ?? false]),
   ),
+  models: { describeAi?: string; ai?: string } = {},
 ): WorkflowState {
   return {
     file: null,
     pdfPage: 1,
     preview: null,
     busy: false,
-    ai: "",
-    describeAi: "",
+    ai: models.ai || DEFAULT_IMAGE_MODEL_ID,
+    describeAi: models.describeAi || DEFAULT_DESCRIBE_MODEL_ID,
     prompt: DEFAULT_GENERATE_PROMPT,
     runningStep: null,
     completed: new Set(),

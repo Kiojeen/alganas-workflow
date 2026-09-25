@@ -15,7 +15,11 @@ import {
 } from "../lib/cover-layout";
 import {
   DEFAULT_CATALOG,
+  DEFAULT_DESCRIBE_MODEL_ID,
+  DEFAULT_IMAGE_MODEL_ID,
+  modelSelectionId,
   loadProviderCatalog,
+  parseModelSelection,
   type CatalogModel,
   type ProviderId,
 } from "../lib/provider-models";
@@ -46,6 +50,10 @@ type ModelsContextValue = {
   updateStripeA5: (patch: Partial<StripeLayoutCm>) => void;
   stepAutoRun: Record<string, boolean>;
   setStepAutoRun: (jobId: string, value: boolean) => void;
+  defaultDescribeModel: string;
+  setDefaultDescribeModel: (id: string) => void;
+  defaultImageModel: string;
+  setDefaultImageModel: (id: string) => void;
 };
 
 const ModelsContext = createContext<ModelsContextValue | null>(null);
@@ -136,12 +144,41 @@ function loadStepAutoRun(stored: unknown): Record<string, boolean> {
   return defaults;
 }
 
+const PREVIOUS_DESCRIBE_DEFAULT = modelSelectionId(
+  "google",
+  "gemini-2.5-flash-lite",
+);
+const MODEL_DEFAULTS_REVISION = 1;
+
+function loadModelId(stored: unknown, fallback: string) {
+  return typeof stored === "string" && parseModelSelection(stored)
+    ? stored
+    : fallback;
+}
+
+function loadDescribeDefault(parsed: {
+  defaultDescribeModel?: string;
+  modelDefaultsRevision?: number;
+}) {
+  const stored = loadModelId(
+    parsed.defaultDescribeModel,
+    DEFAULT_DESCRIBE_MODEL_ID,
+  );
+  const revision = parsed.modelDefaultsRevision ?? 0;
+  if (revision < MODEL_DEFAULTS_REVISION && stored === PREVIOUS_DESCRIBE_DEFAULT) {
+    return DEFAULT_DESCRIBE_MODEL_ID;
+  }
+  return stored;
+}
+
 function loadPrefs(): {
   prompts: SavedPrompt[];
   pagesPerSpineCm: number;
   stripeA4: StripeLayoutCm;
   stripeA5: StripeLayoutCm;
   stepAutoRun: Record<string, boolean>;
+  defaultDescribeModel: string;
+  defaultImageModel: string;
 } {
   const fallback = {
     prompts: DEFAULT_PROMPTS,
@@ -149,6 +186,8 @@ function loadPrefs(): {
     stripeA4: { ...DEFAULT_STRIPE_LAYOUT_A4 },
     stripeA5: { ...DEFAULT_STRIPE_LAYOUT_A5 },
     stepAutoRun: defaultStepAutoRun(),
+    defaultDescribeModel: DEFAULT_DESCRIBE_MODEL_ID,
+    defaultImageModel: DEFAULT_IMAGE_MODEL_ID,
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -162,6 +201,9 @@ function loadPrefs(): {
         stripeA4?: Partial<StripeLayoutCm>;
         stripeA5?: Partial<StripeLayoutCm>;
         stepAutoRun?: Record<string, boolean>;
+        defaultDescribeModel?: string;
+        defaultImageModel?: string;
+        modelDefaultsRevision?: number;
       };
       const prompts = Array.isArray(parsed.prompts)
         ? parsed.prompts
@@ -197,6 +239,11 @@ function loadPrefs(): {
           10.6,
         ),
         stepAutoRun: loadStepAutoRun(parsed.stepAutoRun),
+        defaultDescribeModel: loadDescribeDefault(parsed),
+        defaultImageModel: loadModelId(
+          parsed.defaultImageModel,
+          DEFAULT_IMAGE_MODEL_ID,
+        ),
       };
     }
   } catch {
@@ -223,6 +270,12 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const [stepAutoRun, setStepAutoRunState] = useState<Record<string, boolean>>(
     () => loadPrefs().stepAutoRun,
   );
+  const [defaultDescribeModel, setDefaultDescribeModelState] = useState(
+    () => loadPrefs().defaultDescribeModel,
+  );
+  const [defaultImageModel, setDefaultImageModelState] = useState(
+    () => loadPrefs().defaultImageModel,
+  );
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
@@ -237,9 +290,20 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         stripeA4,
         stripeA5,
         stepAutoRun,
+        defaultDescribeModel,
+        defaultImageModel,
+        modelDefaultsRevision: MODEL_DEFAULTS_REVISION,
       }),
     );
-  }, [prompts, pagesPerSpineCm, stripeA4, stripeA5, stepAutoRun]);
+  }, [
+    prompts,
+    pagesPerSpineCm,
+    stripeA4,
+    stripeA5,
+    stepAutoRun,
+    defaultDescribeModel,
+    defaultImageModel,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -295,6 +359,14 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     setStepAutoRunState((prev) => ({ ...prev, [jobId]: value }));
   }, []);
 
+  const setDefaultDescribeModel = useCallback((id: string) => {
+    if (parseModelSelection(id)) setDefaultDescribeModelState(id);
+  }, []);
+
+  const setDefaultImageModel = useCallback((id: string) => {
+    if (parseModelSelection(id)) setDefaultImageModelState(id);
+  }, []);
+
   return (
     <ModelsContext.Provider
       value={{
@@ -313,6 +385,10 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         updateStripeA5,
         stepAutoRun,
         setStepAutoRun,
+        defaultDescribeModel,
+        setDefaultDescribeModel,
+        defaultImageModel,
+        setDefaultImageModel,
       }}
     >
       {children}

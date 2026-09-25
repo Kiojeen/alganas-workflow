@@ -5,6 +5,7 @@ import {
   DEFAULT_STRIPE_LAYOUT_A5,
   PAGES_PER_SPINE_CM,
 } from "@/features/workflow/lib/cover-layout";
+import { ModelSelect } from "@/features/workflow/components/model-select";
 import { JOBS } from "@/features/workflow/jobs";
 import { PROVIDERS } from "@/features/workflow/lib/provider-models";
 import {
@@ -48,6 +49,10 @@ function AppSettingsDialog({
     setPagesPerSpineCm,
     stepAutoRun,
     setStepAutoRun,
+    defaultDescribeModel,
+    setDefaultDescribeModel,
+    defaultImageModel,
+    setDefaultImageModel,
     stripeA4,
     stripeA5,
     updateStripeA4,
@@ -61,7 +66,7 @@ function AppSettingsDialog({
         <DialogHeader>
           <DialogTitle>الإعدادات</DialogTitle>
           <DialogDescription>
-            مفاتيح API، مقياس الكعب، عرض الشريط، وتعليمات التوليد المحفوظة.
+            مفاتيح API، النماذج الافتراضية، مقياس الكعب، عرض الشريط، وتعليمات التوليد المحفوظة.
           </DialogDescription>
         </DialogHeader>
 
@@ -108,6 +113,30 @@ function AppSettingsDialog({
               </div>
             ))}
           </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">النماذج الافتراضية</Label>
+          <p className="text-muted-foreground text-[11px]">
+            تُستخدم عند إنشاء مشروع جديد. المشاريع الحالية تحتفظ بالنموذج الذي
+            اختارته.
+          </p>
+          <ModelSelect
+            kind="text"
+            label="استخراج التفاصيل"
+            value={defaultDescribeModel}
+            onChange={setDefaultDescribeModel}
+            placeholder="نموذج الرؤية"
+          />
+          <ModelSelect
+            kind="image"
+            label="توليد الصورة"
+            value={defaultImageModel}
+            onChange={setDefaultImageModel}
+            placeholder="نموذج الصور"
+          />
         </div>
 
         <Separator />
