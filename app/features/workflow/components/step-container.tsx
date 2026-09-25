@@ -84,16 +84,15 @@ export function StepContainer({
             </p>
           </div>
 
-          {showAutoRun && (
-            <label className="flex items-center gap-2 text-xs">
-              تشغيل تلقائي
-              <Switch
-                checked={autoRun === true}
-                onCheckedChange={(value) => onToggleAutoRun?.(value)}
-                aria-label={`تشغيل تلقائي لـ ${job.title}`}
-              />
-            </label>
-          )}
+          <StepToggles
+            jobTitle={job.title}
+            showAutoRun={showAutoRun}
+            autoRun={autoRun}
+            onToggleAutoRun={onToggleAutoRun}
+            mandatory={mandatory}
+            involved={involved}
+            onToggleInvolved={(value) => onToggleInvolved(job.id, value)}
+          />
 
           <RunSlot
             status={status}
@@ -102,30 +101,11 @@ export function StepContainer({
             hideRun={hideRun}
             allowRerun={allowRerun}
           />
-
-          {!mandatory && (
-            <Switch
-              checked={involved}
-              onCheckedChange={(value) => onToggleInvolved(job.id, value)}
-              aria-label={`تبديل مشاركة ${job.title}`}
-              title={`تبديل مشاركة ${job.title}`}
-            />
-          )}
         </CardHeader>
 
-        <div className="mb-3 flex items-center justify-between gap-3 md:hidden">
-          <StepBadge status={status} />
-          <div className="flex items-center gap-3">
-            {showAutoRun && (
-              <label className="flex items-center gap-2 text-xs">
-                تشغيل تلقائي
-                <Switch
-                  checked={autoRun === true}
-                  onCheckedChange={(value) => onToggleAutoRun?.(value)}
-                  aria-label={`تشغيل تلقائي لـ ${job.title}`}
-                />
-              </label>
-            )}
+        <div className="mb-3 flex flex-col gap-3 md:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <StepBadge status={status} />
             <RunSlot
               status={status}
               onRun={onRun}
@@ -133,17 +113,16 @@ export function StepContainer({
               hideRun={hideRun}
               allowRerun={allowRerun}
             />
-            {!mandatory && (
-              <label className="flex items-center gap-2 text-xs">
-                تفعيل
-                <Switch
-                  checked={involved}
-                  onCheckedChange={(value) => onToggleInvolved(job.id, value)}
-                  aria-label={`تبديل مشاركة ${job.title}`}
-                />
-              </label>
-            )}
           </div>
+          <StepToggles
+            jobTitle={job.title}
+            showAutoRun={showAutoRun}
+            autoRun={autoRun}
+            onToggleAutoRun={onToggleAutoRun}
+            mandatory={mandatory}
+            involved={involved}
+            onToggleInvolved={(value) => onToggleInvolved(job.id, value)}
+          />
         </div>
 
         <CardContent className="max-md:px-0">
@@ -157,6 +136,85 @@ export function StepContainer({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function StepToggles({
+  jobTitle,
+  showAutoRun,
+  autoRun,
+  onToggleAutoRun,
+  mandatory,
+  involved,
+  onToggleInvolved,
+}: {
+  jobTitle: string;
+  showAutoRun?: boolean;
+  autoRun?: boolean;
+  onToggleAutoRun?: (value: boolean) => void;
+  mandatory: boolean;
+  involved: boolean;
+  onToggleInvolved: (value: boolean) => void;
+}) {
+  if (!showAutoRun && mandatory) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {showAutoRun && (
+        <StepSwitch
+          label="تشغيل تلقائي"
+          hint="بعد الخطوة السابقة"
+          checked={autoRun === true}
+          onCheckedChange={(value) => onToggleAutoRun?.(value)}
+          ariaLabel={`تشغيل تلقائي لـ ${jobTitle}`}
+          tone="auto"
+        />
+      )}
+      {!mandatory && (
+        <StepSwitch
+          label="تفعيل الخطوة"
+          hint="إدراجها في التسلسل"
+          checked={involved}
+          onCheckedChange={onToggleInvolved}
+          ariaLabel={`تفعيل ${jobTitle}`}
+          tone="involve"
+        />
+      )}
+    </div>
+  );
+}
+
+function StepSwitch({
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+  ariaLabel,
+  tone,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onCheckedChange: (value: boolean) => void;
+  ariaLabel: string;
+  tone: "auto" | "involve";
+}) {
+  return (
+    <label className="flex items-center gap-2.5 rounded-md border bg-background px-2.5 py-1.5">
+      <span className="flex flex-col leading-none">
+        <span className="text-xs font-medium">{label}</span>
+        <span className="text-muted-foreground mt-1 text-[10px]">{hint}</span>
+      </span>
+      <Switch
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        aria-label={ariaLabel}
+        className={
+          tone === "auto"
+            ? "data-checked:bg-chart-3"
+            : "data-checked:bg-primary"
+        }
+      />
+    </label>
   );
 }
 

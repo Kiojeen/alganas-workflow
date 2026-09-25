@@ -82,7 +82,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   const autoRunRef = useRef<Record<string, boolean>>(
     workflow?.state.stepAutoRun ?? {},
   );
-  const [showLines, setShowLines] = useState(true);
+  const [showLines, setShowLines] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
