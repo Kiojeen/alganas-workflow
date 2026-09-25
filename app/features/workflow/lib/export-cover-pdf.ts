@@ -16,6 +16,7 @@ import {
 } from "pdf-lib";
 
 import type { BookConfig, CoverSide } from "../types";
+import { unassignedPagesError } from "./chapter-division";
 import { fetchCoverFontBytes, getCoverFontPair } from "./cover-fonts";
 import {
   ARTBOARD_HEIGHT_CM,
@@ -471,6 +472,8 @@ export async function exportCoverPdf(args: {
   stripeInsetCm?: number;
   stripeEdgeGapCm?: number;
 }) {
+  const unassigned = unassignedPagesError(args.bookConfig);
+  if (unassigned) throw new Error(unassigned);
   const chapters = resolveChapters(args.bookConfig);
   const bookTitle = fileSafeName(args.bookConfig.bookName ?? "", "cover");
 

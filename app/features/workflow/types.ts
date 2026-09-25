@@ -24,10 +24,15 @@ export type CoverSide = "ltr" | "rtl";
 
 export type CoverPageSize = "a4" | "a5";
 
+export type ChapterDivision = "pages" | "chapters";
+
 export type BookConfig = {
   numPages: number;
-  multiChapter: boolean;
+  division: ChapterDivision;
   maxPagesPerChapter: number;
+  chapterCount: number;
+  chapterPages: number[];
+  chapterNames: string[];
   chapterLabel: string;
   chapterLabelUppercase: boolean;
   bookName: string;

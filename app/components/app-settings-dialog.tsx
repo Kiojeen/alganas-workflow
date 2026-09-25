@@ -3,6 +3,7 @@ import { useModels } from "@/features/workflow/context";
 import {
   DEFAULT_STRIPE_LAYOUT_A4,
   DEFAULT_STRIPE_LAYOUT_A5,
+  PAGES_PER_SPINE_CM,
 } from "@/features/workflow/lib/cover-layout";
 import { PROVIDERS } from "@/features/workflow/lib/provider-models";
 import {
@@ -41,6 +42,8 @@ function AppSettingsDialog({
     addPrompt,
     updatePrompt,
     removePrompt,
+    pagesPerSpineCm,
+    setPagesPerSpineCm,
     stripeA4,
     stripeA5,
     updateStripeA4,
@@ -54,7 +57,7 @@ function AppSettingsDialog({
         <DialogHeader>
           <DialogTitle>الإعدادات</DialogTitle>
           <DialogDescription>
-            مفاتيح API، عرض الشريط، وتعليمات التوليد المحفوظة.
+            مفاتيح API، مقياس الكعب، عرض الشريط، وتعليمات التوليد المحفوظة.
           </DialogDescription>
         </DialogHeader>
 
@@ -101,6 +104,25 @@ function AppSettingsDialog({
               </div>
             ))}
           </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">مقياس الكعب</Label>
+          <p className="text-muted-foreground text-[11px]">
+            عدد الصفحات التي تعادل 1 سم من عرض الكعب. يُطبَّق على كل المشاريع.
+          </p>
+          <Input
+            type="number"
+            min={1}
+            value={pagesPerSpineCm}
+            onChange={(e) =>
+              setPagesPerSpineCm(Number(e.target.value) || PAGES_PER_SPINE_CM)
+            }
+            className="h-8"
+            dir="ltr"
+          />
         </div>
 
         <Separator />

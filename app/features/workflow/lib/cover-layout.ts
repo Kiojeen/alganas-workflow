@@ -1,4 +1,5 @@
 import type { BookConfig, CoverPageSize, CoverSide } from "../types";
+import { allocatedPages, chapterDisplayName } from "./chapter-division";
 
 export const A4_WIDTH_CM = 21;
 export const A4_HEIGHT_CM = 29.7;
@@ -46,8 +47,6 @@ export const SPINE_MARK_WIDTH_CM = 0.1;
 export const SPINE_MARK_HEIGHT_CM = 0.2;
 export const STRIPE_TEXT =
   "The afternoon light slipped across the desk and caught the edge of a half-open notebook. Outside, a dry wind moved through the trees as if turning pages of its own. Someone had left a cup of tea to cool beside a stack of letters, each one waiting for a reply that might never come. In that quiet, even the smallest mark of ink felt like a beginning.";
-
-export const CHAPTER_LABEL_OPTIONS = ["volume", "chapter", "الفصل"] as const;
 
 export type CoverChapter = {
   pages: number;
@@ -230,30 +229,12 @@ export function chapterPageCap(config: BookConfig): number {
 }
 
 export function resolveChapters(config: BookConfig): CoverChapter[] {
-  const totalPages = Math.max(1, config.numPages || 1);
-  const rawLabel = config.chapterLabel.trim() || "الفصل";
-  const baseLabel = config.chapterLabelUppercase
-    ? rawLabel.toLocaleUpperCase()
-    : rawLabel;
-  const cap = chapterPageCap(config);
-  const count = config.multiChapter
-    ? Math.max(1, Math.ceil(totalPages / cap))
-    : 1;
-  const numbered = count > 1;
-  const chapters: CoverChapter[] = [];
-  let remaining = totalPages;
-
-  for (let i = 1; i <= count; i++) {
-    const pages = i === count ? remaining : Math.min(cap, remaining);
-    remaining -= pages;
-    chapters.push({
-      pages,
-      label: numbered ? `${baseLabel} ${i}` : "",
-      index: i,
-    });
-  }
-
-  return chapters;
+  const pages = allocatedPages(config);
+  return pages.map((count, index) => ({
+    pages: count,
+    index: index + 1,
+    label: chapterDisplayName(config, index),
+  }));
 }
 
 export function loadCoverImage(url: string): Promise<HTMLImageElement> {

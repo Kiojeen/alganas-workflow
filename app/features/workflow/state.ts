@@ -22,9 +22,12 @@ export type WorkflowState = {
 
 const defaultBookConfig: BookConfig = {
   numPages: 720,
-  multiChapter: false,
+  division: "pages",
   maxPagesPerChapter: 720,
-  chapterLabel: "الفصل",
+  chapterCount: 1,
+  chapterPages: [720],
+  chapterNames: [],
+  chapterLabel: "ar:فصل",
   chapterLabelUppercase: false,
   bookName: "",
   bookDescription: "",
