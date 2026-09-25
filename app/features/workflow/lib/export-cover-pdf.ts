@@ -45,11 +45,6 @@ import {
   wrapWords,
 } from "./cover-layout";
 
-const NOTO_NASKH_URL =
-  "https://cdn.jsdelivr.net/gh/notofonts/notonaskharabic@main/fonts/NotoNaskhArabic/full/ttf/NotoNaskhArabic-Regular.ttf";
-
-let notoFontBytes: ArrayBuffer | null = null;
-
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -99,9 +94,7 @@ async function embedCoverFace(
 ) {
   variationWeight = weight;
   try {
-    return await pdf.embedFont(new Uint8Array(bytes), {
-      subset: weight != null,
-    });
+    return await pdf.embedFont(new Uint8Array(bytes), { subset: true });
   } finally {
     variationWeight = undefined;
   }
@@ -115,14 +108,6 @@ function fontForText(
 ) {
   if (pair.category === "english" && hasArabic(text) && arabic) return arabic;
   return preferred;
-}
-
-async function loadNotoFont() {
-  if (notoFontBytes) return notoFontBytes;
-  const response = await fetch(NOTO_NASKH_URL);
-  if (!response.ok) throw new Error("تعذّر تحميل خط النص العربي.");
-  notoFontBytes = await response.arrayBuffer();
-  return notoFontBytes;
 }
 
 function topRect(
@@ -234,6 +219,40 @@ function drawJustifiedLine(
   }
 }
 
+/** Mirrors the canvas `drawCoverTitle`: centered on a padded point inside `box`. */
+function drawChapterLabel(
+  page: PDFPage,
+  args: {
+    label: string;
+    font: PDFFont;
+    box: { x: number; y: number; width: number; height: number };
+    xPercent: number;
+    yPercent: number;
+    fill: RGB;
+  },
+) {
+  const { label, font, box } = args;
+  const pad = cmToPt(1.2);
+  const xRatio = Math.min(1, Math.max(0, args.xPercent / 100));
+  const yRatio = Math.min(1, Math.max(0, args.yPercent / 100));
+  const maxWidth = box.width - pad * 2;
+  const centerX = box.x + pad + maxWidth * xRatio;
+  const centerY = box.y + box.height - pad - (box.height - pad * 2) * yRatio;
+  let size = Math.min(cmToPt(0.9), box.width * 0.08);
+  const natural = font.widthOfTextAtSize(label, size);
+  if (natural > maxWidth) size *= maxWidth / natural;
+  const width = font.widthOfTextAtSize(label, size);
+  const ascent = font.heightAtSize(size, { descender: false });
+  const descent = font.heightAtSize(size, { descender: true }) - ascent;
+  page.drawText(label, {
+    x: centerX - width / 2,
+    y: centerY - (ascent - descent) / 2,
+    size,
+    font,
+    color: args.fill,
+  });
+}
+
 function drawCenteredSpineTitle(
   page: PDFPage,
   text: string,
@@ -297,10 +316,17 @@ async function drawVectorCover(args: {
         );
   const labelFace = pair.labelFromDescription ? descriptionFont : titleFont;
   let arabic: PDFFont | null = null;
-  try {
-    arabic = await pdf.embedFont(await loadNotoFont());
-  } catch {
-    arabic = null;
+  if (pair.category === "english") {
+    try {
+      arabic = await embedCoverFace(
+        pdf,
+        await fetchCoverFontBytes(
+          getCoverFontPair("montserrat-arabic").descriptionFile,
+        ),
+      );
+    } catch {
+      arabic = null;
+    }
   }
   const coverImage = await embedCoverImage(pdf, args.sourceUrl);
 
@@ -351,22 +377,13 @@ async function drawVectorCover(args: {
     const front = topRect(pageHeight, 0, 0, dims.width, dims.height);
     drawCoverImage(page, coverImage, front);
     if (args.label) {
-      const chapterFont = fontForText(args.label, labelFace, arabic, pair);
-      const padLabel = cmToPt(1.2);
-      const xRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelX ?? 50) / 100));
-      const yRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelY ?? 88) / 100));
-      const size = Math.min(cmToPt(0.9), front.width * 0.08);
-      const maxLabel = front.width - padLabel * 2;
-      const textX = front.x + padLabel + maxLabel * xRatio;
-      const textYTop = padLabel + (dims.height - 2.4) * yRatio;
-      const width = Math.min(chapterFont.widthOfTextAtSize(args.label, size), maxLabel);
-      page.drawText(args.label, {
-        x: textX - width / 2,
-        y: topY(pageHeight, textYTop) - size * 0.35,
-        size,
-        font: chapterFont,
-        color: color(labelHex),
-        maxWidth: maxLabel,
+      drawChapterLabel(page, {
+        label: args.label,
+        font: fontForText(args.label, labelFace, arabic, pair),
+        box: front,
+        xPercent: args.bookConfig.chapterLabelX ?? 50,
+        yPercent: args.bookConfig.chapterLabelY ?? 88,
+        fill: color(labelHex),
       });
     }
     return pdf.save();
@@ -517,22 +534,13 @@ async function drawVectorCover(args: {
   drawCoverImage(page, coverImage, front);
 
   if (args.label) {
-    const labelFont = fontForText(args.label, labelFace, arabic, pair);
-    const padLabel = cmToPt(1.2);
-    const xRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelX ?? 50) / 100));
-    const yRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelY ?? 88) / 100));
-    const size = Math.min(cmToPt(0.9), front.width * 0.08);
-    const maxLabel = front.width - padLabel * 2;
-    const textX = front.x + padLabel + maxLabel * xRatio;
-    const textYTop = padLabel + (layout.height - 2.4) * yRatio;
-    const width = Math.min(labelFont.widthOfTextAtSize(args.label, size), maxLabel);
-    page.drawText(args.label, {
-      x: textX - width / 2,
-      y: topY(pageHeight, textYTop) - size * 0.35,
-      size,
-      font: labelFont,
-      color: color(labelHex),
-      maxWidth: maxLabel,
+    drawChapterLabel(page, {
+      label: args.label,
+      font: fontForText(args.label, labelFace, arabic, pair),
+      box: front,
+      xPercent: args.bookConfig.chapterLabelX ?? 50,
+      yPercent: args.bookConfig.chapterLabelY ?? 88,
+      fill: color(labelHex),
     });
   }
 
