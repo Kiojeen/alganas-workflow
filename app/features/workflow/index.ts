@@ -6,6 +6,7 @@ export {
   WorkflowsProvider,
   useWorkflows,
   useWorkflow,
+  workflowTitle,
 } from "./context/workflows-context";
 export type { WorkflowInstance } from "./context/workflows-context";
 export type { WorkflowState } from "./state";

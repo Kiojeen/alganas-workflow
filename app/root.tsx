@@ -49,8 +49,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <DirectionProvider direction="rtl" dir="rtl">
           <ThemeProvider defaultTheme="dark" storageKey="ui-theme">
             <TooltipProvider>
-              <WorkflowsProvider>
-                <ModelsProvider>
+              <ModelsProvider>
+                <WorkflowsProvider>
                   <Toaster />
                   <SidebarProvider
                     style={
@@ -63,8 +63,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <AppSidebar />
                     <SidebarInset>{children}</SidebarInset>
                   </SidebarProvider>
-                </ModelsProvider>
-              </WorkflowsProvider>
+                </WorkflowsProvider>
+              </ModelsProvider>
 
               <ScrollRestoration />
               <Scripts />

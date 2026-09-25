@@ -15,10 +15,15 @@ import {
 } from "../lib/cover-layout";
 import {
   DEFAULT_CATALOG,
+  DEFAULT_DESCRIBE_MODEL_ID,
+  DEFAULT_IMAGE_MODEL_ID,
+  modelSelectionId,
   loadProviderCatalog,
+  parseModelSelection,
   type CatalogModel,
   type ProviderId,
 } from "../lib/provider-models";
+import { JOBS } from "../jobs";
 import { DEFAULT_GENERATE_PROMPT } from "../state";
 
 type ProviderKeys = Record<ProviderId, string>;
@@ -43,6 +48,12 @@ type ModelsContextValue = {
   stripeA5: StripeLayoutCm;
   updateStripeA4: (patch: Partial<StripeLayoutCm>) => void;
   updateStripeA5: (patch: Partial<StripeLayoutCm>) => void;
+  stepAutoRun: Record<string, boolean>;
+  setStepAutoRun: (jobId: string, value: boolean) => void;
+  defaultDescribeModel: string;
+  setDefaultDescribeModel: (id: string) => void;
+  defaultImageModel: string;
+  setDefaultImageModel: (id: string) => void;
 };
 
 const ModelsContext = createContext<ModelsContextValue | null>(null);
@@ -51,6 +62,10 @@ const STORAGE_KEY = "alganas-provider-keys";
 const PREFS_STORAGE_KEY = "alganas-prefs";
 const LEGACY_STORAGE_KEY = "alganas-models";
 const EMPTY_KEYS: ProviderKeys = { openai: "", google: "" };
+
+function defaultStepAutoRun(): Record<string, boolean> {
+  return Object.fromEntries(JOBS.map((job) => [job.id, job.autoRun ?? false]));
+}
 
 const DEFAULT_PROMPTS: SavedPrompt[] = [
   {
@@ -118,17 +133,61 @@ function parseStripe(
   };
 }
 
+function loadStepAutoRun(stored: unknown): Record<string, boolean> {
+  const defaults = defaultStepAutoRun();
+  if (!stored || typeof stored !== "object") return defaults;
+  const record = stored as Record<string, unknown>;
+  for (const job of JOBS) {
+    const value = record[job.id];
+    if (typeof value === "boolean") defaults[job.id] = value;
+  }
+  return defaults;
+}
+
+const PREVIOUS_DESCRIBE_DEFAULT = modelSelectionId(
+  "google",
+  "gemini-2.5-flash-lite",
+);
+const MODEL_DEFAULTS_REVISION = 1;
+
+function loadModelId(stored: unknown, fallback: string) {
+  return typeof stored === "string" && parseModelSelection(stored)
+    ? stored
+    : fallback;
+}
+
+function loadDescribeDefault(parsed: {
+  defaultDescribeModel?: string;
+  modelDefaultsRevision?: number;
+}) {
+  const stored = loadModelId(
+    parsed.defaultDescribeModel,
+    DEFAULT_DESCRIBE_MODEL_ID,
+  );
+  const revision = parsed.modelDefaultsRevision ?? 0;
+  if (revision < MODEL_DEFAULTS_REVISION && stored === PREVIOUS_DESCRIBE_DEFAULT) {
+    return DEFAULT_DESCRIBE_MODEL_ID;
+  }
+  return stored;
+}
+
 function loadPrefs(): {
   prompts: SavedPrompt[];
   pagesPerSpineCm: number;
   stripeA4: StripeLayoutCm;
   stripeA5: StripeLayoutCm;
+  stepAutoRun: Record<string, boolean>;
+  defaultDescribeModel: string;
+  defaultImageModel: string;
 } {
   const fallback = {
     prompts: DEFAULT_PROMPTS,
     pagesPerSpineCm: PAGES_PER_SPINE_CM,
     stripeA4: { ...DEFAULT_STRIPE_LAYOUT_A4 },
     stripeA5: { ...DEFAULT_STRIPE_LAYOUT_A5 },
+    stepAutoRun: defaultStepAutoRun(),
+    defaultDescribeModel: DEFAULT_DESCRIBE_MODEL_ID,
+    defaultImageModel: DEFAULT_IMAGE_MODEL_ID,
   };
   if (typeof window === "undefined") return fallback;
   try {
@@ -141,6 +200,10 @@ function loadPrefs(): {
         stripeWidthA5Cm?: number;
         stripeA4?: Partial<StripeLayoutCm>;
         stripeA5?: Partial<StripeLayoutCm>;
+        stepAutoRun?: Record<string, boolean>;
+        defaultDescribeModel?: string;
+        defaultImageModel?: string;
+        modelDefaultsRevision?: number;
       };
       const prompts = Array.isArray(parsed.prompts)
         ? parsed.prompts
@@ -175,6 +238,12 @@ function loadPrefs(): {
           fallback.stripeA5,
           10.6,
         ),
+        stepAutoRun: loadStepAutoRun(parsed.stepAutoRun),
+        defaultDescribeModel: loadDescribeDefault(parsed),
+        defaultImageModel: loadModelId(
+          parsed.defaultImageModel,
+          DEFAULT_IMAGE_MODEL_ID,
+        ),
       };
     }
   } catch {
@@ -198,6 +267,15 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const [stripeA5, setStripeA5] = useState<StripeLayoutCm>(
     () => loadPrefs().stripeA5,
   );
+  const [stepAutoRun, setStepAutoRunState] = useState<Record<string, boolean>>(
+    () => loadPrefs().stepAutoRun,
+  );
+  const [defaultDescribeModel, setDefaultDescribeModelState] = useState(
+    () => loadPrefs().defaultDescribeModel,
+  );
+  const [defaultImageModel, setDefaultImageModelState] = useState(
+    () => loadPrefs().defaultImageModel,
+  );
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
@@ -211,9 +289,21 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         pagesPerSpineCm,
         stripeA4,
         stripeA5,
+        stepAutoRun,
+        defaultDescribeModel,
+        defaultImageModel,
+        modelDefaultsRevision: MODEL_DEFAULTS_REVISION,
       }),
     );
-  }, [prompts, pagesPerSpineCm, stripeA4, stripeA5]);
+  }, [
+    prompts,
+    pagesPerSpineCm,
+    stripeA4,
+    stripeA5,
+    stepAutoRun,
+    defaultDescribeModel,
+    defaultImageModel,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -265,6 +355,18 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     setStripeA5((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  const setStepAutoRun = useCallback((jobId: string, value: boolean) => {
+    setStepAutoRunState((prev) => ({ ...prev, [jobId]: value }));
+  }, []);
+
+  const setDefaultDescribeModel = useCallback((id: string) => {
+    if (parseModelSelection(id)) setDefaultDescribeModelState(id);
+  }, []);
+
+  const setDefaultImageModel = useCallback((id: string) => {
+    if (parseModelSelection(id)) setDefaultImageModelState(id);
+  }, []);
+
   return (
     <ModelsContext.Provider
       value={{
@@ -281,6 +383,12 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         stripeA5,
         updateStripeA4,
         updateStripeA5,
+        stepAutoRun,
+        setStepAutoRun,
+        defaultDescribeModel,
+        setDefaultDescribeModel,
+        defaultImageModel,
+        setDefaultImageModel,
       }}
     >
       {children}

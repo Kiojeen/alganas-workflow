@@ -22,12 +22,14 @@ export function ModelSelect({
   onChange,
   disabled,
   placeholder,
+  label = "نموذج الذكاء الاصطناعي",
 }: {
   kind: ModelKind;
   value: string;
   onChange: (id: string) => void;
   disabled?: boolean;
   placeholder: string;
+  label?: string;
 }) {
   const { models, keys } = useModels();
   const options = modelsByKind(models, kind);
@@ -38,7 +40,7 @@ export function ModelSelect({
   return (
     <div className="flex flex-col gap-1.5">
       <Label className="text-muted-foreground text-xs font-medium">
-        نموذج الذكاء الاصطناعي
+        {label}
       </Label>
       <Select
         value={selected || undefined}

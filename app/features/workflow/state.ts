@@ -1,4 +1,8 @@
 import { JOBS } from "./jobs";
+import {
+  DEFAULT_DESCRIBE_MODEL_ID,
+  DEFAULT_IMAGE_MODEL_ID,
+} from "./lib/provider-models";
 import type { BookConfig, Preview } from "./types";
 
 export const DEFAULT_GENERATE_PROMPT =
@@ -16,15 +20,19 @@ export type WorkflowState = {
   completed: Set<number>;
   outputImage: string | null;
   involved: Set<string>;
+  stepAutoRun: Record<string, boolean>;
   bookConfig: BookConfig;
   canvasImage: string | null;
 };
 
 const defaultBookConfig: BookConfig = {
   numPages: 720,
-  multiChapter: false,
+  division: "pages",
   maxPagesPerChapter: 720,
-  chapterLabel: "الفصل",
+  chapterCount: 1,
+  chapterPages: [720],
+  chapterNames: [],
+  chapterLabel: "ar:فصل",
   chapterLabelUppercase: false,
   bookName: "",
   bookDescription: "",
@@ -42,19 +50,24 @@ const defaultBookConfig: BookConfig = {
 
 export function createDefaultWorkflowState(
   jobIds: readonly string[] = JOBS.map((j) => j.id),
+  stepAutoRun: Record<string, boolean> = Object.fromEntries(
+    JOBS.map((job) => [job.id, job.autoRun ?? false]),
+  ),
+  models: { describeAi?: string; ai?: string } = {},
 ): WorkflowState {
   return {
     file: null,
     pdfPage: 1,
     preview: null,
     busy: false,
-    ai: "",
-    describeAi: "",
+    ai: models.ai || DEFAULT_IMAGE_MODEL_ID,
+    describeAi: models.describeAi || DEFAULT_DESCRIBE_MODEL_ID,
     prompt: DEFAULT_GENERATE_PROMPT,
     runningStep: null,
     completed: new Set(),
     outputImage: null,
     involved: new Set(jobIds),
+    stepAutoRun: { ...stepAutoRun },
     bookConfig: { ...defaultBookConfig },
     canvasImage: null,
   };

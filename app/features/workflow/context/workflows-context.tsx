@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { useModels } from "./models-context";
 import { createDefaultWorkflowState, type WorkflowState } from "../state";
 
 export type WorkflowInstance = {
@@ -29,12 +30,21 @@ type WorkflowsContextValue = {
 
 const WorkflowsContext = createContext<WorkflowsContextValue | null>(null);
 
-function createInstance(name: string): WorkflowInstance {
+function createInstance(
+  name: string,
+  stepAutoRun: Record<string, boolean>,
+  models: { describeAi: string; ai: string },
+): WorkflowInstance {
   return {
     id: crypto.randomUUID(),
     name,
-    state: createDefaultWorkflowState(),
+    state: createDefaultWorkflowState(undefined, stepAutoRun, models),
   };
+}
+
+export function workflowTitle(workflow: WorkflowInstance) {
+  const book = workflow.state.bookConfig.bookName?.trim() ?? "";
+  return book || workflow.name;
 }
 
 function applyChange(state: WorkflowState, change: StateChange): WorkflowState {
@@ -43,8 +53,13 @@ function applyChange(state: WorkflowState, change: StateChange): WorkflowState {
 }
 
 export function WorkflowsProvider({ children }: { children: ReactNode }) {
+  const { stepAutoRun, defaultDescribeModel, defaultImageModel } = useModels();
+  const defaultModels = {
+    describeAi: defaultDescribeModel,
+    ai: defaultImageModel,
+  };
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>(() => [
-    createInstance("مشروع - 1 -"),
+    createInstance("مشروع - 1 -", stepAutoRun, defaultModels),
   ]);
   const [currentId, setCurrentId] = useState<string | null>(() => null);
 
@@ -70,11 +85,17 @@ export function WorkflowsProvider({ children }: { children: ReactNode }) {
   const select = useCallback((id: string) => setCurrentId(id), []);
   const add = useCallback(() => {
     setWorkflows((prev) => {
-      const next = [...prev, createInstance(`مشروع - ${prev.length + 1} -`)];
+      const next = [
+        ...prev,
+        createInstance(`مشروع - ${prev.length + 1} -`, stepAutoRun, {
+          describeAi: defaultDescribeModel,
+          ai: defaultImageModel,
+        }),
+      ];
       setCurrentId(next[next.length - 1].id);
       return next;
     });
-  }, []);
+  }, [stepAutoRun, defaultDescribeModel, defaultImageModel]);
   const remove = useCallback((id: string) => {
     setWorkflows((prev) =>
       prev.filter((w) => {

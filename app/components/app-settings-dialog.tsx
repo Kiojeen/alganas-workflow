@@ -3,7 +3,10 @@ import { useModels } from "@/features/workflow/context";
 import {
   DEFAULT_STRIPE_LAYOUT_A4,
   DEFAULT_STRIPE_LAYOUT_A5,
+  PAGES_PER_SPINE_CM,
 } from "@/features/workflow/lib/cover-layout";
+import { ModelSelect } from "@/features/workflow/components/model-select";
+import { JOBS } from "@/features/workflow/jobs";
 import { PROVIDERS } from "@/features/workflow/lib/provider-models";
 import {
   Delete02Icon,
@@ -23,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +45,14 @@ function AppSettingsDialog({
     addPrompt,
     updatePrompt,
     removePrompt,
+    pagesPerSpineCm,
+    setPagesPerSpineCm,
+    stepAutoRun,
+    setStepAutoRun,
+    defaultDescribeModel,
+    setDefaultDescribeModel,
+    defaultImageModel,
+    setDefaultImageModel,
     stripeA4,
     stripeA5,
     updateStripeA4,
@@ -54,7 +66,7 @@ function AppSettingsDialog({
         <DialogHeader>
           <DialogTitle>الإعدادات</DialogTitle>
           <DialogDescription>
-            مفاتيح API، عرض الشريط، وتعليمات التوليد المحفوظة.
+            مفاتيح API، النماذج الافتراضية، مقياس الكعب، عرض الشريط، وتعليمات التوليد المحفوظة.
           </DialogDescription>
         </DialogHeader>
 
@@ -105,6 +117,73 @@ function AppSettingsDialog({
 
         <Separator />
 
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">النماذج الافتراضية</Label>
+          <p className="text-muted-foreground text-[11px]">
+            تُستخدم عند إنشاء مشروع جديد. المشاريع الحالية تحتفظ بالنموذج الذي
+            اختارته.
+          </p>
+          <ModelSelect
+            kind="text"
+            label="استخراج التفاصيل"
+            value={defaultDescribeModel}
+            onChange={setDefaultDescribeModel}
+            placeholder="نموذج الرؤية"
+          />
+          <ModelSelect
+            kind="image"
+            label="توليد الصورة"
+            value={defaultImageModel}
+            onChange={setDefaultImageModel}
+            placeholder="نموذج الصور"
+          />
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">مقياس الكعب</Label>
+          <p className="text-muted-foreground text-[11px]">
+            عدد الصفحات التي تعادل 1 سم من عرض الكعب. يُطبَّق على كل المشاريع.
+          </p>
+          <Input
+            type="number"
+            min={1}
+            value={pagesPerSpineCm}
+            onChange={(e) =>
+              setPagesPerSpineCm(Number(e.target.value) || PAGES_PER_SPINE_CM)
+            }
+            className="h-8"
+          />
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">التشغيل التلقائي</Label>
+          <p className="text-muted-foreground text-[11px]">
+            الحالة الابتدائية لكل خطوة في المشاريع الجديدة. الخطوتان الثانية
+            والثالثة يمكن تغييرهما داخل المشروع.
+          </p>
+          <div className="space-y-2">
+            {JOBS.map((job) => (
+              <label
+                key={job.id}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span className="min-w-0 truncate">{job.title}</span>
+                <Switch
+                  checked={stepAutoRun[job.id] === true}
+                  onCheckedChange={(value) => setStepAutoRun(job.id, value)}
+                  aria-label={`تشغيل تلقائي ابتدائي لـ ${job.title}`}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <Separator />
+
         <div className="space-y-2">
           <Label className="text-sm font-medium">شريط الظهر</Label>
           <p className="text-muted-foreground text-[11px]">
@@ -134,7 +213,6 @@ function AppSettingsDialog({
                       })
                     }
                     className="h-8"
-                    dir="ltr"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -152,7 +230,6 @@ function AppSettingsDialog({
                       })
                     }
                     className="h-8"
-                    dir="ltr"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -170,7 +247,6 @@ function AppSettingsDialog({
                       })
                     }
                     className="h-8"
-                    dir="ltr"
                   />
                 </div>
               </div>

@@ -41,6 +41,7 @@ import {
   spineWidthCm,
   wrapWidthCm,
 } from "../lib/cover-layout";
+import { unassignedPagesError } from "../lib/chapter-division";
 import { CoverColorPicker } from "./cover-color-picker";
 
 export function ConvertStep({
@@ -70,6 +71,7 @@ export function ConvertStep({
   const configRef = useRef(bookConfig);
   configRef.current = bookConfig;
   const chapters = useMemo(() => resolveChapters(bookConfig), [bookConfig]);
+  const allocationError = unassignedPagesError(bookConfig);
   const [chapterIndex, setChapterIndex] = useState(0);
   const [palette, setPalette] = useState<string[]>([]);
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
@@ -107,9 +109,13 @@ export function ConvertStep({
     setChapterIndex(0);
   }, [
     chapters.length,
-    bookConfig.multiChapter,
+    bookConfig.division,
     bookConfig.numPages,
     bookConfig.maxPagesPerChapter,
+    bookConfig.chapterCount,
+    bookConfig.chapterPages.join(","),
+    (bookConfig.chapterNames ?? []).join("\u0000"),
+    bookConfig.chapterLabel,
   ]);
 
   useEffect(() => {
@@ -306,6 +312,12 @@ export function ConvertStep({
         </div>
       </div>
 
+      {allocationError && (
+        <p className="text-destructive text-xs font-medium" role="alert">
+          {allocationError}
+        </p>
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Switch
@@ -321,7 +333,7 @@ export function ConvertStep({
         <Button
           size="sm"
           variant="outline"
-          disabled={disabled || !sourceImage || exporting}
+          disabled={disabled || !sourceImage || exporting || allocationError !== null}
           onClick={onExport}
           className="gap-1"
         >
