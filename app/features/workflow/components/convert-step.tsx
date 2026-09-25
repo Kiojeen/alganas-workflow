@@ -29,14 +29,14 @@ import type { BookConfig, CoverPageSize, CoverSide } from "../types";
 import {
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
-  DEFAULT_CHAPTER_LABEL_COLOR,
   DEFAULT_COVER_COLOR,
-  DEFAULT_STRIPE_FOREGROUND,
   PREVIEW_DPI,
   cmToPx,
   contrastHex,
   drawCoverOnCanvas,
   extractPalette,
+  readableOn,
+  sampleChapterBackdrop,
   loadCoverImage,
   pageDimsCm,
   resolveChapters,
@@ -44,7 +44,7 @@ import {
   spineWidthCm,
   wrapWidthCm,
 } from "../lib/cover-layout";
-import { unassignedPagesError } from "../lib/chapter-division";
+import { showsChapterTitle, unassignedPagesError } from "../lib/chapter-division";
 import { CoverColorPicker } from "./cover-color-picker";
 
 export function ConvertStep({
@@ -89,14 +89,25 @@ export function ConvertStep({
   const wrapCm = wrapWidthCm(chapter.pages, pagesPerSpineCm, pageDims.width);
   const coverColor = bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeColor = bookConfig.stripeColor || shiftHex(coverColor, -18);
-  const stripeForeground =
-    bookConfig.stripeForeground || DEFAULT_STRIPE_FOREGROUND;
-  const chapterLabelColor =
-    bookConfig.chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
+  const stripeForeground = readableOn(
+    bookConfig.stripeForeground,
+    stripeColor,
+  );
   const chapterLabelX = bookConfig.chapterLabelX ?? 50;
   const chapterLabelY = bookConfig.chapterLabelY ?? 88;
-  const spineMarkColor =
-    bookConfig.spineMarkColor || contrastHex(coverColor);
+  const chapterBackdrop = sampleChapterBackdrop(
+    loadedImage,
+    pageDims.width,
+    pageDims.height,
+    chapterLabelX,
+    chapterLabelY,
+  );
+  const chapterLabelColor = readableOn(
+    bookConfig.chapterLabelColor,
+    chapterBackdrop,
+  );
+  const spineMarkColor = readableOn(bookConfig.spineMarkColor, coverColor);
+  const chapterTitle = showsChapterTitle(bookConfig) ? chapter.label : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -175,7 +186,7 @@ export function ConvertStep({
       drawCoverOnCanvas(canvas, {
         sourceImage: loadedImage,
         pages: chapter.pages,
-        label: chapter.label,
+        label: chapterTitle,
         bookName: bookConfig.bookName ?? "",
         coverSide: bookConfig.coverSide ?? "rtl",
         showGuides: showLines,
@@ -214,7 +225,7 @@ export function ConvertStep({
   }, [
     loadedImage,
     chapter.pages,
-    chapter.label,
+    chapterTitle,
     chapter.index,
     hasChapters,
     bookConfig.coverSide,
@@ -382,7 +393,7 @@ export function ConvertStep({
         <CoverColorPicker
           label="لون نص الشريط"
           value={stripeForeground}
-          fallback={DEFAULT_STRIPE_FOREGROUND}
+          fallback={contrastHex(stripeColor)}
           onChange={(hex) =>
             onBookConfigChange({
               ...configRef.current,
@@ -409,7 +420,7 @@ export function ConvertStep({
           <CoverColorPicker
             label="لون تسمية الفصل"
             value={chapterLabelColor}
-            fallback={DEFAULT_CHAPTER_LABEL_COLOR}
+            fallback={contrastHex(chapterBackdrop)}
             onChange={(hex) =>
               onBookConfigChange({
                 ...configRef.current,

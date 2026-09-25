@@ -87,6 +87,13 @@ export function resetChapterName(config: BookConfig, index: number): BookConfig 
   return setChapterName(config, index, "");
 }
 
+export function showsChapterTitle(config: BookConfig): boolean {
+  if (config.division !== "pages") return true;
+  const total = Math.max(1, Math.floor(config.numPages) || 1);
+  const cap = Math.max(1, Math.floor(config.maxPagesPerChapter) || 1);
+  return total !== cap;
+}
+
 export function unassignedPagesError(config: BookConfig): string | null {
   const remaining = remainingPages(config);
   if (remaining <= 0) return null;

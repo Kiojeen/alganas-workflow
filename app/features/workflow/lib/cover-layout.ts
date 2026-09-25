@@ -551,7 +551,7 @@ function drawSpineTitle(
   const chapterNumber = args.chapterNumber?.trim() ?? "";
   if ((!title && !chapterNumber) || args.width < 6) return;
 
-  const ink = hexLuminance(args.fill) > 0.55 ? "#1c1814" : "#f7f3ea";
+  const ink = contrastHex(args.fill);
   const markH = cmToPx(SPINE_MARK_HEIGHT_CM, args.dpi);
   const gap = cmToPx(0.1, args.dpi);
   const cx = args.x + args.width / 2;
@@ -696,11 +696,103 @@ export function shiftHex(hex: string, amount: number): string {
   return rgbToHex(clamp(r), clamp(g), clamp(b));
 }
 
-function hexLuminance(hex: string): number {
-  const [r, g, b] = parseHex(hex).map((value) => value / 255);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+const INK_DARK = "#1c1814";
+const INK_LIGHT = "#f7f3ea";
+
+function channelLuminance(value: number) {
+  const s = value / 255;
+  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+
+function relativeLuminance(hex: string) {
+  const [r, g, b] = parseHex(hex);
+  return (
+    0.2126 * channelLuminance(r) +
+    0.7152 * channelLuminance(g) +
+    0.0722 * channelLuminance(b)
+  );
+}
+
+export function contrastRatio(foreground: string, background: string) {
+  const lighter = Math.max(
+    relativeLuminance(foreground),
+    relativeLuminance(background),
+  );
+  const darker = Math.min(
+    relativeLuminance(foreground),
+    relativeLuminance(background),
+  );
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 export function contrastHex(hex: string): string {
-  return hexLuminance(hex) > 0.55 ? "#1c1814" : "#f7f3ea";
+  return contrastRatio(hex, INK_LIGHT) > contrastRatio(hex, INK_DARK)
+    ? INK_LIGHT
+    : INK_DARK;
+}
+
+/** Keep a chosen ink when it already stands out; otherwise pick the clearer one. */
+export function readableOn(foreground: string, background: string) {
+  const ink = foreground.trim();
+  if (!ink || contrastRatio(ink, background) < 3) return contrastHex(background);
+  return ink;
+}
+
+export function sampleChapterBackdrop(
+  image: HTMLImageElement | null,
+  panelWidthCm: number,
+  panelHeightCm: number,
+  xPercent: number,
+  yPercent: number,
+): string {
+  const fallback = "#e7e1d4";
+  if (!image || image.naturalWidth < 1 || image.naturalHeight < 1) {
+    return fallback;
+  }
+  const xRatio = Math.min(1, Math.max(0, xPercent / 100));
+  const yRatio = Math.min(1, Math.max(0, yPercent / 100));
+  const pad = 1.2;
+  const panelX =
+    (pad + (panelWidthCm - pad * 2) * xRatio) / panelWidthCm;
+  const panelY =
+    (pad + (panelHeightCm - pad * 2) * yRatio) / panelHeightCm;
+  const iw = image.naturalWidth;
+  const ih = image.naturalHeight;
+  const scale = Math.max(panelWidthCm / iw, panelHeightCm / ih);
+  const dx = (panelWidthCm - iw * scale) / 2;
+  const dy = (panelHeightCm - ih * scale) / 2;
+  const sx = Math.min(iw - 1, Math.max(0, (panelX * panelWidthCm - dx) / scale));
+  const sy = Math.min(ih - 1, Math.max(0, (panelY * panelHeightCm - dy) / scale));
+  const radius = Math.max(4, Math.round(Math.min(iw, ih) * 0.03));
+  const canvas = document.createElement("canvas");
+  const sample = 12;
+  canvas.width = sample;
+  canvas.height = sample;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return fallback;
+  ctx.drawImage(
+    image,
+    sx - radius,
+    sy - radius,
+    radius * 2,
+    radius * 2,
+    0,
+    0,
+    sample,
+    sample,
+  );
+  const data = ctx.getImageData(0, 0, sample, sample).data;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 80) continue;
+    r += data[i];
+    g += data[i + 1];
+    b += data[i + 2];
+    n += 1;
+  }
+  if (!n) return fallback;
+  return rgbToHex(Math.round(r / n), Math.round(g / n), Math.round(b / n));
 }

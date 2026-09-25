@@ -16,7 +16,7 @@ import {
 } from "pdf-lib";
 
 import type { BookConfig, CoverSide } from "../types";
-import { unassignedPagesError } from "./chapter-division";
+import { showsChapterTitle, unassignedPagesError } from "./chapter-division";
 import {
   fetchCoverFontBytes,
   getCoverFontPair,
@@ -25,9 +25,7 @@ import {
 import {
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
-  DEFAULT_CHAPTER_LABEL_COLOR,
   DEFAULT_COVER_COLOR,
-  DEFAULT_STRIPE_FOREGROUND,
   SPINE_MARK_HEIGHT_CM,
   SPINE_MARK_WIDTH_CM,
   STRIPE_INSET_CM,
@@ -35,9 +33,12 @@ import {
   cmToPt,
   contrastHex,
   fileSafeName,
+  loadCoverImage,
+  pageDimsCm,
+  readableOn,
+  sampleChapterBackdrop,
   hexToRgb01,
   layoutCoverCm,
-  loadCoverImage,
   resolveChapters,
   shiftHex,
   wrapWords,
@@ -268,6 +269,7 @@ async function drawVectorCover(args: {
   showGuides: boolean;
   pages: number;
   label: string;
+  coverImageElement?: HTMLImageElement | null;
   chapterNumber?: string;
   pagesPerSpineCm?: number;
   stripeWidthCm?: number;
@@ -318,12 +320,18 @@ async function drawVectorCover(args: {
   const fillHex = args.bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeFillHex =
     args.bookConfig.stripeColor?.trim() || shiftHex(fillHex, -18);
-  const stripeHex =
-    args.bookConfig.stripeForeground || DEFAULT_STRIPE_FOREGROUND;
-  const labelHex =
-    args.bookConfig.chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
-  const markHex =
-    args.bookConfig.spineMarkColor?.trim() || contrastHex(fillHex);
+  const pageSize = args.bookConfig.pageSize ?? "a4";
+  const panel = pageDimsCm(pageSize);
+  const labelBackdrop = sampleChapterBackdrop(
+    args.coverImageElement ?? null,
+    panel.width,
+    panel.height,
+    args.bookConfig.chapterLabelX ?? 50,
+    args.bookConfig.chapterLabelY ?? 88,
+  );
+  const stripeHex = readableOn(args.bookConfig.stripeForeground, stripeFillHex);
+  const labelHex = readableOn(args.bookConfig.chapterLabelColor, labelBackdrop);
+  const markHex = readableOn(args.bookConfig.spineMarkColor, fillHex);
   const stripeText =
     args.bookConfig.bookDescription?.trim() || STRIPE_TEXT;
   const bookName = args.bookConfig.bookName ?? "";
@@ -536,6 +544,10 @@ export async function exportCoverPdf(args: {
   if (unassigned) throw new Error(unassigned);
   const chapters = resolveChapters(args.bookConfig);
   const bookTitle = fileSafeName(args.bookConfig.bookName ?? "", "cover");
+  const showTitle = showsChapterTitle(args.bookConfig);
+  const coverImageElement = await loadCoverImage(args.sourceUrl).catch(
+    () => null,
+  );
 
   for (const [index, chapter] of chapters.entries()) {
     const bytes = await drawVectorCover({
@@ -543,7 +555,8 @@ export async function exportCoverPdf(args: {
       bookConfig: args.bookConfig,
       showGuides: args.showGuides,
       pages: chapter.pages,
-      label: chapter.label,
+      label: showTitle ? chapter.label : "",
+      coverImageElement,
       chapterNumber: chapters.length > 1 ? String(chapter.index) : undefined,
       pagesPerSpineCm: args.pagesPerSpineCm,
       stripeWidthCm: args.stripeWidthCm,
