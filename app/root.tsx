@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -19,7 +20,26 @@ import { ThemeProvider } from "./providers/theme-provider";
 import { DirectionProvider } from "./components/ui/direction";
 import { Toaster } from "./components/ui/sonner";
 
-export const meta: Route.MetaFunction = () => [{ title: "أتمته الگناص" }];
+const base = import.meta.env.BASE_URL;
+
+export const meta: Route.MetaFunction = () => [
+  { title: "أتمته الگناص" },
+  {
+    name: "description",
+    content: "مكتب أغلفة الكتب: من صورة الغلاف إلى ملفات PDF جاهزة للطباعة.",
+  },
+  { name: "theme-color", content: "#1c1917" },
+  { name: "mobile-web-app-capable", content: "yes" },
+  { name: "apple-mobile-web-app-capable", content: "yes" },
+  { name: "apple-mobile-web-app-title", content: "الگناص" },
+];
+
+export const links: Route.LinksFunction = () => [
+  { rel: "icon", href: `${base}favicon.ico`, sizes: "any" },
+  { rel: "icon", href: `${base}favicon.svg`, type: "image/svg+xml" },
+  { rel: "apple-touch-icon", href: `${base}apple-touch-icon.png` },
+  { rel: "manifest", href: `${base}manifest.webmanifest` },
+];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -77,6 +97,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    void navigator.serviceWorker.register(`${base}sw.js`, { scope: base });
+  }, []);
+
   return <Outlet />;
 }
 
