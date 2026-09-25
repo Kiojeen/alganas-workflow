@@ -1,11 +1,20 @@
+import { useState } from "react";
 import { Download01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-import { fileSafeName } from "../lib/cover-layout";
+import { useModels } from "../context";
+import { downloadDataUrl, fileSafeName } from "../lib/cover-layout";
 import { ImagePreview } from "./image-preview";
 import { ModelSelect } from "./model-select";
 
@@ -26,6 +35,9 @@ export function GenerateStep({
   bookName?: string;
   disabled: boolean;
 }) {
+  const { prompts } = useModels();
+  const [selectedPromptId, setSelectedPromptId] = useState<string>("");
+
   return (
     <div className="flex flex-col gap-3">
       <ModelSelect
@@ -35,6 +47,34 @@ export function GenerateStep({
         disabled={disabled}
         placeholder="اختر نموذج توليد صور"
       />
+
+      {prompts.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-muted-foreground text-xs font-medium">
+            تعليمات محفوظة
+          </Label>
+          <Select
+            value={selectedPromptId || undefined}
+            disabled={disabled}
+            onValueChange={(id) => {
+              const saved = prompts.find((item) => item.id === id);
+              setSelectedPromptId(id);
+              if (saved) onPromptChange(saved.text);
+            }}
+          >
+            <SelectTrigger className="w-full" size="sm">
+              <SelectValue placeholder="اختر تعليمات لإدراجها" />
+            </SelectTrigger>
+            <SelectContent>
+              {prompts.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name || "بدون اسم"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
@@ -47,6 +87,7 @@ export function GenerateStep({
           onChange={(e) => onPromptChange(e.target.value)}
           placeholder="Describe how the AI should generate the image…"
           rows={4}
+          className="max-h-48 overflow-y-auto"
         />
       </div>
 
@@ -64,12 +105,7 @@ export function GenerateStep({
               onClick={() => {
                 const name = fileSafeName(bookName ?? "", "cover");
                 const ext = outputImage.includes("image/jpeg") ? "jpg" : "png";
-                const anchor = document.createElement("a");
-                anchor.href = outputImage;
-                anchor.download = `${name}.${ext}`;
-                document.body.appendChild(anchor);
-                anchor.click();
-                anchor.remove();
+                downloadDataUrl(outputImage, `${name}.${ext}`);
               }}
             >
               <HugeiconsIcon icon={Download01Icon} className="size-3.5" />

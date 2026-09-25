@@ -1,13 +1,23 @@
 import { FileUploadIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import type { BookConfig, Preview } from "../types";
+import { useModels } from "../context";
 import {
+  CHAPTER_LABEL_OPTIONS,
   MAX_PAGES_PER_VOLUME,
   PAGES_PER_SPINE_CM,
   resolveChapters,
@@ -35,36 +45,60 @@ export function UploadFileStep({
   onBookConfigChange: (config: BookConfig) => void;
   disabled: boolean;
 }) {
+  const { pagesPerSpineCm, setPagesPerSpineCm } = useModels();
   const chapters = resolveChapters(bookConfig);
   const cap = bookConfig.maxPagesPerChapter || MAX_PAGES_PER_VOLUME;
-  const singleSpine = spineWidthCm(Math.max(1, bookConfig.numPages || 1));
+  const singleSpine = spineWidthCm(
+    Math.max(1, bookConfig.numPages || 1),
+    pagesPerSpineCm,
+  );
+  const chapterLabel =
+    CHAPTER_LABEL_OPTIONS.find((option) => option === bookConfig.chapterLabel) ??
+    "الفصل";
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-muted-foreground text-xs font-medium">
-          عدد صفحات الكتاب
-        </Label>
-        <Input
-          type="number"
-          min={1}
-          value={bookConfig.numPages}
-          disabled={disabled}
-          onChange={(e) =>
-            onBookConfigChange({
-              ...bookConfig,
-              numPages: Number(e.target.value) || 0,
-            })
-          }
-          className="h-8"
-        />
-        {!bookConfig.multiChapter && (
-          <p className="text-muted-foreground text-[11px]">
-            كعب الكتاب {singleSpine.toFixed(2)} سم (كل {PAGES_PER_SPINE_CM} صفحة
-            = 1 سم).
-          </p>
-        )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-muted-foreground text-xs font-medium">
+            عدد صفحات الكتاب
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            value={bookConfig.numPages}
+            disabled={disabled}
+            onChange={(e) =>
+              onBookConfigChange({
+                ...bookConfig,
+                numPages: Number(e.target.value) || 0,
+              })
+            }
+            className="h-8"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-muted-foreground text-xs font-medium">
+            مقياس الكعب
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            value={pagesPerSpineCm}
+            disabled={disabled}
+            onChange={(e) =>
+              setPagesPerSpineCm(Number(e.target.value) || PAGES_PER_SPINE_CM)
+            }
+            className="h-8"
+          />
+        </div>
       </div>
+      {!bookConfig.multiChapter && (
+        <p className="-mt-2 text-muted-foreground text-[11px]">
+          كعب الكتاب {singleSpine.toFixed(2)} سم (كل {pagesPerSpineCm} صفحة = 1
+          سم).
+        </p>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
@@ -135,18 +169,40 @@ export function UploadFileStep({
             <Label className="text-muted-foreground text-xs font-medium">
               تسمية الفصل
             </Label>
-            <Input
-              value={bookConfig.chapterLabel}
+            <Select
+              value={chapterLabel}
               disabled={disabled}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 onBookConfigChange({
                   ...bookConfig,
-                  chapterLabel: e.target.value,
+                  chapterLabel: value,
                 })
               }
-              placeholder="مثال: chapter, volume, part"
-              className="h-8"
-            />
+            >
+              <SelectTrigger className="w-full" size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CHAPTER_LABEL_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox
+                checked={bookConfig.chapterLabelUppercase === true}
+                disabled={disabled}
+                onCheckedChange={(checked) =>
+                  onBookConfigChange({
+                    ...bookConfig,
+                    chapterLabelUppercase: checked === true,
+                  })
+                }
+              />
+              أحرف كبيرة
+            </label>
           </div>
 
           <div className="rounded-md border px-3 py-2">
@@ -161,7 +217,8 @@ export function UploadFileStep({
                 >
                   <span>{chapter.label || `الفصل ${chapter.index}`}</span>
                   <span className="text-muted-foreground font-mono" dir="ltr">
-                    {chapter.pages} صفحة · {spineWidthCm(chapter.pages).toFixed(2)}{" "}
+                    {chapter.pages} صفحة ·{" "}
+                    {spineWidthCm(chapter.pages, pagesPerSpineCm).toFixed(2)}{" "}
                     سم
                   </span>
                 </li>

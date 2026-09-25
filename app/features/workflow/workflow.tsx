@@ -17,6 +17,7 @@ import { useWorkflow } from "./context";
 import { useModels } from "./context/models-context";
 import { JOBS } from "./jobs";
 import { exportCoverPdf } from "./lib/export-cover-pdf";
+import { downloadDataUrl, fileSafeName } from "./lib/cover-layout";
 import { renderPdfPage } from "./lib/pdf";
 import { modelsByKind } from "./lib/provider-models";
 import type { StepStatus } from "./types";
@@ -42,7 +43,7 @@ function imageModel(provider: "openai" | "google", key: string, modelId: string)
 
 export function Workflow({ workflowId }: { workflowId: string }) {
   const workflow = useWorkflow(workflowId);
-  const { models, keys } = useModels();
+  const { models, keys, pagesPerSpineCm, stripeA4, stripeA5 } = useModels();
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
   const involvedRef = useRef<Set<string>>(
     workflow?.state.involved ?? new Set(),
@@ -129,10 +130,16 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     }
     setExporting(true);
     try {
+      const stripe =
+        (bookConfig.pageSize ?? "a4") === "a5" ? stripeA5 : stripeA4;
       await exportCoverPdf({
         sourceUrl: sourceImage,
         bookConfig,
         showGuides: showLines,
+        pagesPerSpineCm,
+        stripeWidthCm: stripe.widthCm,
+        stripeInsetCm: stripe.insetCm,
+        stripeEdgeGapCm: stripe.edgeGapCm,
       });
       toast.success("تم تصدير ملف PDF.");
     } catch (error) {
@@ -299,6 +306,9 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         });
         const imageData = result.images[0];
         const imageUrl = `data:${imageData.mediaType};base64,${imageData.base64}`;
+        const name = fileSafeName(bookConfig.bookName ?? "", "cover");
+        const ext = /jpe?g/i.test(imageData.mediaType ?? "") ? "jpg" : "png";
+        downloadDataUrl(imageUrl, `${name}.${ext}`);
         runningRef.current = null;
         const nextIdx = findNextInvolved(i, involvedRef.current);
         const shouldAutoRun =

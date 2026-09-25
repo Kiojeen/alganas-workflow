@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import type { CoverFontPair } from "./lib/cover-fonts";
 
 export type IconType = ComponentProps<typeof HugeiconsIcon>["icon"];
 
@@ -21,15 +22,21 @@ export type StepStatus = "muted" | "ready" | "pending" | "running" | "done";
 
 export type CoverSide = "ltr" | "rtl";
 
+export type CoverPageSize = "a4" | "a5";
+
 export type BookConfig = {
   numPages: number;
   multiChapter: boolean;
   maxPagesPerChapter: number;
   chapterLabel: string;
+  chapterLabelUppercase: boolean;
   bookName: string;
   bookDescription: string;
   coverSide: CoverSide;
+  pageSize: CoverPageSize;
+  fontPair: CoverFontPair;
   coverColor: string;
+  stripeColor: string;
   stripeForeground: string;
   chapterLabelColor: string;
   spineMarkColor: string;

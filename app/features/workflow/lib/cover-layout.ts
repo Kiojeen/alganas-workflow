@@ -1,12 +1,42 @@
-import type { BookConfig, CoverSide } from "../types";
+import type { BookConfig, CoverPageSize, CoverSide } from "../types";
 
 export const A4_WIDTH_CM = 21;
 export const A4_HEIGHT_CM = 29.7;
+export const A5_WIDTH_CM = 14.8;
+export const A5_HEIGHT_CM = 21;
 export const ARTBOARD_WIDTH_CM = 47;
 export const ARTBOARD_HEIGHT_CM = 29.7;
 export const PAGES_PER_SPINE_CM = 200;
 export const MAX_PAGES_PER_VOLUME = 720;
-export const BACK_STRIPE_WIDTH_CM = 15;
+export const DEFAULT_STRIPE_LAYOUT_A4 = {
+  widthCm: 12,
+  insetCm: 1.2,
+  edgeGapCm: 1.2,
+} as const;
+
+export const DEFAULT_STRIPE_LAYOUT_A5 = {
+  widthCm: 8.4,
+  insetCm: 0.84,
+  edgeGapCm: 0.84,
+} as const;
+
+export const DEFAULT_STRIPE_WIDTH_A4_CM = DEFAULT_STRIPE_LAYOUT_A4.widthCm;
+export const DEFAULT_STRIPE_WIDTH_A5_CM = DEFAULT_STRIPE_LAYOUT_A5.widthCm;
+export const BACK_STRIPE_WIDTH_CM = DEFAULT_STRIPE_WIDTH_A4_CM;
+export const STRIPE_EDGE_GAP_CM = DEFAULT_STRIPE_LAYOUT_A4.edgeGapCm;
+export const STRIPE_INSET_CM = DEFAULT_STRIPE_LAYOUT_A4.insetCm;
+
+export type StripeLayoutCm = {
+  widthCm: number;
+  insetCm: number;
+  edgeGapCm: number;
+};
+
+export function defaultStripeLayout(pageSize: CoverPageSize = "a4"): StripeLayoutCm {
+  const source =
+    pageSize === "a5" ? DEFAULT_STRIPE_LAYOUT_A5 : DEFAULT_STRIPE_LAYOUT_A4;
+  return { ...source };
+}
 export const PREVIEW_DPI = 150;
 export const EXPORT_DPI = 200;
 export const DEFAULT_COVER_COLOR = "#5c5044";
@@ -16,6 +46,8 @@ export const SPINE_MARK_WIDTH_CM = 0.1;
 export const SPINE_MARK_HEIGHT_CM = 0.2;
 export const STRIPE_TEXT =
   "The afternoon light slipped across the desk and caught the edge of a half-open notebook. Outside, a dry wind moved through the trees as if turning pages of its own. Someone had left a cup of tea to cool beside a stack of letters, each one waiting for a reply that might never come. In that quiet, even the smallest mark of ink felt like a beginning.";
+
+export const CHAPTER_LABEL_OPTIONS = ["volume", "chapter", "الفصل"] as const;
 
 export type CoverChapter = {
   pages: number;
@@ -32,24 +64,147 @@ export type DrawCoverOptions = {
   showGuides: boolean;
   dpi: number;
   coverColor: string;
+  stripeColor?: string;
   stripeForeground: string;
   chapterLabelColor: string;
   chapterLabelX: number;
   chapterLabelY: number;
   stripeText?: string;
   spineMarkColor?: string;
+  titleFont?: string;
+  descriptionFont?: string;
+  chapterNumber?: string;
+  pagesPerSpineCm?: number;
+  pageSize?: CoverPageSize;
+  stripeWidthCm?: number;
+  stripeInsetCm?: number;
+  stripeEdgeGapCm?: number;
 };
 
-export function spineWidthCm(pages: number): number {
-  return Math.max(0, pages) / PAGES_PER_SPINE_CM;
+export function spineWidthCm(
+  pages: number,
+  pagesPerCm = PAGES_PER_SPINE_CM,
+): number {
+  return Math.max(0, pages) / Math.max(1, pagesPerCm);
 }
 
-export function wrapWidthCm(pages: number): number {
-  return A4_WIDTH_CM * 2 + spineWidthCm(pages);
+export function wrapWidthCm(
+  pages: number,
+  pagesPerCm = PAGES_PER_SPINE_CM,
+  pageWidthCm = A4_WIDTH_CM,
+): number {
+  return pageWidthCm * 2 + spineWidthCm(pages, pagesPerCm);
+}
+
+export function pageDimsCm(pageSize: CoverPageSize = "a4") {
+  return pageSize === "a5"
+    ? { width: A5_WIDTH_CM, height: A5_HEIGHT_CM }
+    : { width: A4_WIDTH_CM, height: A4_HEIGHT_CM };
 }
 
 export function cmToPx(cm: number, dpi: number): number {
   return (cm / 2.54) * dpi;
+}
+
+export function cmToPt(cm: number): number {
+  return (cm / 2.54) * 72;
+}
+
+export type CoverLayoutCm = {
+  fitScale: number;
+  a4W: number;
+  spineW: number;
+  wrapW: number;
+  originX: number;
+  originY: number;
+  height: number;
+  frontX: number;
+  backX: number;
+  spineX: number;
+  stripeX: number;
+  stripeW: number;
+  frontOnLeft: boolean;
+};
+
+export function layoutCoverCm(
+  pages: number,
+  coverSide: CoverSide,
+  pagesPerCm = PAGES_PER_SPINE_CM,
+  pageSize: CoverPageSize = "a4",
+  stripe?: Partial<StripeLayoutCm>,
+): CoverLayoutCm {
+  const dims = pageDimsCm(pageSize);
+  const metrics = {
+    ...defaultStripeLayout(pageSize),
+    ...Object.fromEntries(
+      Object.entries(stripe ?? {}).filter(
+        ([, value]) => typeof value === "number" && Number.isFinite(value),
+      ),
+    ),
+  } as StripeLayoutCm;
+  const wrapCm = wrapWidthCm(pages, pagesPerCm, dims.width);
+  const fitScale = wrapCm > ARTBOARD_WIDTH_CM ? ARTBOARD_WIDTH_CM / wrapCm : 1;
+  const a4W = dims.width * fitScale;
+  const spineW = spineWidthCm(pages, pagesPerCm) * fitScale;
+  const wrapW = a4W * 2 + spineW;
+  const originX = (ARTBOARD_WIDTH_CM - wrapW) / 2;
+  const originY = 0;
+  const height = dims.height * fitScale;
+  const frontOnLeft = coverSide === "rtl";
+  const frontX = frontOnLeft ? originX : originX + a4W + spineW;
+  const spineX = originX + a4W;
+  const backX = frontOnLeft ? originX + a4W + spineW : originX;
+  const edgeGap = metrics.edgeGapCm * fitScale;
+  const stripeW =
+    Math.min(
+      metrics.widthCm,
+      Math.max(0.5, dims.width - metrics.edgeGapCm),
+    ) * fitScale;
+  const stripeX = frontOnLeft
+    ? backX + a4W - stripeW - edgeGap
+    : backX + edgeGap;
+  return {
+    fitScale,
+    a4W,
+    spineW,
+    wrapW,
+    originX,
+    originY,
+    height,
+    frontX,
+    backX,
+    spineX,
+    stripeX,
+    stripeW,
+    frontOnLeft,
+  };
+}
+
+export function wrapWords(
+  text: string,
+  maxWidth: number,
+  widthOf: (value: string) => number,
+): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (widthOf(next) <= maxWidth) {
+      current = next;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+export function hexToRgb01(hex: string): { r: number; g: number; b: number } {
+  const [r, g, b] = parseHex(hex);
+  return { r: r / 255, g: g / 255, b: b / 255 };
 }
 
 export function fileSafeName(value: string, fallback = "cover") {
@@ -61,13 +216,25 @@ export function fileSafeName(value: string, fallback = "cover") {
   return cleaned || fallback;
 }
 
+export function downloadDataUrl(url: string, filename: string) {
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
 export function chapterPageCap(config: BookConfig): number {
   return Math.max(1, config.maxPagesPerChapter || MAX_PAGES_PER_VOLUME);
 }
 
 export function resolveChapters(config: BookConfig): CoverChapter[] {
   const totalPages = Math.max(1, config.numPages || 1);
-  const baseLabel = config.chapterLabel.trim() || "الفصل";
+  const rawLabel = config.chapterLabel.trim() || "الفصل";
+  const baseLabel = config.chapterLabelUppercase
+    ? rawLabel.toLocaleUpperCase()
+    : rawLabel;
   const cap = chapterPageCap(config);
   const count = config.multiChapter
     ? Math.max(1, Math.ceil(totalPages / cap))
@@ -157,18 +324,36 @@ export function drawCoverOnCanvas(
     showGuides,
     dpi,
     coverColor,
+    stripeColor,
     stripeForeground,
     chapterLabelColor,
     chapterLabelX,
     chapterLabelY,
     stripeText,
     spineMarkColor,
+    titleFont,
+    descriptionFont,
+    chapterNumber,
+    pagesPerSpineCm,
+    pageSize,
+    stripeWidthCm,
+    stripeInsetCm,
+    stripeEdgeGapCm,
   } = options;
   const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, dpi));
   const heightPx = Math.round(cmToPx(ARTBOARD_HEIGHT_CM, dpi));
   const fill = coverColor || DEFAULT_COVER_COLOR;
+  const stripeFill = stripeColor?.trim() || shiftHex(fill, -18);
   const textFill = stripeForeground || DEFAULT_STRIPE_FOREGROUND;
   const labelColor = chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
+  const titleFamily = titleFont || "CoverMontserratTitle";
+  const descriptionFamily = descriptionFont || "CoverMontserratDescription";
+  const layout = layoutCoverCm(pages, coverSide, pagesPerSpineCm, pageSize, {
+    widthCm: stripeWidthCm,
+    insetCm: stripeInsetCm,
+    edgeGapCm: stripeEdgeGapCm,
+  });
+  const p = (cm: number) => cmToPx(cm, dpi);
 
   canvas.width = widthPx;
   canvas.height = heightPx;
@@ -176,64 +361,67 @@ export function drawCoverOnCanvas(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  ctx.fillStyle = mixHex(fill, "#f3efe6", 0.72);
+  ctx.fillStyle = fill;
   ctx.fillRect(0, 0, widthPx, heightPx);
 
-  const wrapCm = wrapWidthCm(pages);
-  const fitScale = wrapCm > ARTBOARD_WIDTH_CM ? ARTBOARD_WIDTH_CM / wrapCm : 1;
-  const a4W = cmToPx(A4_WIDTH_CM * fitScale, dpi);
-  const spineW = cmToPx(spineWidthCm(pages) * fitScale, dpi);
-  const wrapW = a4W * 2 + spineW;
-  const originX = (widthPx - wrapW) / 2;
-  const originY = 0;
-
-  const frontOnLeft = coverSide === "rtl";
-  const frontX = frontOnLeft ? originX : originX + a4W + spineW;
-  const spineX = originX + a4W;
-  const backX = frontOnLeft ? originX + a4W + spineW : originX;
+  const originY = p(layout.originY);
+  const a4W = p(layout.a4W);
+  const spineW = p(layout.spineW);
+  const wrapW = p(layout.wrapW);
+  const originX = p(layout.originX);
+  const frontX = p(layout.frontX);
+  const spineX = p(layout.spineX);
+  const backX = p(layout.backX);
+  const stripeW = p(layout.stripeW);
+  const stripeX = p(layout.stripeX);
+  const frontOnLeft = layout.frontOnLeft;
+  const coverH = p(layout.height);
 
   ctx.fillStyle = fill;
-  ctx.fillRect(backX, originY, a4W, heightPx);
-  ctx.fillRect(spineX, originY, Math.max(1, spineW), heightPx);
-
-  const stripeW = cmToPx(Math.min(BACK_STRIPE_WIDTH_CM, A4_WIDTH_CM) * fitScale, dpi);
-  const stripeX = frontOnLeft ? backX + a4W - stripeW : backX;
-  ctx.fillStyle = shiftHex(fill, -18);
-  ctx.fillRect(stripeX, originY, stripeW, heightPx);
+  ctx.fillRect(backX, originY, a4W, coverH);
+  ctx.fillRect(spineX, originY, Math.max(1, spineW), coverH);
+  ctx.fillStyle = stripeFill;
+  ctx.fillRect(stripeX, originY, stripeW, coverH);
 
   drawStripeParagraph(ctx, {
     x: stripeX,
     y: originY,
     width: stripeW,
-    height: heightPx,
+    height: coverH,
     text: stripeText?.trim() || STRIPE_TEXT,
     color: textFill,
     dpi,
+    fontFamily: descriptionFamily,
+    insetCm: stripeInsetCm ?? defaultStripeLayout(pageSize).insetCm,
   });
 
   drawSpineTitle(ctx, {
     x: spineX,
+    y: originY,
     width: spineW,
-    height: heightPx,
+    height: coverH,
     title: bookName,
+    chapterNumber,
     fill,
     rtl: frontOnLeft,
+    fontFamily: titleFamily,
+    dpi,
   });
 
   drawSpineMarks(ctx, {
     x: spineX,
     y: originY,
     width: spineW,
-    height: heightPx,
+    height: coverH,
     dpi,
     color: spineMarkColor?.trim() || contrastHex(fill),
   });
 
   ctx.fillStyle = "#e7e1d4";
-  ctx.fillRect(frontX, originY, a4W, heightPx);
+  ctx.fillRect(frontX, originY, a4W, coverH);
 
   if (sourceImage && sourceImage.naturalWidth > 0) {
-    drawImageCovering(ctx, sourceImage, frontX, originY, a4W, heightPx);
+    drawImageCovering(ctx, sourceImage, frontX, originY, a4W, coverH);
   }
 
   if (label) {
@@ -241,12 +429,13 @@ export function drawCoverOnCanvas(
       x: frontX,
       y: originY,
       width: a4W,
-      height: heightPx,
+      height: coverH,
       label,
       color: labelColor,
       dpi,
       xRatio: chapterLabelX,
       yRatio: chapterLabelY,
+      fontFamily: titleFamily,
     });
   }
 
@@ -257,8 +446,8 @@ export function drawCoverOnCanvas(
     ctx.lineWidth = Math.max(1, dpi * 0.012);
     for (const x of [originX, spineX, spineX + spineW, originX + wrapW]) {
       ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, heightPx);
+      ctx.moveTo(x, originY);
+      ctx.lineTo(x, originY + coverH);
       ctx.stroke();
     }
     ctx.restore();
@@ -302,6 +491,7 @@ function drawCoverTitle(
     dpi: number;
     xRatio: number;
     yRatio: number;
+    fontFamily: string;
   },
 ) {
   const pad = cmToPx(1.2, args.dpi);
@@ -318,7 +508,7 @@ function drawCoverTitle(
   ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
   ctx.shadowBlur = Math.max(4, args.dpi * 0.04);
   const fontSize = Math.min(cmToPx(0.9, args.dpi), args.width * 0.08);
-  ctx.font = `700 ${fontSize}px "Segoe UI", "Noto Naskh Arabic", sans-serif`;
+  ctx.font = `700 ${fontSize}px "${args.fontFamily}", sans-serif`;
   ctx.fillText(args.label, textX, textY, args.width - pad * 2);
   ctx.restore();
 }
@@ -348,25 +538,62 @@ function drawSpineTitle(
   ctx: CanvasRenderingContext2D,
   args: {
     x: number;
+    y: number;
     width: number;
     height: number;
     title: string;
+    chapterNumber?: string;
     fill: string;
     rtl: boolean;
+    fontFamily: string;
+    dpi: number;
   },
 ) {
   const title = args.title.trim();
-  if (!title || args.width < 6) return;
+  const chapterNumber = args.chapterNumber?.trim() ?? "";
+  if ((!title && !chapterNumber) || args.width < 6) return;
+
+  const ink = hexLuminance(args.fill) > 0.55 ? "#1c1814" : "#f7f3ea";
+  const markH = cmToPx(SPINE_MARK_HEIGHT_CM, args.dpi);
+  const gap = cmToPx(0.1, args.dpi);
+  const cx = args.x + args.width / 2;
+  const fontSize = Math.min(args.width * 0.55, args.height * 0.04);
+  const numSize = fontSize;
+  const maxTitle = args.height * 0.86;
 
   ctx.save();
-  ctx.translate(args.x + args.width / 2, args.height / 2);
-  ctx.rotate(args.rtl ? Math.PI / 2 : -Math.PI / 2);
-  ctx.fillStyle = hexLuminance(args.fill) > 0.55 ? "#1c1814" : "#f7f3ea";
+  ctx.font = `600 ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
+  const titleLen = title
+    ? Math.min(ctx.measureText(title).width, maxTitle)
+    : 0;
+  ctx.restore();
+
+  const numBlock = chapterNumber ? Math.max(9, numSize) + gap : 0;
+  const block = numBlock + titleLen;
+  const minTop = args.y + markH + gap;
+  const maxTop = args.y + args.height - markH - gap - block;
+  const top = Math.min(Math.max(args.y + args.height / 2 - block / 2, minTop), maxTop);
+
+  if (chapterNumber) {
+    ctx.save();
+    ctx.fillStyle = ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.font = `600 ${Math.max(9, numSize)}px "${args.fontFamily}", sans-serif`;
+    ctx.fillText(chapterNumber, cx, top, args.width * 0.92);
+    ctx.restore();
+  }
+
+  if (!title) return;
+
+  ctx.save();
+  ctx.translate(cx, top + numBlock + titleLen / 2);
+  ctx.rotate(args.rtl ? -Math.PI / 2 : Math.PI / 2);
+  ctx.fillStyle = ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const fontSize = Math.min(args.width * 0.55, args.height * 0.04);
-  ctx.font = `600 ${Math.max(9, fontSize)}px "Segoe UI", "Noto Naskh Arabic", sans-serif`;
-  ctx.fillText(title, 0, 0, args.height * 0.86);
+  ctx.font = `600 ${Math.max(9, fontSize)}px "${args.fontFamily}", sans-serif`;
+  ctx.fillText(title, 0, 0, maxTitle);
   ctx.restore();
 }
 
@@ -380,12 +607,16 @@ function drawStripeParagraph(
     text: string;
     color: string;
     dpi: number;
+    fontFamily: string;
+    insetCm?: number;
   },
 ) {
   if (!args.text) return;
 
-  const pad = cmToPx(0.9, args.dpi);
-  const maxWidth = args.width - pad * 2;
+  const inset = args.insetCm ?? STRIPE_INSET_CM;
+  const padX = cmToPx(inset, args.dpi);
+  const padY = cmToPx(inset, args.dpi);
+  const maxWidth = args.width - padX * 2;
   const fontSize = cmToPx(0.42, args.dpi);
   const lineHeight = fontSize * 1.45;
 
@@ -396,16 +627,16 @@ function drawStripeParagraph(
   ctx.fillStyle = args.color;
   ctx.textBaseline = "middle";
   ctx.direction = "ltr";
-  ctx.font = `400 ${fontSize}px Georgia, "Times New Roman", serif`;
+  ctx.font = `400 ${fontSize}px "${args.fontFamily}", serif`;
 
-  const lines = wrapParagraph(ctx, args.text, maxWidth);
+  const lines = wrapWords(args.text, maxWidth, (value) => ctx.measureText(value).width);
   const startY =
     args.y + args.height / 2 - ((lines.length - 1) * lineHeight) / 2;
-  const left = args.x + pad;
+  const left = args.x + padX;
   const centerX = args.x + args.width / 2;
   for (const [index, line] of lines.entries()) {
     const y = startY + index * lineHeight;
-    if (y < args.y + pad || y > args.y + args.height - pad) continue;
+    if (y < args.y + padY || y > args.y + args.height - padY) continue;
     const isLast = index === lines.length - 1;
     drawJustifiedLine(ctx, line, centerX, left, y, maxWidth, isLast);
   }
@@ -438,28 +669,6 @@ function drawJustifiedLine(
   }
 }
 
-function wrapParagraph(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (ctx.measureText(next).width <= maxWidth) {
-      current = next;
-    } else {
-      if (current) lines.push(current);
-      current = word;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
 function rgbToHex(r: number, g: number, b: number): string {
   return `#${[r, g, b]
     .map((value) => value.toString(16).padStart(2, "0"))
@@ -482,18 +691,10 @@ function parseHex(hex: string): [number, number, number] {
   ];
 }
 
-function shiftHex(hex: string, amount: number): string {
+export function shiftHex(hex: string, amount: number): string {
   const [r, g, b] = parseHex(hex);
   const clamp = (n: number) => Math.max(0, Math.min(255, n + amount));
   return rgbToHex(clamp(r), clamp(g), clamp(b));
-}
-
-function mixHex(a: string, b: string, amount: number): string {
-  const [ar, ag, ab] = parseHex(a);
-  const [br, bg, bb] = parseHex(b);
-  const mix = (left: number, right: number) =>
-    Math.round(left + (right - left) * amount);
-  return rgbToHex(mix(ar, br), mix(ag, bg), mix(ab, bb));
 }
 
 function hexLuminance(hex: string): number {
