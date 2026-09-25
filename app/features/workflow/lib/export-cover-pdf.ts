@@ -33,6 +33,7 @@ import {
   cmToPt,
   contrastHex,
   fileSafeName,
+  isSinglePageCover,
   loadCoverImage,
   pageDimsCm,
   readableOn,
@@ -303,8 +304,10 @@ async function drawVectorCover(args: {
   }
   const coverImage = await embedCoverImage(pdf, args.sourceUrl);
 
-  const pageWidth = cmToPt(ARTBOARD_WIDTH_CM);
-  const pageHeight = cmToPt(ARTBOARD_HEIGHT_CM);
+  const singlePage = isSinglePageCover(args.bookConfig);
+  const dims = pageDimsCm(args.bookConfig.pageSize ?? "a4");
+  const pageWidth = cmToPt(singlePage ? dims.width : ARTBOARD_WIDTH_CM);
+  const pageHeight = cmToPt(singlePage ? dims.height : ARTBOARD_HEIGHT_CM);
   const page = pdf.addPage([pageWidth, pageHeight]);
   const layout = layoutCoverCm(
     args.pages,
@@ -343,6 +346,31 @@ async function drawVectorCover(args: {
     height: pageHeight,
     color: color(fillHex),
   });
+
+  if (singlePage) {
+    const front = topRect(pageHeight, 0, 0, dims.width, dims.height);
+    drawCoverImage(page, coverImage, front);
+    if (args.label) {
+      const chapterFont = fontForText(args.label, labelFace, arabic, pair);
+      const padLabel = cmToPt(1.2);
+      const xRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelX ?? 50) / 100));
+      const yRatio = Math.min(1, Math.max(0, (args.bookConfig.chapterLabelY ?? 88) / 100));
+      const size = Math.min(cmToPt(0.9), front.width * 0.08);
+      const maxLabel = front.width - padLabel * 2;
+      const textX = front.x + padLabel + maxLabel * xRatio;
+      const textYTop = padLabel + (dims.height - 2.4) * yRatio;
+      const width = Math.min(chapterFont.widthOfTextAtSize(args.label, size), maxLabel);
+      page.drawText(args.label, {
+        x: textX - width / 2,
+        y: topY(pageHeight, textYTop) - size * 0.35,
+        size,
+        font: chapterFont,
+        color: color(labelHex),
+        maxWidth: maxLabel,
+      });
+    }
+    return pdf.save();
+  }
 
   const back = topRect(
     pageHeight,

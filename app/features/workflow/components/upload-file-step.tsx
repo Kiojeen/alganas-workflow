@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-import type { BookConfig, Preview } from "../types";
+import type { BookConfig, CoverKind, Preview } from "../types";
 import { useModels } from "../context";
 import {
   chapterNameInput,
@@ -46,7 +46,7 @@ import {
   isEnglishChapterLabel,
   normalizeChapterLabelId,
 } from "../lib/chapter-labels";
-import { resolveChapters, spineWidthCm } from "../lib/cover-layout";
+import { isSinglePageCover, resolveChapters, spineWidthCm } from "../lib/cover-layout";
 import { Separator } from "@/components/ui/separator";
 import { ImagePreview } from "./image-preview";
 
@@ -80,11 +80,37 @@ export function UploadFileStep({
   const { pagesPerSpineCm } = useModels();
   const chapters = resolveChapters(bookConfig);
   const cap = pageCap(bookConfig);
+  const singlePage = isSinglePageCover(bookConfig);
   const labelId = normalizeChapterLabelId(bookConfig.chapterLabel);
   const englishLabel = isEnglishChapterLabel(labelId);
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-muted-foreground text-xs font-medium">
+          نوع الغلاف
+        </Label>
+        <Select
+          value={bookConfig.coverKind ?? "wrap"}
+          disabled={disabled}
+          onValueChange={(value) => {
+            if (value !== "wrap" && value !== "page") return;
+            onBookConfigChange({
+              ...bookConfig,
+              coverKind: value as CoverKind,
+            });
+          }}
+        >
+          <SelectTrigger className="w-full" size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="wrap">غلاف وشريط</SelectItem>
+            <SelectItem value="page">غلاف صفحة واحدة</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs font-medium">
           تقسيم الفصول
@@ -123,6 +149,7 @@ export function UploadFileStep({
           cap={cap}
           disabled={disabled}
           pagesPerSpineCm={pagesPerSpineCm}
+          showSpine={!singlePage}
           chapters={chapters}
           labelId={labelId}
           englishLabel={englishLabel}
@@ -133,6 +160,7 @@ export function UploadFileStep({
           bookConfig={bookConfig}
           disabled={disabled}
           pagesPerSpineCm={pagesPerSpineCm}
+          showSpine={!singlePage}
           chapters={chapters}
           labelId={labelId}
           englishLabel={englishLabel}
@@ -186,6 +214,7 @@ function PagesDivision({
   cap,
   disabled,
   pagesPerSpineCm,
+  showSpine,
   chapters,
   labelId,
   englishLabel,
@@ -195,6 +224,7 @@ function PagesDivision({
   cap: number;
   disabled: boolean;
   pagesPerSpineCm: number;
+  showSpine: boolean;
   chapters: ReturnType<typeof resolveChapters>;
   labelId: string;
   englishLabel: boolean;
@@ -236,6 +266,7 @@ function PagesDivision({
         bookConfig={bookConfig}
         chapters={chapters}
         pagesPerSpineCm={pagesPerSpineCm}
+        showSpine={showSpine}
         disabled={disabled}
         onBookConfigChange={onBookConfigChange}
       />
@@ -247,6 +278,7 @@ function ChaptersDivision({
   bookConfig,
   disabled,
   pagesPerSpineCm,
+  showSpine,
   chapters,
   labelId,
   englishLabel,
@@ -255,6 +287,7 @@ function ChaptersDivision({
   bookConfig: BookConfig;
   disabled: boolean;
   pagesPerSpineCm: number;
+  showSpine: boolean;
   chapters: ReturnType<typeof resolveChapters>;
   labelId: string;
   englishLabel: boolean;
@@ -344,10 +377,12 @@ function ChaptersDivision({
               />
               <span className="text-muted-foreground shrink-0 text-[11px]">
                 صفحة
-                <span className="hidden font-mono md:inline" dir="ltr">
-                  {" · "}
-                  {spineWidthCm(chapter.pages, pagesPerSpineCm).toFixed(2)} سم
-                </span>
+                {showSpine && (
+                  <span className="hidden font-mono md:inline" dir="ltr">
+                    {" · "}
+                    {spineWidthCm(chapter.pages, pagesPerSpineCm).toFixed(2)} سم
+                  </span>
+                )}
               </span>
             </li>
         ))}
@@ -424,12 +459,14 @@ function ChapterNameList({
   bookConfig,
   chapters,
   pagesPerSpineCm,
+  showSpine,
   disabled,
   onBookConfigChange,
 }: {
   bookConfig: BookConfig;
   chapters: ReturnType<typeof resolveChapters>;
   pagesPerSpineCm: number;
+  showSpine: boolean;
   disabled: boolean;
   onBookConfigChange: (config: BookConfig) => void;
 }) {
@@ -457,10 +494,12 @@ function ChapterNameList({
             />
             <span className="text-muted-foreground shrink-0 text-[11px]">
               {chapter.pages} صفحة
-              <span className="hidden font-mono md:inline" dir="ltr">
-                {" · "}
-                {spineWidthCm(chapter.pages, pagesPerSpineCm).toFixed(2)} سم
-              </span>
+              {showSpine && (
+                <span className="hidden font-mono md:inline" dir="ltr">
+                  {" · "}
+                  {spineWidthCm(chapter.pages, pagesPerSpineCm).toFixed(2)} سم
+                </span>
+              )}
             </span>
           </li>
         ))}

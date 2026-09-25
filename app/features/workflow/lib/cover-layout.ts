@@ -1,4 +1,4 @@
-import type { BookConfig, CoverPageSize, CoverSide } from "../types";
+import type { BookConfig, CoverKind, CoverPageSize, CoverSide } from "../types";
 import { allocatedPages, chapterDisplayName } from "./chapter-division";
 
 export const A4_WIDTH_CM = 21;
@@ -60,6 +60,7 @@ export type DrawCoverOptions = {
   label: string;
   bookName: string;
   coverSide: CoverSide;
+  coverKind?: CoverKind;
   showGuides: boolean;
   dpi: number;
   coverColor: string;
@@ -97,6 +98,10 @@ export function wrapWidthCm(
   pageWidthCm = A4_WIDTH_CM,
 ): number {
   return pageWidthCm * 2 + spineWidthCm(pages, pagesPerCm);
+}
+
+export function isSinglePageCover(config: { coverKind?: CoverKind }) {
+  return config.coverKind === "page";
 }
 
 export function pageDimsCm(pageSize: CoverPageSize = "a4") {
@@ -329,6 +334,11 @@ export function drawCoverOnCanvas(
     stripeInsetCm,
     stripeEdgeGapCm,
   } = options;
+  if ((options.coverKind ?? "wrap") === "page") {
+    drawSinglePageCanvas(canvas, options);
+    return;
+  }
+
   const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, dpi));
   const heightPx = Math.round(cmToPx(ARTBOARD_HEIGHT_CM, dpi));
   const fill = coverColor || DEFAULT_COVER_COLOR;
@@ -447,6 +457,57 @@ export function drawCoverOnCanvas(
       ctx.stroke();
     }
     ctx.restore();
+  }
+}
+
+function drawSinglePageCanvas(
+  canvas: HTMLCanvasElement,
+  options: DrawCoverOptions,
+) {
+  const {
+    sourceImage,
+    label,
+    dpi,
+    coverColor,
+    chapterLabelColor,
+    chapterLabelX,
+    chapterLabelY,
+    labelFont,
+    titleFont,
+    labelWeight,
+    pageSize,
+  } = options;
+  const dims = pageDimsCm(pageSize);
+  const widthPx = Math.round(cmToPx(dims.width, dpi));
+  const heightPx = Math.round(cmToPx(dims.height, dpi));
+  const fill = coverColor || DEFAULT_COVER_COLOR;
+  const labelColor = chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
+  const chapterFamily = labelFont || titleFont || "CoverMontserratTitle";
+  const chapterWeight = labelWeight ?? 700;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  canvas.width = widthPx;
+  canvas.height = heightPx;
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, widthPx, heightPx);
+  if (sourceImage && sourceImage.naturalWidth > 0) {
+    drawImageCovering(ctx, sourceImage, 0, 0, widthPx, heightPx);
+  }
+  if (label) {
+    drawCoverTitle(ctx, {
+      x: 0,
+      y: 0,
+      width: widthPx,
+      height: heightPx,
+      label,
+      color: labelColor,
+      dpi,
+      xRatio: chapterLabelX,
+      yRatio: chapterLabelY,
+      fontFamily: chapterFamily,
+      fontWeight: chapterWeight,
+    });
   }
 }
 

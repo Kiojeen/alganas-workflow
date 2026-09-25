@@ -36,6 +36,10 @@ const describeSchema = z.object({
   description: z.string(),
 });
 
+const titleSchema = z.object({
+  bookName: z.string(),
+});
+
 function languageModel(
   provider: "openai" | "google",
   key: string,
@@ -257,26 +261,52 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           r.arrayBuffer(),
         );
         const imageBytes = new Uint8Array(imageBuffer);
-        const result = await generateObject({
-          model: languageModel(
-            selectedDescribeModel.provider,
-            apiKey,
-            selectedDescribeModel.modelId,
-          ),
-          schema: describeSchema,
-          messages: [
-            {
-              role: "user",
-              content: [
+        const singlePage = bookConfig.coverKind === "page";
+        const model = languageModel(
+          selectedDescribeModel.provider,
+          apiKey,
+          selectedDescribeModel.modelId,
+        );
+        const imagePart = { type: "image" as const, image: imageBytes };
+        const extracted = singlePage
+          ? await generateObject({
+              model,
+              schema: titleSchema,
+              messages: [
                 {
-                  type: "text",
-                  text: "Look at this book cover image. Infer a fitting book title and a back-cover description (one short paragraph). Match the language of any visible text on the cover when possible. Return JSON with bookName and description only.",
+                  role: "user",
+                  content: [
+                    {
+                      type: "text",
+                      text: "Look at this book cover image. Infer a fitting book title. Match the language of any visible text on the cover when possible. Return JSON with bookName only.",
+                    },
+                    imagePart,
+                  ],
                 },
-                { type: "image", image: imageBytes },
               ],
-            },
-          ],
-        });
+            }).then((result) => ({
+              bookName: result.object.bookName,
+              description: "",
+            }))
+          : await generateObject({
+              model,
+              schema: describeSchema,
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    {
+                      type: "text",
+                      text: "Look at this book cover image. Infer a fitting book title and a back-cover description (one short paragraph). Match the language of any visible text on the cover when possible. Return JSON with bookName and description only.",
+                    },
+                    imagePart,
+                  ],
+                },
+              ],
+            }).then((result) => ({
+              bookName: result.object.bookName,
+              description: result.object.description,
+            }));
 
         runningRef.current = null;
         const nextIdx = findNextInvolved(i, involvedRef.current);
@@ -289,8 +319,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
             runningStep: null,
             bookConfig: {
               ...prev.bookConfig,
-              bookName: result.object.bookName.trim(),
-              bookDescription: result.object.description.trim(),
+              bookName: extracted.bookName.trim(),
+              bookDescription: extracted.description.trim(),
             },
           };
         });
@@ -303,7 +333,9 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         toast.error(
           error instanceof Error
             ? error.message
-            : "فشل استخراج اسم الكتاب والوصف.",
+            : bookConfig.coverKind === "page"
+              ? "فشل استخراج اسم الكتاب."
+              : "فشل استخراج اسم الكتاب والوصف.",
         );
       }
       return;
@@ -547,6 +579,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                       })
                     }
                     extractEnabled={isInvolved}
+                    singlePage={bookConfig.coverKind === "page"}
                   />
                 )}
 

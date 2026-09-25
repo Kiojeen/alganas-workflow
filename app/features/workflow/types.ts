@@ -24,6 +24,8 @@ export type CoverSide = "ltr" | "rtl";
 
 export type CoverPageSize = "a4" | "a5";
 
+export type CoverKind = "wrap" | "page";
+
 export type ChapterDivision = "pages" | "chapters";
 
 export type BookConfig = {
@@ -37,6 +39,7 @@ export type BookConfig = {
   chapterLabelUppercase: boolean;
   bookName: string;
   bookDescription: string;
+  coverKind: CoverKind;
   coverSide: CoverSide;
   pageSize: CoverPageSize;
   fontPair: CoverFontPair;

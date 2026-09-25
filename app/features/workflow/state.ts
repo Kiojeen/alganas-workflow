@@ -36,6 +36,7 @@ const defaultBookConfig: BookConfig = {
   chapterLabelUppercase: false,
   bookName: "",
   bookDescription: "",
+  coverKind: "wrap",
   coverSide: "rtl",
   pageSize: "a4",
   fontPair: "montserrat",

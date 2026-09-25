@@ -12,6 +12,7 @@ export function DescribeStep({
   onBookNameChange,
   onDescriptionChange,
   extractEnabled,
+  singlePage,
 }: {
   ai: string;
   onAiChange: (id: string) => void;
@@ -20,12 +21,14 @@ export function DescribeStep({
   onBookNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   extractEnabled: boolean;
+  singlePage: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground text-xs leading-relaxed">
-        اسم الكتاب يُحرَّر هنا. عند تفعيل الاستخراج يُرسل الغلاف إلى نموذج
-        نص/رؤية لاقتراح الاسم والوصف.
+        {singlePage
+          ? "اسم الكتاب يُحرَّر هنا. عند تفعيل الاستخراج يُرسل الغلاف لاقتراح الاسم فقط، بلا وصف."
+          : "اسم الكتاب يُحرَّر هنا. عند تفعيل الاستخراج يُرسل الغلاف إلى نموذج نص/رؤية لاقتراح الاسم والوصف."}
       </p>
       <ModelSelect
         kind="text"
@@ -42,22 +45,24 @@ export function DescribeStep({
         <Input
           value={bookName}
           onChange={(e) => onBookNameChange(e.target.value)}
-          placeholder="يظهر على كعب الكتاب"
+          placeholder={singlePage ? "اسم الكتاب" : "يظهر على كعب الكتاب"}
           className="h-8"
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-muted-foreground text-xs font-medium">
-          وصف الكتاب
-        </Label>
-        <Textarea
-          value={description}
-          onChange={(e) => onDescriptionChange(e.target.value)}
-          placeholder="وصف يظهر على شريط الوجه الآخر"
-          rows={4}
-        />
-      </div>
+      {!singlePage && (
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-muted-foreground text-xs font-medium">
+            وصف الكتاب
+          </Label>
+          <Textarea
+            value={description}
+            onChange={(e) => onDescriptionChange(e.target.value)}
+            placeholder="وصف يظهر على شريط الوجه الآخر"
+            rows={4}
+          />
+        </div>
+      )}
     </div>
   );
 }
