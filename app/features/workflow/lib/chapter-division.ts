@@ -88,7 +88,9 @@ export function resetChapterName(config: BookConfig, index: number): BookConfig 
 }
 
 export function showsChapterTitle(config: BookConfig): boolean {
-  if (config.division !== "pages") return true;
+  if (config.division === "chapters") {
+    return allocatedPages(config).length > 1;
+  }
   const total = Math.max(1, Math.floor(config.numPages) || 1);
   const cap = Math.max(1, Math.floor(config.maxPagesPerChapter) || 1);
   return total !== cap;
