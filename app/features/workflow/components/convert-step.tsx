@@ -95,10 +95,8 @@ export function ConvertStep({
   const wrapCm = wrapWidthCm(chapter.pages, pagesPerSpineCm, pageDims.width);
   const coverColor = bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeColor = bookConfig.stripeColor || shiftHex(coverColor, -18);
-  const stripeForeground = readableOn(
-    bookConfig.stripeForeground,
-    stripeColor,
-  );
+  const stripeForeground =
+    bookConfig.stripeForeground.trim() || contrastHex(stripeColor);
   const chapterLabelX = bookConfig.chapterLabelX ?? 50;
   const chapterLabelY = bookConfig.chapterLabelY ?? 88;
   const chapterBackdrop = sampleChapterBackdrop(
@@ -112,7 +110,8 @@ export function ConvertStep({
     bookConfig.chapterLabelColor,
     chapterBackdrop,
   );
-  const spineMarkColor = readableOn(bookConfig.spineMarkColor, coverColor);
+  const spineMarkColor =
+    bookConfig.spineMarkColor.trim() || contrastHex(coverColor);
   const chapterTitle = showsChapterTitle(bookConfig) ? chapter.label : "";
 
   useEffect(() => {
@@ -413,7 +412,7 @@ export function ConvertStep({
             />
             <CoverColorPicker
               label="لون نص الشريط"
-              value={stripeForeground}
+              value={bookConfig.stripeForeground}
               fallback={contrastHex(stripeColor)}
               onChange={(hex) =>
                 onBookConfigChange({
@@ -426,7 +425,7 @@ export function ConvertStep({
             />
             <CoverColorPicker
               label="لون علامات الكعب"
-              value={spineMarkColor}
+              value={bookConfig.spineMarkColor}
               fallback={contrastHex(coverColor)}
               onChange={(hex) =>
                 onBookConfigChange({

@@ -370,9 +370,11 @@ async function drawVectorCover(args: {
     args.bookConfig.chapterLabelX ?? 50,
     args.bookConfig.chapterLabelY ?? 88,
   );
-  const stripeHex = readableOn(args.bookConfig.stripeForeground, stripeFillHex);
+  const stripeHex =
+    args.bookConfig.stripeForeground?.trim() || contrastHex(stripeFillHex);
   const labelHex = readableOn(args.bookConfig.chapterLabelColor, labelBackdrop);
-  const markHex = readableOn(args.bookConfig.spineMarkColor, fillHex);
+  const markHex =
+    args.bookConfig.spineMarkColor?.trim() || contrastHex(fillHex);
   const stripeText =
     args.bookConfig.bookDescription?.trim() || STRIPE_TEXT;
   const bookName = args.bookConfig.bookName ?? "";
