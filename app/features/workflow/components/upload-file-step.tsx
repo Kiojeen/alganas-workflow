@@ -246,7 +246,7 @@ function PagesDivision({
       />
       <div className="grid gap-3 sm:grid-cols-2">
         <NumberField
-          label="الحد الأقصى لعدد الصفحات"
+          label="عدد صفحات الكتاب"
           value={bookConfig.numPages}
           disabled={disabled}
           onChange={(value) =>
@@ -314,7 +314,7 @@ function ChaptersDivision({
       />
       <div className="grid gap-3 sm:grid-cols-2">
         <NumberField
-          label="الحد الأقصى لعدد الصفحات"
+          label="عدد صفحات الكتاب"
           value={bookConfig.numPages}
           disabled={disabled}
           onChange={(value) =>
