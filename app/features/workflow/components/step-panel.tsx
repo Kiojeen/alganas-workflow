@@ -33,7 +33,7 @@ export function RunAllBar({
     ? "ارفع ملف الغلاف ثم شغّل الخطوات المفعّلة."
     : enabledSteps.length === 0
       ? "لا خطوات ذكاء اصطناعي مفعّلة؛ الصورة تمر مباشرة إلى التصميم."
-      : `سيُشغَّل بالتوازي: ${enabledSteps.map((job) => job.shortTitle).join(" و")}.`;
+      : `سيُشغَّل بالترتيب: ${enabledSteps.map((job) => job.shortTitle).join(" ثم ")}.`;
 
   return (
     <div className="flex items-center justify-between gap-3 border-b px-4 py-3">

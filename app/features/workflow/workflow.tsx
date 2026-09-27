@@ -70,6 +70,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   } = useModels();
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
   const runningRef = useRef<Set<number>>(new Set());
+  const bookNameRef = useRef(workflow?.state.bookConfig.bookName ?? "");
+  bookNameRef.current = workflow?.state.bookConfig.bookName ?? bookNameRef.current;
   const [showLines, setShowLines] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
@@ -276,11 +278,13 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           description: result.object.description,
         }));
 
+    const name = extracted.bookName.trim();
+    bookNameRef.current = name;
     update((prev) => ({
       completed: new Set(prev.completed).add(DESCRIBE),
       bookConfig: {
         ...prev.bookConfig,
-        bookName: extracted.bookName.trim(),
+        bookName: name,
         bookDescription: extracted.description.trim(),
       },
     }));
@@ -308,23 +312,24 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     });
     const imageData = result.images[0];
     const imageUrl = `data:${imageData.mediaType};base64,${imageData.base64}`;
-    const name = fileSafeName(bookConfig.bookName ?? "", "cover");
+    const name = fileSafeName(bookNameRef.current, "cover");
     const ext = /jpe?g/i.test(imageData.mediaType ?? "") ? "jpg" : "png";
     downloadDataUrl(imageUrl, `${name}.${ext}`);
     markCompleted(GENERATE, { outputImage: imageUrl });
   };
 
   const runStep = async (i: number) => {
-    if (runningRef.current.has(i)) return;
-    if (!involved.has(JOBS[i].id)) return;
+    if (runningRef.current.has(i)) return false;
+    if (!involved.has(JOBS[i].id)) return false;
     if (!preview) {
       toast.error("ارفع صورة أو ملف PDF للمتابعة.");
-      return;
+      return false;
     }
     setRunning(i, true);
     try {
       if (i === DESCRIBE) await runDescribe();
       else if (i === GENERATE) await runGenerate();
+      return true;
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -333,6 +338,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
             ? "فشل استخراج اسم الكتاب والوصف."
             : "فشل توليد الصورة. تحقق من النموذج والمفتاح.",
       );
+      return false;
     } finally {
       setRunning(i, false);
     }
@@ -377,7 +383,10 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         };
       });
     }
-    await Promise.all(targets.map((i) => runStep(i)));
+    for (const i of targets) {
+      const ok = await runStep(i);
+      if (!ok) return;
+    }
     setActiveStep(CONVERT);
   };
 

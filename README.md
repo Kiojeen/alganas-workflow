@@ -13,7 +13,7 @@ The interface is in Arabic. Optional steps can read the cover with a vision mode
 | توليد الصورة بالذكاء الاصطناعي | No | Redraw the cover from a saved prompt. Turn the step off to pass the uploaded image straight through. |
 | تصميم الغلاف | Yes | Page size, front side, font, colors, and the chapter label position. |
 
-The steps sit in a stepper beside a live preview of the artboard. The preview pane holds the chapter switcher, fold guides, and the PDF export, which downloads one PDF per chapter. Steps 2 and 3 can be switched off; the «تشغيل» button above the stepper runs the enabled ones in parallel, and each can be rerun on its own. The first step picks the book language (Arabic or English), which sets the chapter-label options and which side of the spine the front cover sits on. The file field accepts click, drag and drop, and paste.
+The steps sit in a stepper beside a live preview of the artboard. The preview pane holds the chapter switcher, fold guides, and the PDF export, which downloads one PDF per chapter. Steps 2 and 3 can be switched off; the «تشغيل» button above the stepper runs the enabled ones in order, so the generated image is saved under the extracted title. Each can be rerun on its own. The first step picks the book language (Arabic or English), which sets the chapter-label options and which side of the spine the front cover sits on. The file field accepts click, drag and drop, and paste.
 
 ## Cover layouts
 
