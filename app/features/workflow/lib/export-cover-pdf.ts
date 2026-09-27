@@ -41,7 +41,6 @@ import {
   isSinglePageCover,
   loadCoverImage,
   pageDimsCm,
-  readableOn,
   sampleChapterBackdrop,
   hexToRgb01,
   layoutCoverCm,
@@ -372,7 +371,8 @@ async function drawVectorCover(args: {
   );
   const stripeHex =
     args.bookConfig.stripeForeground?.trim() || contrastHex(stripeFillHex);
-  const labelHex = readableOn(args.bookConfig.chapterLabelColor, labelBackdrop);
+  const labelHex =
+    args.bookConfig.chapterLabelColor?.trim() || contrastHex(labelBackdrop);
   const markHex =
     args.bookConfig.spineMarkColor?.trim() || contrastHex(fillHex);
   const stripeText =
@@ -586,10 +586,16 @@ async function drawVectorCover(args: {
       page.drawLine({
         start: { x, y: spine.y },
         end: { x, y: spine.y + spine.height },
-        thickness: 0.6,
-        color: rgb(0.27, 0.24, 0.19),
-        opacity: 0.55,
-        dashArray: [6, 4],
+        thickness: 2.2,
+        color: rgb(1, 1, 1),
+        opacity: 0.85,
+      });
+      page.drawLine({
+        start: { x, y: spine.y },
+        end: { x, y: spine.y + spine.height },
+        thickness: 1,
+        color: rgb(1, 0.18, 0.58),
+        dashArray: [8, 5],
       });
     }
   }
