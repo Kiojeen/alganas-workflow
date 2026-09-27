@@ -1,141 +1,163 @@
 import { useState } from "react";
 import { useWorkflows, workflowTitle } from "@/features/workflow";
+import { resolveChapters } from "@/features/workflow/lib/cover-layout";
 import {
-  Cancel01Icon,
+  BookOpen01Icon,
+  Delete02Icon,
   PlusSignIcon,
   Settings02Icon,
-  TrashIcon,
-  WorkflowSquare01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  useSidebar,
 } from "@/components/ui/sidebar";
 
 import AppIcon from "./app-icon";
 import { AppSettingsDialog } from "./app-settings-dialog";
-import { Separator } from "./ui/separator";
 
 export function AppSidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { state } = useSidebar();
   const { workflows, currentId, select, add, remove } = useWorkflows();
 
   return (
     <>
-      <Sidebar side="right" variant="sidebar" collapsible="icon" className="group-data-[side=right]:border-e">
-        <SidebarHeader>
+      <Sidebar
+        side="right"
+        variant="sidebar"
+        collapsible="icon"
+        className="group-data-[side=right]:border-e"
+      >
+        <SidebarHeader className="gap-3 p-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:p-2">
+          <div className="flex w-full items-center gap-2.5 group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg">
+              <AppIcon className="size-5!" />
+            </div>
+            <div className="min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
+              <p className="truncate text-sm font-semibold">أتمته الگناص</p>
+              <p className="text-sidebar-foreground/60 truncate text-[11px]">
+                مكتب أغلفة الكتب
+              </p>
+            </div>
+          </div>
+
           <SidebarMenu>
-            <SidebarMenuItem className="flex items-center justify-between">
+            <SidebarMenuItem>
               <SidebarMenuButton
-                asChild
-                className="data-[slot=sidebar-menu-button]:p-2!"
+                onClick={add}
+                tooltip="مشروع جديد"
+                className="border-sidebar-border bg-sidebar-accent/40 hover:bg-sidebar-accent justify-center border font-medium group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-0"
               >
-                <div>
-                  <AppIcon className="text-foreground size-6! transition-all ease-in-out group-data-[state=collapsed]:size-4!" />
-                  <span className="text-base font-semibold">
-                    أتمته الگناص
-                  </span>
-                </div>
+                <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
+                <span className="group-data-[collapsible=icon]:hidden">
+                  مشروع جديد
+                </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            
           </SidebarMenu>
-          
         </SidebarHeader>
-        
+
         <SidebarContent>
           <SidebarGroup>
-            <div className="flex items-center justify-between px-2">
-              <SidebarGroupLabel>المشاريع</SidebarGroupLabel>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground size-6"
-                onClick={add}
-                aria-label="سير عمل جديد"
-              >
-                <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
-              </Button>
-            </div>
-            <SidebarMenu>
-              {workflows.length === 0 ? (
-                <p className="text-muted-foreground px-2 text-xs">
-                لاتوجد مشاريع بعد.
-                </p>
-              ) : (
-                workflows.map((wf) => {
-                  const isActive = wf.id === currentId;
-                  const title = workflowTitle(wf);
-                  return (
-                    <SidebarMenuItem
-                      key={wf.id}
-                      className={cn("group/workflow")}
-                    >
-                      <div
-                        className={cn(
-                          "hover:bg-sidebar-accent flex w-full items-center gap-2 rounded-md",
-                          isActive && "bg-sidebar-accent",
-                        )}
-                      >
+            <SidebarGroupLabel className="justify-between">
+              <span>المشاريع</span>
+              <span className="bg-sidebar-accent text-sidebar-foreground/70 rounded-full px-1.5 text-[10px] tabular-nums">
+                {workflows.length}
+              </span>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="group-data-[collapsible=icon]:items-center">
+                {workflows.length === 0 ? (
+                  <p className="text-sidebar-foreground/60 px-2 py-3 text-xs group-data-[collapsible=icon]:hidden">
+                    لا توجد مشاريع بعد. أنشئ مشروعًا للبدء.
+                  </p>
+                ) : (
+                  workflows.map((wf) => {
+                    const isActive = wf.id === currentId;
+                    const title = workflowTitle(wf);
+                    const { bookConfig, preview, outputImage } = wf.state;
+                    const chapterCount = resolveChapters(bookConfig).length;
+                    const hasCover = Boolean(outputImage ?? preview);
+                    return (
+                      <SidebarMenuItem key={wf.id}>
                         <SidebarMenuButton
                           size="lg"
                           isActive={isActive}
                           tooltip={title}
                           onClick={() => select(wf.id)}
-                          className="flex-1 group-data-[state=collapsed]:p-2!"
-
-                          title={state === "expanded" ? title : undefined}
+                          className="h-auto items-start gap-2.5 py-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:h-8! group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:py-0"
                         >
-                          <HugeiconsIcon icon={WorkflowSquare01Icon} />
-                          <span className="truncate group-data-[state=collapsed]:hidden">
-                            {title}
+                          <span className="relative mt-0.5 flex shrink-0 items-center justify-center group-data-[collapsible=icon]:mt-0">
+                            <HugeiconsIcon icon={BookOpen01Icon} />
+                            <span
+                              className={cn(
+                                "ring-sidebar absolute -end-0.5 -top-0.5 size-2 rounded-full ring-2",
+                                hasCover
+                                  ? "bg-chart-2"
+                                  : "bg-sidebar-foreground/30",
+                              )}
+                              aria-hidden
+                            />
+                          </span>
+                          <span className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight group-data-[collapsible=icon]:hidden">
+                            <span className="truncate text-xs font-medium">
+                              {title}
+                            </span>
+                            <span className="text-sidebar-foreground/60 truncate text-[10px] tabular-nums">
+                              {bookConfig.numPages} صفحة ·{" "}
+                              {chapterCount === 1
+                                ? "فصل واحد"
+                                : `${chapterCount} فصول`}
+                              {" · "}
+                              {bookConfig.pageSize.toUpperCase()}
+                            </span>
                           </span>
                         </SidebarMenuButton>
-
-                        <Button
-                          size="lg"
-                          variant="ghost"
+                        <SidebarMenuAction
+                          showOnHover
                           onClick={(e) => {
                             e.stopPropagation();
                             remove(wf.id);
                           }}
-                          className="text-muted-foreground hover:text-destructive group-data-[state=collapsed]:hidden"
+                          className="hover:text-destructive top-2.5"
                           aria-label={`حذف ${title}`}
-
                           title={`حذف ${title}`}
                         >
-                          <HugeiconsIcon icon={TrashIcon} strokeWidth={2} />
-                        </Button>
-                      </div>
-                    </SidebarMenuItem>
-                  );
-                })
-              )}
-            </SidebarMenu>
+                          <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
+                        </SidebarMenuAction>
+                      </SidebarMenuItem>
+                    );
+                  })
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter>
-          <Separator />
+        <SidebarFooter className="border-t">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton onClick={() => setSettingsOpen(true)}>
-                <HugeiconsIcon icon={Settings02Icon} className="size-4" />
-                <span>الإعدادات</span>
+              <SidebarMenuButton
+                onClick={() => setSettingsOpen(true)}
+                tooltip="الإعدادات"
+                className="group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center"
+              >
+                <HugeiconsIcon icon={Settings02Icon} />
+                <span className="group-data-[collapsible=icon]:hidden">
+                  الإعدادات
+                </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

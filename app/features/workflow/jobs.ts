@@ -1,6 +1,6 @@
 import {
   DatabaseIcon,
-  RefreshIcon,
+  PaintBrush01Icon,
   SparklesIcon,
   TextFontIcon,
 } from "@hugeicons/core-free-icons";
@@ -11,33 +11,33 @@ export const JOBS: Job[] = [
   {
     id: "upload",
     title: "إعداد غلاف الكتاب",
+    shortTitle: "الملف والفصول",
     description:
       "ارفع صورة الغلاف وحدّد عدد الصفحات والفصول وتسمية الفصل.",
     icon: DatabaseIcon,
-    autoRun: false,
   },
   {
     id: "describe",
-    title: "استخراج اسم الكتاب ووصفه",
+    title: "اسم الكتاب ووصفه",
+    shortTitle: "الاسم والوصف",
     description:
-      "حرّر اسم الكتاب ووصفه هنا، أو استخرجهما من الغلاف عبر Gemini.",
+      "حرّر اسم الكتاب ووصفه هنا، أو استخرجهما من الغلاف بنموذج رؤية.",
     icon: TextFontIcon,
-    autoRun: false,
   },
   {
     id: "generate",
-    title: "توليد الصور بالذكاء الاصطناعي",
+    title: "توليد الصورة بالذكاء الاصطناعي",
+    shortTitle: "توليد الصورة",
     description:
-      "عدّل الغلاف بنموذج ذكاء اصطناعي وبرومبت. يمكن تعطيلها لتمرير الصورة مباشرة للتحويل.",
+      "عدّل الغلاف بنموذج ذكاء اصطناعي وتعليمات. عطّلها لتمرير الصورة مباشرة.",
     icon: SparklesIcon,
-    autoRun: false,
   },
   {
     id: "convert",
-    title: "ترتيب الغلاف وتحويله إلى PDF",
+    title: "تصميم الغلاف",
+    shortTitle: "التصميم",
     description:
-      "لوحة 47×29.7 سم مع كعب محسوب من عدد الصفحات، وغلاف بحجم A4، ثم تصدير PDF.",
-    icon: RefreshIcon,
-    autoRun: false,
+      "الحجم والخط والألوان وموضع تسمية الفصل. التصدير من لوحة المعاينة.",
+    icon: PaintBrush01Icon,
   },
 ];

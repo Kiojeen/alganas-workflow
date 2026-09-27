@@ -16,11 +16,10 @@ export type WorkflowState = {
   ai: string;
   describeAi: string;
   prompt: string;
-  runningStep: number | null;
+  runningSteps: Set<number>;
   completed: Set<number>;
   outputImage: string | null;
   involved: Set<string>;
-  stepAutoRun: Record<string, boolean>;
   bookConfig: BookConfig;
   canvasImage: string | null;
 };
@@ -32,6 +31,7 @@ const defaultBookConfig: BookConfig = {
   chapterCount: 1,
   chapterPages: [720],
   chapterNames: [],
+  language: "ar",
   chapterLabel: "ar:فصل",
   chapterLabelUppercase: false,
   bookName: "",
@@ -51,9 +51,6 @@ const defaultBookConfig: BookConfig = {
 
 export function createDefaultWorkflowState(
   jobIds: readonly string[] = JOBS.map((j) => j.id),
-  stepAutoRun: Record<string, boolean> = Object.fromEntries(
-    JOBS.map((job) => [job.id, job.autoRun ?? false]),
-  ),
   models: { describeAi?: string; ai?: string } = {},
 ): WorkflowState {
   return {
@@ -64,11 +61,10 @@ export function createDefaultWorkflowState(
     ai: models.ai || DEFAULT_IMAGE_MODEL_ID,
     describeAi: models.describeAi || DEFAULT_DESCRIBE_MODEL_ID,
     prompt: DEFAULT_GENERATE_PROMPT,
-    runningStep: null,
+    runningSteps: new Set(),
     completed: new Set(),
     outputImage: null,
     involved: new Set(jobIds),
-    stepAutoRun: { ...stepAutoRun },
     bookConfig: { ...defaultBookConfig },
     canvasImage: null,
   };

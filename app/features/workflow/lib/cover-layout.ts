@@ -41,6 +41,7 @@ export function defaultStripeLayout(pageSize: CoverPageSize = "a4"): StripeLayou
 export const PREVIEW_DPI = 150;
 export const EXPORT_DPI = 200;
 export const DEFAULT_COVER_COLOR = "#5c5044";
+const GUIDE_COLOR = "#ff2e94";
 export const DEFAULT_STRIPE_FOREGROUND = "#f4efe6";
 export const DEFAULT_CHAPTER_LABEL_COLOR = "#ffffff";
 export const SPINE_MARK_WIDTH_CM = 0.1;
@@ -458,13 +459,20 @@ export function drawCoverOnCanvas(
 
   if (showGuides) {
     ctx.save();
-    ctx.strokeStyle = "rgba(70, 62, 48, 0.55)";
-    ctx.setLineDash([8, 6]);
-    ctx.lineWidth = Math.max(1, dpi * 0.012);
+    // The preview canvas is scaled down a lot for display, so guides are
+    // drawn thick in canvas space to stay visible.
+    const guideWidth = Math.max(2, dpi * 0.08);
     for (const x of [originX, spineX, spineX + spineW, originX + wrapW]) {
       ctx.beginPath();
       ctx.moveTo(x, originY);
       ctx.lineTo(x, originY + coverH);
+      ctx.setLineDash([]);
+      ctx.lineWidth = guideWidth * 2;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.stroke();
+      ctx.setLineDash([dpi * 0.25, dpi * 0.15]);
+      ctx.lineWidth = guideWidth;
+      ctx.strokeStyle = GUIDE_COLOR;
       ctx.stroke();
     }
     ctx.restore();

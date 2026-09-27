@@ -7,9 +7,9 @@ export type IconType = ComponentProps<typeof HugeiconsIcon>["icon"];
 export type Job = {
   id: string;
   title: string;
+  shortTitle: string;
   description: string;
   icon: IconType;
-  autoRun?: boolean;
 };
 
 export type Preview = {
@@ -18,9 +18,17 @@ export type Preview = {
   name: string;
 };
 
-export type StepStatus = "muted" | "ready" | "pending" | "running" | "done";
+export type StepStatus =
+  | "muted"
+  | "waiting"
+  | "ready"
+  | "pending"
+  | "running"
+  | "done";
 
 export type CoverSide = "ltr" | "rtl";
+
+export type BookLanguage = "ar" | "en";
 
 export type CoverPageSize = "a4" | "a5";
 
@@ -35,6 +43,7 @@ export type BookConfig = {
   chapterCount: number;
   chapterPages: number[];
   chapterNames: string[];
+  language: BookLanguage;
   chapterLabel: string;
   chapterLabelUppercase: boolean;
   bookName: string;

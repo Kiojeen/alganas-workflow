@@ -2,6 +2,7 @@ import {
   CheckmarkCircle01Icon,
   CircleLock01Icon,
   Clock01Icon,
+  FileUploadIcon,
   PlayIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -21,6 +22,19 @@ export function StepBadge({ status }: { status: StepStatus }) {
           strokeWidth={2}
         />
         تم التخطي
+      </Badge>
+    );
+  }
+
+  if (status === "waiting") {
+    return (
+      <Badge variant="outline" className="gap-1">
+        <HugeiconsIcon
+          icon={FileUploadIcon}
+          className="size-2.5"
+          strokeWidth={2}
+        />
+        بانتظار الملف
       </Badge>
     );
   }

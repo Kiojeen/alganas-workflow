@@ -8,12 +8,12 @@ The interface is in Arabic. Optional steps can read the cover with a vision mode
 
 | Step | Required | What it does |
 | --- | --- | --- |
-| إعداد غلاف الكتاب | Yes | Upload a cover image or a PDF page. Choose wrap or single page, page size, and how the book is split into chapters. |
-| استخراج اسم الكتاب ووصفه | No | Edit the title and, for a wrap, the back-cover description. When run, a vision model suggests them from the cover. A single-page cover asks for the title only. |
-| توليد الصور بالذكاء الاصطناعي | No | Redraw the cover from a saved prompt. Turn the step off to pass the uploaded image straight through. |
-| ترتيب الغلاف وتحويله إلى PDF | Yes | Preview the artboard, set type and colors, and download one PDF per chapter. |
+| إعداد غلاف الكتاب | Yes | Upload a cover image or a PDF page. Choose wrap or single page and how the book is split into chapters. |
+| اسم الكتاب ووصفه | No | Edit the title and, for a wrap, the back-cover description. When run, a vision model suggests them from the cover. A single-page cover asks for the title only. |
+| توليد الصورة بالذكاء الاصطناعي | No | Redraw the cover from a saved prompt. Turn the step off to pass the uploaded image straight through. |
+| تصميم الغلاف | Yes | Page size, front side, font, colors, and the chapter label position. |
 
-Steps 2 and 3 can be switched off, and each can auto-run after the previous step. The initial auto-run choice in settings applies to new projects.
+The steps sit in a stepper beside a live preview of the artboard. The preview pane holds the chapter switcher, fold guides, and the PDF export, which downloads one PDF per chapter. Steps 2 and 3 can be switched off; the «تشغيل» button above the stepper runs the enabled ones in parallel, and each can be rerun on its own. The first step picks the book language (Arabic or English), which sets the chapter-label options and which side of the spine the front cover sits on. The file field accepts click, drag and drop, and paste.
 
 ## Cover layouts
 
@@ -56,7 +56,7 @@ Open settings and add an OpenAI key and a Google AI key before running the visio
 | Data | Where |
 | --- | --- |
 | API keys | `localStorage` (`alganas-provider-keys`) |
-| Spine scale, stripe sizes, prompts, default models, auto-run | `localStorage` (`alganas-prefs`) |
+| Spine scale, stripe sizes, prompts, default models | `localStorage` (`alganas-prefs`) |
 | Theme | `localStorage` (`ui-theme`) |
 | Projects and covers | Memory only. A refresh clears them. |
 
