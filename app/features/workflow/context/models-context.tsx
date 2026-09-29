@@ -57,6 +57,7 @@ type ModelsContextValue = {
   setDefaultImageModel: (id: string) => void;
   exportSettings: () => SettingsFile;
   importSettings: (raw: unknown) => boolean;
+  resetSettings: () => void;
 };
 
 export type SettingsFile = {
@@ -447,6 +448,16 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     defaultImageModel,
   ]);
 
+  const resetSettings = useCallback(() => {
+    setKeys(EMPTY_KEYS);
+    setPrompts(DEFAULT_PROMPTS.map((item) => ({ ...item })));
+    setPagesPerSpineCmState(PAGES_PER_SPINE_CM);
+    setStripeA4({ ...DEFAULT_STRIPE_LAYOUT_A4 });
+    setStripeA5({ ...DEFAULT_STRIPE_LAYOUT_A5 });
+    setDefaultDescribeModelState(DEFAULT_DESCRIBE_MODEL_ID);
+    setDefaultImageModelState(DEFAULT_IMAGE_MODEL_ID);
+  }, []);
+
   const importSettings = useCallback((raw: unknown) => {
     const parsed = parseSettingsFile(raw);
     if (!parsed) return false;
@@ -482,6 +493,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         setDefaultImageModel,
         exportSettings,
         importSettings,
+        resetSettings,
       }}
     >
       {children}

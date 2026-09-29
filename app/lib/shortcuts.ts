@@ -20,6 +20,7 @@ export type ShortcutId =
   | "next-chapter"
   | "upload"
   | "ai-image"
+  | "ai-image-back"
   | "ai-text"
   | "ai-both";
 
@@ -119,8 +120,14 @@ export const SHORTCUTS: Shortcut[] = [
   {
     id: "ai-image",
     group: "الملف",
-    label: "توليد الصورة بالذكاء الاصطناعي",
+    label: "توليد صورة الغلاف",
     combo: { code: "KeyI", display: "I" },
+  },
+  {
+    id: "ai-image-back",
+    group: "الملف",
+    label: "توليد صورة الظهر",
+    combo: { code: "KeyI", shift: true, display: "I" },
   },
   {
     id: "ai-text",

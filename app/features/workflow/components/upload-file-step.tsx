@@ -9,7 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { comboText } from "@/lib/shortcuts";
+import { comboText, type ShortcutId } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { ImageZoom } from "@/components/ui/image-zoom";
 import { Input } from "@/components/ui/input";
@@ -65,6 +65,8 @@ export type FileFieldProps = {
   extracting: boolean;
   canRunAi: boolean;
   onGenerateImage: () => void;
+  /** Shortcut shown on the image-generation button. Defaults to the front cover. */
+  imageShortcut?: ShortcutId;
   onGenerateText: () => void;
   onGenerateBoth: () => void;
   onRemoveOutput: () => void;
@@ -319,6 +321,7 @@ function FileField({
   onRemoveOutput,
   heading,
   imageOnly = false,
+  imageShortcut = "ai-image",
   inputId = COVER_FILE_INPUT_ID,
   listenPaste = true,
 }: FileFieldProps & {
@@ -458,7 +461,7 @@ function FileField({
 
       <div className="flex items-center gap-1">
         <IconAction
-          label={`توليد الصورة بالذكاء الاصطناعي · ${comboText("ai-image")}`}
+          label={`توليد الصورة بالذكاء الاصطناعي · ${comboText(imageShortcut)}`}
           icon={AiImageIcon}
           tone="primary"
           disabled={aiDisabled}

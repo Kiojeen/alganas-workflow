@@ -500,6 +500,17 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     "ai-image": () => {
       if (canRunAi) void generateCover();
     },
+    "ai-image-back": () => {
+      if (
+        bookConfig.coverKind === "double" &&
+        state.backPreview &&
+        !state.backBusy &&
+        !generating &&
+        !extracting
+      ) {
+        void generateCover("back");
+      }
+    },
     "ai-text": () => {
       if (canRunAi) void extractText();
     },
@@ -605,6 +616,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                           !state.backBusy &&
                           !generating &&
                           !extracting,
+                        imageShortcut: "ai-image-back",
                         onGenerateImage: () => {
                           void generateCover("back");
                         },

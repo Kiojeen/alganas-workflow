@@ -13,6 +13,7 @@ import {
   Key01Icon,
   KeyboardIcon,
   PlusSignIcon,
+  RefreshIcon,
   RulerIcon,
   Settings02Icon,
   SparklesIcon,
@@ -31,6 +32,17 @@ import {
   type Shortcut,
 } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -85,6 +97,7 @@ function AppSettingsDialog({
     updateStripeA5,
     exportSettings,
     importSettings,
+    resetSettings,
   } = useModels();
   const [section, setSection] = useState<SettingsSectionId>(initialSection);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -483,6 +496,36 @@ function AppSettingsDialog({
             ملف الإعدادات يضم المفاتيح والنماذج والمقاييس والتعليمات.
           </p>
           <div className="flex gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="outline" className="gap-1">
+                  <HugeiconsIcon icon={RefreshIcon} className="size-3.5" />
+                  إعادة الضبط
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>إعادة ضبط الإعدادات</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    تُمسح المفاتيح والتعليمات المحفوظة، وتعود النماذج والمقاييس
+                    إلى القيم الافتراضية.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel size="sm">إلغاء</AlertDialogCancel>
+                  <AlertDialogAction
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      resetSettings();
+                      toast.success("تمت إعادة ضبط الإعدادات.");
+                    }}
+                  >
+                    إعادة الضبط
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button
               size="sm"
               variant="outline"

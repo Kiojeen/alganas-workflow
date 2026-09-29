@@ -65,7 +65,7 @@ export function AiAccordion({
   const [selectedPromptId, setSelectedPromptId] = useState("");
 
   return (
-    <Accordion type="single" className="bg-card">
+    <Accordion type="single" collapsible className="bg-card">
       <AccordionItem value="text">
         <AccordionTrigger className="items-center px-3 hover:no-underline">
           <span className="flex items-center gap-2">
