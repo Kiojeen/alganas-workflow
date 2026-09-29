@@ -36,6 +36,7 @@ import { exportCoverPdf } from "./lib/export-cover-pdf";
 import { renderPdfPage } from "./lib/pdf";
 import { modelsByKind } from "./lib/provider-models";
 import { useCoverImage } from "./lib/use-cover-image";
+import { compressForVision } from "./lib/vision-image";
 import type { BookConfig, StepStatus } from "./types";
 
 const describeSchema = z.object({
@@ -245,8 +246,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     extractingRef.current = true;
     update({ extracting: true });
     try {
-      const imageBuffer = await fetch(preview.url).then((r) => r.arrayBuffer());
-      const imageBytes = new Uint8Array(imageBuffer);
+      // Vision only needs a legible image; a small JPEG costs far fewer tokens.
+      const vision = await compressForVision(preview.url);
       const titleOnly =
         bookConfig.coverKind === "page" || bookConfig.coverKind === "double";
       const model = languageModel(
@@ -254,7 +255,11 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         apiKey,
         selectedDescribeModel.modelId,
       );
-      const imagePart = { type: "image" as const, image: imageBytes };
+      const imagePart = {
+        type: "image" as const,
+        image: vision.bytes,
+        mediaType: vision.mediaType,
+      };
       const extracted = titleOnly
         ? await generateObject({
             model,
