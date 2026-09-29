@@ -49,6 +49,10 @@ export type BookConfig = {
   stripeColor: string;
   stripeForeground: string;
   chapterLabelColor: string;
+  /** Follow the contrast of whatever sits under the chapter label as it moves. */
+  chapterLabelContrast: boolean;
+  /** Soft shadow behind the chapter label, in the preview and the export. */
+  chapterLabelShadow: boolean;
   spineMarkColor: string;
   /** Ink for the spine title and chapter number; empty means contrast with the cover color. */
   spineTextColor: string;

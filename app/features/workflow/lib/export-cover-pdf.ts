@@ -254,6 +254,7 @@ function drawChapterLabel(
     yPercent: number;
     sizeCm?: number;
     fill: RGB;
+    shadow?: boolean;
   },
 ) {
   const { label, font, box } = args;
@@ -269,9 +270,22 @@ function drawChapterLabel(
   const width = font.widthOfTextAtSize(label, size);
   const ascent = font.heightAtSize(size, { descender: false });
   const descent = font.heightAtSize(size, { descender: true }) - ascent;
+  const textY = centerY - (ascent - descent) / 2;
+  const textX = centerX - width / 2;
+  if (args.shadow !== false) {
+    const shift = Math.max(0.8, size * 0.04);
+    page.drawText(label, {
+      x: textX + shift,
+      y: textY - shift,
+      size,
+      font,
+      color: rgb(0, 0, 0),
+      opacity: 0.35,
+    });
+  }
   page.drawText(label, {
-    x: centerX - width / 2,
-    y: centerY - (ascent - descent) / 2,
+    x: textX,
+    y: textY,
     size,
     font,
     color: args.fill,
@@ -397,8 +411,11 @@ async function drawVectorCover(args: {
   );
   const stripeHex =
     args.bookConfig.stripeForeground?.trim() || contrastHex(stripeFillHex);
-  const labelHex =
-    args.bookConfig.chapterLabelColor?.trim() || contrastHex(labelBackdrop);
+  const labelContrast = args.bookConfig.chapterLabelContrast !== false;
+  const labelHex = labelContrast
+    ? contrastHex(labelBackdrop)
+    : args.bookConfig.chapterLabelColor?.trim() || contrastHex(labelBackdrop);
+  const labelShadow = args.bookConfig.chapterLabelShadow !== false;
   const markHex =
     args.bookConfig.spineMarkColor?.trim() || contrastHex(fillHex);
   const stripeText = args.bookConfig.bookDescription?.trim() || STRIPE_TEXT;
@@ -424,6 +441,7 @@ async function drawVectorCover(args: {
         yPercent: args.bookConfig.chapterLabelY ?? 88,
         sizeCm: args.bookConfig.chapterLabelSizeCm,
         fill: color(labelHex),
+        shadow: labelShadow,
       });
     }
     return pdf.save();
@@ -613,6 +631,7 @@ async function drawVectorCover(args: {
       yPercent: args.bookConfig.chapterLabelY ?? 88,
       sizeCm: args.bookConfig.chapterLabelSizeCm,
       fill: color(labelHex),
+      shadow: labelShadow,
     });
   }
 

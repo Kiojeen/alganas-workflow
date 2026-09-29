@@ -179,16 +179,24 @@ export function DesignStep({
         {hasChapters && (
           <CoverColorPicker
             label="لون تسمية الفصل"
-            value={bookConfig.chapterLabelColor}
+            value={
+              bookConfig.chapterLabelContrast !== false
+                ? ""
+                : bookConfig.chapterLabelColor
+            }
             fallback={contrastHex(chapterBackdrop)}
-            onChange={(hex) => patch({ chapterLabelColor: hex })}
+            onChange={(hex) =>
+              patch({ chapterLabelColor: hex, chapterLabelContrast: false })
+            }
             disabled={disabled}
             swatches={palette}
             special={{
               hex: contrastHex(chapterBackdrop),
               backdrop: chapterBackdrop,
               label: "لون متباين مع ما تحت التسمية",
+              active: bookConfig.chapterLabelContrast !== false,
             }}
+            onSelectSpecial={() => patch({ chapterLabelContrast: true })}
           />
         )}
       </div>
@@ -213,6 +221,16 @@ export function DesignStep({
             disabled={disabled}
             onBookConfigChange={onBookConfigChange}
           />
+          <label className="flex items-center gap-2 text-xs">
+            <Checkbox
+              checked={bookConfig.chapterLabelShadow !== false}
+              disabled={disabled}
+              onCheckedChange={(checked) =>
+                patch({ chapterLabelShadow: checked === true })
+              }
+            />
+            <span>ظل تحت التسمية</span>
+          </label>
           <IconSlider
             icon={TextIcon}
             label="حجم تسمية الفصل"

@@ -69,7 +69,7 @@ export const COVER_FONT_PAIRS: CoverFontSpec[] = [
     labelWeight: 400,
     labelFromDescription: true,
     variable: true,
-    descriptionScale: 1.18,
+    descriptionScale: 1.32,
   },
   {
     id: "montserrat",

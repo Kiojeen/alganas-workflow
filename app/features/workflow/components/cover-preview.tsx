@@ -34,6 +34,7 @@ import {
   resolveChapters,
   sampleChapterBackdrop,
   shiftHex,
+  singlePageGuidesCm,
   spineHiddenFor,
   spineWidthCm,
   wrapWidthCm,
@@ -89,7 +90,6 @@ export function CoverPreview({
   chapterIndex,
   onChapterIndexChange,
   showLines,
-  onBookConfigChange,
 }: {
   sourceImage: string | null;
   image: HTMLImageElement | null;
@@ -97,7 +97,6 @@ export function CoverPreview({
   chapterIndex: number;
   onChapterIndexChange: (index: number) => void;
   showLines: boolean;
-  onBookConfigChange: (config: BookConfig) => void;
 }) {
   const { pagesPerSpineCm, stripeA4, stripeA5 } = useModels();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -147,23 +146,18 @@ export function CoverPreview({
     chapterLabelX,
     chapterLabelY,
   );
-  const chapterLabelColor =
-    bookConfig.chapterLabelColor.trim() || contrastHex(chapterBackdrop);
+  const labelContrast = bookConfig.chapterLabelContrast !== false;
+  const chapterLabelColor = labelContrast
+    ? contrastHex(chapterBackdrop)
+    : bookConfig.chapterLabelColor.trim() || contrastHex(chapterBackdrop);
+  const chapterLabelShadow = bookConfig.chapterLabelShadow !== false;
   const spineMarkColor =
     bookConfig.spineMarkColor.trim() || contrastHex(coverColor);
   const spineTextColor =
     bookConfig.spineTextColor?.trim() || contrastHex(coverColor);
   const chapterTitle = showsChapterTitle(bookConfig) ? chapter.label : "";
   const coverSide = bookConfig.coverSide ?? "rtl";
-  const guidesOn = showLines && !singlePage;
-
-  useEffect(() => {
-    if (!image || configRef.current.chapterLabelColor.trim()) return;
-    onBookConfigChange({
-      ...configRef.current,
-      chapterLabelColor: contrastHex(chapterBackdrop),
-    });
-  }, [image, chapterBackdrop, onBookConfigChange]);
+  const guidesOn = showLines;
 
   useEffect(() => {
     let cancelled = false;
@@ -181,22 +175,24 @@ export function CoverPreview({
     const overlay = overlayRef.current;
     if (!container || !canvas || !overlay) return;
 
-    const guides = guidesOn
-      ? coverGuidesCm(
-          layoutCoverCm(
-            chapter.pages,
-            coverSide,
-            pagesPerSpineCm,
-            pageSize,
-            {
-              widthCm: stripeLayout.widthCm,
-              insetCm: stripeLayout.insetCm,
-              edgeGapCm: stripeLayout.edgeGapCm,
-            },
-            hideSpine,
-          ),
-        )
-      : [];
+    const guides = !guidesOn
+      ? []
+      : singlePage
+        ? singlePageGuidesCm(boardWidth, boardHeight)
+        : coverGuidesCm(
+            layoutCoverCm(
+              chapter.pages,
+              coverSide,
+              pagesPerSpineCm,
+              pageSize,
+              {
+                widthCm: stripeLayout.widthCm,
+                insetCm: stripeLayout.insetCm,
+                edgeGapCm: stripeLayout.edgeGapCm,
+              },
+              hideSpine,
+            ),
+          );
 
     const fitCanvas = () => {
       const widthPx = Math.round(cmToPx(boardWidth, PREVIEW_DPI));
@@ -235,6 +231,7 @@ export function CoverPreview({
         chapterLabelX,
         chapterLabelY,
         chapterLabelSizeCm,
+        chapterLabelShadow,
         stripeText: bookConfig.bookDescription,
         spineMarkColor,
         spineTextColor,
@@ -287,6 +284,7 @@ export function CoverPreview({
     chapterLabelX,
     chapterLabelY,
     chapterLabelSizeCm,
+    chapterLabelShadow,
     spineMarkColor,
     spineTextColor,
     hideSpine,

@@ -44,6 +44,8 @@ const defaultBookConfig: BookConfig = {
   stripeColor: "",
   stripeForeground: "",
   chapterLabelColor: "",
+  chapterLabelContrast: true,
+  chapterLabelShadow: true,
   spineMarkColor: "",
   spineTextColor: "",
   forceSpine: false,

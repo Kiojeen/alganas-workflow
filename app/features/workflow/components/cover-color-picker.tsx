@@ -38,6 +38,7 @@ export function CoverColorPicker({
   disabled,
   swatches,
   special,
+  onSelectSpecial,
 }: {
   label: string;
   value: string;
@@ -46,8 +47,10 @@ export function CoverColorPicker({
   disabled: boolean;
   swatches?: string[];
   /** A computed swatch shown last, e.g. the ink that contrasts with what sits under the text. */
-  special?: { hex: string; backdrop: string; label: string };
+  special?: { hex: string; backdrop: string; label: string; active?: boolean };
+  onSelectSpecial?: () => void;
 }) {
+  const specialOn = special?.active === true;
   const committed = value || fallback;
   const [local, setLocal] = useState(committed);
   const dragging = useRef(false);
@@ -86,7 +89,7 @@ export function CoverColorPicker({
               }}
               className={cn(
                 "size-7 rounded-md border shadow-xs transition-transform disabled:opacity-50",
-                local.toLowerCase() === hex.toLowerCase()
+                !specialOn && local.toLowerCase() === hex.toLowerCase()
                   ? "ring-primary ring-2 ring-offset-1"
                   : "hover:scale-105",
               )}
@@ -102,11 +105,12 @@ export function CoverColorPicker({
               onClick={() => {
                 dragging.current = false;
                 setLocal(special.hex);
-                onChange(special.hex);
+                if (onSelectSpecial) onSelectSpecial();
+                else onChange(special.hex);
               }}
               className={cn(
                 "flex size-7 items-center justify-center rounded-md border shadow-xs transition-transform disabled:opacity-50",
-                local.toLowerCase() === special.hex.toLowerCase()
+                specialOn || local.toLowerCase() === special.hex.toLowerCase()
                   ? "ring-primary ring-2 ring-offset-1"
                   : "hover:scale-105",
               )}

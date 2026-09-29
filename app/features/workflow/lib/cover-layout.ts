@@ -101,6 +101,7 @@ export type DrawCoverOptions = {
   stripeColor?: string;
   stripeForeground: string;
   chapterLabelColor: string;
+  chapterLabelShadow?: boolean;
   chapterLabelX: number;
   chapterLabelY: number;
   chapterLabelSizeCm?: number;
@@ -275,6 +276,18 @@ export function coverGuidesCm(layout: CoverLayoutCm): GuideLine[] {
     });
   }
   return guides;
+}
+
+/** Trim and centre lines for a cover that is just the page. */
+export function singlePageGuidesCm(width: number, height: number): GuideLine[] {
+  return [
+    { axis: "x", cm: 0, kind: "trim" },
+    { axis: "x", cm: width, kind: "trim" },
+    { axis: "y", cm: 0, kind: "trim" },
+    { axis: "y", cm: height, kind: "trim" },
+    { axis: "x", cm: width / 2, kind: "center" },
+    { axis: "y", cm: height / 2, kind: "center" },
+  ];
 }
 
 export function wrapWords(
@@ -547,6 +560,7 @@ export function drawCoverOnCanvas(
       sizeCm: chapterLabelSizeCm,
       fontFamily: chapterFamily,
       fontWeight: chapterWeight,
+      shadow: options.chapterLabelShadow,
     });
   }
 }
@@ -600,6 +614,7 @@ function drawSinglePageCanvas(
       sizeCm: chapterLabelSizeCm,
       fontFamily: chapterFamily,
       fontWeight: chapterWeight,
+      shadow: options.chapterLabelShadow,
     });
   }
 }
@@ -644,6 +659,7 @@ function drawCoverTitle(
     sizeCm?: number;
     fontFamily: string;
     fontWeight: number;
+    shadow?: boolean;
   },
 ) {
   const pad = cmToPx(1.2, args.dpi);
@@ -657,8 +673,10 @@ function drawCoverTitle(
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.direction = isRtlText(args.label) ? "rtl" : "ltr";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
-  ctx.shadowBlur = Math.max(4, args.dpi * 0.04);
+  if (args.shadow !== false) {
+    ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+    ctx.shadowBlur = Math.max(4, args.dpi * 0.04);
+  }
   const fontSize = cmToPx(clampChapterLabelSize(args.sizeCm), args.dpi);
   ctx.font = `${args.fontWeight} ${fontSize}px "${args.fontFamily}", sans-serif`;
   ctx.fillText(args.label, textX, textY, args.width - pad * 2);

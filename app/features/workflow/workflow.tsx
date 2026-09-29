@@ -82,7 +82,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
   const generatingRef = useRef(false);
   const extractingRef = useRef(false);
-  const [showLines, setShowLines] = useState(false);
+  const [showLines, setShowLines] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [chapterIndex, setChapterIndex] = useState(0);
@@ -432,23 +432,21 @@ export function Workflow({ workflowId }: { workflowId: string }) {
               <span className="opacity-70">({chapterCount})</span>
             )}
           </Button>
-          {!singlePage && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Toggle
-                  size="sm"
-                  variant="outline"
-                  pressed={showLines}
-                  onPressedChange={setShowLines}
-                  aria-label="أدلة الطي"
-                  className={ACTIVE_TOGGLE_CLASS}
-                >
-                  <HugeiconsIcon icon={RulerIcon} className="size-4" />
-                </Toggle>
-              </TooltipTrigger>
-              <TooltipContent>أدلة الطي (لا تُحفظ في التصدير)</TooltipContent>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Toggle
+                size="sm"
+                variant="outline"
+                pressed={showLines}
+                onPressedChange={setShowLines}
+                aria-label="الأدلة"
+                className={ACTIVE_TOGGLE_CLASS}
+              >
+                <HugeiconsIcon icon={RulerIcon} className="size-4" />
+              </Toggle>
+            </TooltipTrigger>
+            <TooltipContent>الأدلة (لا تُحفظ في التصدير)</TooltipContent>
+          </Tooltip>
         </div>
 
         <StepRail
@@ -530,7 +528,6 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           chapterIndex={chapterIndex}
           onChapterIndexChange={setChapterIndex}
           showLines={showLines}
-          onBookConfigChange={handleBookConfigChange}
         />
       </div>
     </div>
