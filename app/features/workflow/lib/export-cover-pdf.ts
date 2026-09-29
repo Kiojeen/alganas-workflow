@@ -632,7 +632,6 @@ async function drawVectorCover(args: {
     const numberFromTop = chapterNumber
       ? cmToPt(spineNumberFromTopCm(args.bookConfig.pageSize))
       : 0;
-    const zoneBottom = spine.height - markH - edge;
     const numberLines = spineNumberLines(chapterNumber);
     if (numberLines.length > 0) {
       const maxNumberWidth = spine.width * 0.92;
@@ -651,9 +650,13 @@ async function drawVectorCover(args: {
         ? numberLineHeight * (numberLines.length - 1) +
           numberFont.heightAtSize(numberSize, { descender: true })
         : 0;
+    const edgeMargin = cmToPt(spineNumberFromTopCm(args.bookConfig.pageSize));
     const zoneTop = chapterNumber
       ? numberFromTop + numberAlong + minGap
-      : markH + edge;
+      : edgeMargin;
+    const zoneBottom = chapterNumber
+      ? spine.height - markH - edge
+      : spine.height - edgeMargin;
     const fitted = title
       ? fitSpineTitle({
           title,

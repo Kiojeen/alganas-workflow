@@ -822,7 +822,6 @@ function drawSpineTitle(
   const numberFromTop = chapterNumber
     ? cmToPx(spineNumberFromTopCm(args.pageSize), args.dpi)
     : 0;
-  const zoneBottom = args.height - markH - edge;
   if (numberLines.length > 0) {
     const maxNumberWidth = args.width * 0.92;
     const widest = Math.max(
@@ -836,9 +835,13 @@ function drawSpineTitle(
   const numberAlong =
     numberLines.length > 0 ? numberLineHeight * numberLines.length : 0;
 
+  const edgeMargin = cmToPx(spineNumberFromTopCm(args.pageSize), args.dpi);
   const zoneTop = chapterNumber
     ? numberFromTop + numberAlong + minGap
-    : markH + edge;
+    : edgeMargin;
+  const zoneBottom = chapterNumber
+    ? args.height - markH - edge
+    : args.height - edgeMargin;
   const maxAlong = Math.max(1, zoneBottom - zoneTop);
   const fitted = title
     ? fitSpineTitle({
