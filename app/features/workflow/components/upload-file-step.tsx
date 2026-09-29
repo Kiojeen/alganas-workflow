@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { comboText } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { ImageZoom } from "@/components/ui/image-zoom";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,9 @@ import {
   ACTIVE_TOGGLE_CLASS,
   BookPagesFields,
 } from "./chapter-division-fields";
+
+/** Shared with the `U` shortcut in the workflow. */
+export const COVER_FILE_INPUT_ID = "cover-file-input";
 
 export { ACTIVE_TOGGLE_CLASS };
 
@@ -333,6 +337,7 @@ function FileField({
 
   const input = (
     <Input
+      id={COVER_FILE_INPUT_ID}
       type="file"
       accept="image/*,application/pdf"
       className="hidden"
@@ -403,7 +408,7 @@ function FileField({
 
       <div className="flex items-center gap-1">
         <IconAction
-          label="توليد الصورة بالذكاء الاصطناعي"
+          label={`توليد الصورة بالذكاء الاصطناعي · ${comboText("ai-image")}`}
           icon={AiImageIcon}
           tone="primary"
           disabled={aiDisabled}
@@ -411,7 +416,7 @@ function FileField({
           onClick={onGenerateImage}
         />
         <IconAction
-          label="استخراج الاسم والوصف"
+          label={`استخراج الاسم والوصف · ${comboText("ai-text")}`}
           icon={TextCreationIcon}
           tone="primary"
           disabled={aiDisabled}
@@ -419,7 +424,7 @@ function FileField({
           onClick={onGenerateText}
         />
         <IconAction
-          label="الاسم والوصف ثم الصورة"
+          label={`الاسم والوصف ثم الصورة · ${comboText("ai-both")}`}
           icon={AiMagicIcon}
           tone="primary"
           disabled={aiDisabled}

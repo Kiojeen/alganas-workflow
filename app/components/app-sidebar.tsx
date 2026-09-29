@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useWorkflows, workflowTitle } from "@/features/workflow";
 import { resolveChapters } from "@/features/workflow/lib/cover-layout";
+import { useTheme } from "@/providers/theme-provider";
 import {
   BookOpen01Icon,
   Delete02Icon,
@@ -9,6 +10,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { comboText, useShortcuts } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -26,11 +28,32 @@ import {
 } from "@/components/ui/sidebar";
 
 import AppIcon from "./app-icon";
-import { AppSettingsDialog } from "./app-settings-dialog";
+import {
+  AppSettingsDialog,
+  type SettingsSectionId,
+} from "./app-settings-dialog";
 
 export function AppSidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSectionId>("ai");
   const { workflows, currentId, select, add, remove } = useWorkflows();
+  const { setTheme } = useTheme();
+
+  const openSettings = (section: SettingsSectionId = "ai") => {
+    setSettingsSection(section);
+    setSettingsOpen(true);
+  };
+
+  useShortcuts({
+    settings: () => openSettings("ai"),
+    shortcuts: () => openSettings("shortcuts"),
+    "new-project": add,
+    theme: () => {
+      const dark = document.documentElement.classList.contains("dark");
+      setTheme(dark ? "light" : "dark");
+    },
+  });
 
   return (
     <>
@@ -57,7 +80,7 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={add}
-                tooltip="مشروع جديد"
+                tooltip={`مشروع جديد (${comboText("new-project")})`}
                 className="border-sidebar-border bg-sidebar-accent/40 hover:bg-sidebar-accent justify-center border font-medium group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-0"
               >
                 <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
@@ -150,8 +173,8 @@ export function AppSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
-                onClick={() => setSettingsOpen(true)}
-                tooltip="الإعدادات"
+                onClick={() => openSettings()}
+                tooltip={`الإعدادات (${comboText("settings")})`}
                 className="group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center"
               >
                 <HugeiconsIcon icon={Settings02Icon} />
@@ -166,7 +189,11 @@ export function AppSidebar() {
         <SidebarRail />
       </Sidebar>
 
-      <AppSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <AppSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        initialSection={settingsSection}
+      />
     </>
   );
 }

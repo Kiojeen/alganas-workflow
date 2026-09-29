@@ -7,6 +7,7 @@ import { generateImage, generateObject } from "ai";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { comboText, useShortcuts } from "@/lib/shortcuts";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Toggle } from "@/components/ui/toggle";
@@ -22,6 +23,7 @@ import { DesignStep } from "./components/design-step";
 import { StepRail } from "./components/step-panel";
 import {
   ACTIVE_TOGGLE_CLASS,
+  COVER_FILE_INPUT_ID,
   UploadFileStep,
 } from "./components/upload-file-step";
 import { useWorkflow } from "./context";
@@ -86,6 +88,14 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   const [exporting, setExporting] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [chapterIndex, setChapterIndex] = useState(0);
+  // A `U` press from the design tab switches tabs first, then opens the picker.
+  const [pendingUpload, setPendingUpload] = useState(false);
+
+  useEffect(() => {
+    if (!pendingUpload || activeStep !== UPLOAD) return;
+    setPendingUpload(false);
+    document.getElementById(COVER_FILE_INPUT_ID)?.click();
+  }, [pendingUpload, activeStep]);
 
   useEffect(() => {
     fileRef.current = workflow?.state.file ?? null;
@@ -406,6 +416,31 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     !exporting &&
     unassignedPagesError(bookConfig) === null;
 
+  useShortcuts({
+    export: () => {
+      if (canExport) void exportAll();
+    },
+    "tab-file": () => setActiveStep(UPLOAD),
+    "tab-design": () => setActiveStep(CONVERT),
+    guides: () => setShowLines((value) => !value),
+    "prev-chapter": () => setChapterIndex((index) => Math.max(0, index - 1)),
+    "next-chapter": () =>
+      setChapterIndex((index) => Math.min(chapterCount - 1, index + 1)),
+    upload: () => {
+      setActiveStep(UPLOAD);
+      setPendingUpload(true);
+    },
+    "ai-image": () => {
+      if (canRunAi) void generateCover();
+    },
+    "ai-text": () => {
+      if (canRunAi) void extractText();
+    },
+    "ai-both": () => {
+      if (canRunAi) void generateBoth();
+    },
+  });
+
   return (
     // `lg:flex-none` keeps the explicit height from acting as a flex basis
     // inside the column layout, so tall tool content scrolls in the aside
@@ -420,7 +455,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
               void exportAll();
             }}
             className="gap-1.5"
-            title="يحفظ صورة الغلاف وملف PDF لكل فصل باسم الكتاب"
+            title={`يحفظ صورة الغلاف وملف PDF لكل فصل باسم الكتاب (${comboText("export")})`}
           >
             {exporting ? (
               <Spinner />
@@ -445,7 +480,9 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                 <HugeiconsIcon icon={RulerIcon} className="size-4" />
               </Toggle>
             </TooltipTrigger>
-            <TooltipContent>الأدلة (لا تُحفظ في التصدير)</TooltipContent>
+            <TooltipContent>
+              الأدلة (لا تُحفظ في التصدير) · {comboText("guides")}
+            </TooltipContent>
           </Tooltip>
         </div>
 

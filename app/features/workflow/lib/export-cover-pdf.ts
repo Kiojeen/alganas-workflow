@@ -19,6 +19,7 @@ import type { BookConfig, CoverSide } from "../types";
 import { showsChapterTitle, unassignedPagesError } from "./chapter-division";
 import { formatSpineNumber } from "./chapter-labels";
 import {
+  ensureCoverFonts,
   fetchCoverFontBytes,
   getCoverFontPair,
   type CoverFontSpec,
@@ -125,6 +126,18 @@ function fontForText(
 ) {
   if (pair.category === "english" && hasArabic(text) && arabic) return arabic;
   return preferred;
+}
+
+/** The browser font face that `fontForText` would pick for the chapter label. */
+function labelFaceFor(text: string, pair: CoverFontSpec) {
+  if (pair.category === "english" && hasArabic(text)) {
+    const fallback = getCoverFontPair("montserrat-arabic");
+    return {
+      family: fallback.descriptionFamily,
+      weight: fallback.descriptionWeight,
+    };
+  }
+  return { family: pair.labelFamily, weight: pair.labelWeight };
 }
 
 function topRect(
@@ -243,12 +256,79 @@ function drawJustifiedLine(
   }
 }
 
+/** Resolution of the rasterised label shadow, in dots per inch. */
+const SHADOW_DPI = 300;
+/** Same softness as the preview: blur radius in points (0.04 in). */
+const SHADOW_BLUR_PT = 0.04 * 72;
+const SHADOW_ALPHA = 0.45;
+
+/**
+ * PDF has no blur primitive, so the soft shadow is the one part of the label
+ * that is rasterised: the glyphs are drawn on a canvas with the same font and
+ * blur as the preview, then embedded as a transparent bitmap beneath the
+ * vector text. Returns null when the browser cannot render it.
+ */
+async function renderLabelShadow(args: {
+  label: string;
+  family: string;
+  weight: number;
+  sizePt: number;
+  ascentPt: number;
+  descentPt: number;
+  widthPt: number;
+}): Promise<{
+  png: Uint8Array;
+  widthPt: number;
+  heightPt: number;
+  marginPt: number;
+} | null> {
+  if (typeof document === "undefined") return null;
+  await ensureCoverFonts();
+  const scale = SHADOW_DPI / 72;
+  const marginPt = SHADOW_BLUR_PT * 3;
+  const widthPt = args.widthPt + marginPt * 2;
+  const heightPt = args.ascentPt + args.descentPt + marginPt * 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.ceil(widthPt * scale));
+  canvas.height = Math.max(1, Math.ceil(heightPt * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  // Draw the glyphs far off-canvas and let only their shadow land in frame.
+  const shift = canvas.width * 4;
+  ctx.font = `${args.weight} ${args.sizePt * scale}px "${args.family}", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.direction = isRtlText(args.label) ? "rtl" : "ltr";
+  ctx.fillStyle = "#000";
+  ctx.shadowColor = `rgba(0, 0, 0, ${SHADOW_ALPHA})`;
+  ctx.shadowBlur = SHADOW_BLUR_PT * scale;
+  ctx.shadowOffsetX = shift;
+  ctx.fillText(
+    args.label,
+    canvas.width / 2 - shift,
+    (marginPt + args.ascentPt) * scale,
+  );
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/png"),
+  );
+  if (!blob) return null;
+  return {
+    png: new Uint8Array(await blob.arrayBuffer()),
+    widthPt,
+    heightPt,
+    marginPt,
+  };
+}
+
 /** Mirrors the canvas `drawCoverTitle`: centered on a padded point inside `box`. */
-function drawChapterLabel(
+async function drawChapterLabel(
+  pdf: PDFDocument,
   page: PDFPage,
   args: {
     label: string;
     font: PDFFont;
+    /** Browser-side face matching `font`, used to rasterise the shadow. */
+    face: { family: string; weight: number };
     box: { x: number; y: number; width: number; height: number };
     xPercent: number;
     yPercent: number;
@@ -273,15 +353,24 @@ function drawChapterLabel(
   const textY = centerY - (ascent - descent) / 2;
   const textX = centerX - width / 2;
   if (args.shadow !== false) {
-    const shift = Math.max(0.8, size * 0.04);
-    page.drawText(label, {
-      x: textX + shift,
-      y: textY - shift,
-      size,
-      font,
-      color: rgb(0, 0, 0),
-      opacity: 0.35,
+    const shadow = await renderLabelShadow({
+      label,
+      family: args.face.family,
+      weight: args.face.weight,
+      sizePt: size,
+      ascentPt: ascent,
+      descentPt: descent,
+      widthPt: width,
     });
+    if (shadow) {
+      const image = await pdf.embedPng(shadow.png);
+      page.drawImage(image, {
+        x: centerX - shadow.widthPt / 2,
+        y: textY - descent - shadow.marginPt,
+        width: shadow.widthPt,
+        height: shadow.heightPt,
+      });
+    }
   }
   page.drawText(label, {
     x: textX,
@@ -433,9 +522,10 @@ async function drawVectorCover(args: {
     const front = topRect(pageHeight, 0, 0, dims.width, dims.height);
     drawCoverImage(page, coverImage, front);
     if (args.label) {
-      drawChapterLabel(page, {
+      await drawChapterLabel(pdf, page, {
         label: args.label,
         font: fontForText(args.label, labelFace, arabic, pair),
+        face: labelFaceFor(args.label, pair),
         box: front,
         xPercent: args.bookConfig.chapterLabelX ?? 50,
         yPercent: args.bookConfig.chapterLabelY ?? 88,
@@ -623,9 +713,10 @@ async function drawVectorCover(args: {
   drawCoverImage(page, coverImage, front);
 
   if (args.label) {
-    drawChapterLabel(page, {
+    await drawChapterLabel(pdf, page, {
       label: args.label,
       font: fontForText(args.label, labelFace, arabic, pair),
+      face: labelFaceFor(args.label, pair),
       box: front,
       xPercent: args.bookConfig.chapterLabelX ?? 50,
       yPercent: args.bookConfig.chapterLabelY ?? 88,

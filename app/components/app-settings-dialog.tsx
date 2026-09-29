@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ModelSelect } from "@/features/workflow/components/model-select";
 import { useModels } from "@/features/workflow/context";
 import {
@@ -11,6 +11,7 @@ import {
   Delete02Icon,
   Download01Icon,
   Key01Icon,
+  KeyboardIcon,
   PlusSignIcon,
   RulerIcon,
   Settings02Icon,
@@ -23,6 +24,12 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
 
+import {
+  comboKeys,
+  SHORTCUT_GROUPS,
+  SHORTCUTS,
+  type Shortcut,
+} from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,23 +40,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
 
-type SectionId = "ai" | "layout" | "prompts";
+export type SettingsSectionId = "ai" | "layout" | "prompts" | "shortcuts";
 
-const SECTIONS: { id: SectionId; label: string; icon: typeof Key01Icon }[] = [
+const SECTIONS: {
+  id: SettingsSectionId;
+  label: string;
+  icon: typeof Key01Icon;
+}[] = [
   { id: "ai", label: "المفاتيح والنماذج", icon: SparklesIcon },
   { id: "layout", label: "المقاييس", icon: RulerIcon },
   { id: "prompts", label: "التعليمات", icon: TextFontIcon },
+  { id: "shortcuts", label: "الاختصارات", icon: KeyboardIcon },
 ];
 
 function AppSettingsDialog({
   open,
   onOpenChange,
+  initialSection = "ai",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Section shown when the dialog opens. */
+  initialSection?: SettingsSectionId;
 }) {
   const {
     keys,
@@ -71,9 +86,13 @@ function AppSettingsDialog({
     exportSettings,
     importSettings,
   } = useModels();
-  const [section, setSection] = useState<SectionId>("ai");
+  const [section, setSection] = useState<SettingsSectionId>(initialSection);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) setSection(initialSection);
+  }, [open, initialSection]);
 
   const downloadSettings = () => {
     const file = new Blob([JSON.stringify(exportSettings(), null, 2)], {
@@ -368,6 +387,30 @@ function AppSettingsDialog({
               </div>
             )}
 
+            {section === "shortcuts" && (
+              <Section
+                title="اختصارات لوحة المفاتيح"
+                description="ثابتة وغير قابلة للتعديل. الأحرف المفردة تعمل خارج حقول الكتابة فقط."
+              >
+                <div className="flex flex-col gap-4">
+                  {SHORTCUT_GROUPS.map((group) => (
+                    <div key={group} className="flex flex-col gap-1.5">
+                      <h4 className="text-muted-foreground text-[11px] font-medium">
+                        {group}
+                      </h4>
+                      <ul className="bg-card divide-y rounded-lg border">
+                        {SHORTCUTS.filter((item) => item.group === group).map(
+                          (item) => (
+                            <ShortcutRow key={item.id} shortcut={item} />
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            )}
+
             {section === "prompts" && (
               <Section
                 title="تعليمات التوليد"
@@ -494,6 +537,24 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+function ShortcutRow({ shortcut }: { shortcut: Shortcut }) {
+  return (
+    <li className="flex items-center justify-between gap-3 px-3 py-2">
+      <span className="text-xs">{shortcut.label}</span>
+      <KbdGroup dir="ltr">
+        {comboKeys(shortcut.combo).map((key, index) => (
+          <Kbd
+            key={`${key}-${index}`}
+            className="h-6 min-w-6 px-1.5 text-[11px]"
+          >
+            {key}
+          </Kbd>
+        ))}
+      </KbdGroup>
+    </li>
   );
 }
 
