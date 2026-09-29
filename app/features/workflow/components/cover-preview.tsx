@@ -27,6 +27,7 @@ import {
   coverGuidesCm,
   DEFAULT_COVER_COLOR,
   drawCoverOnCanvas,
+  isDoubleCover,
   isSinglePageCover,
   layoutCoverCm,
   pageDimsCm,
@@ -86,6 +87,7 @@ function drawGuides(
 export function CoverPreview({
   sourceImage,
   image,
+  backImage = null,
   bookConfig,
   chapterIndex,
   onChapterIndexChange,
@@ -93,6 +95,7 @@ export function CoverPreview({
 }: {
   sourceImage: string | null;
   image: HTMLImageElement | null;
+  backImage?: HTMLImageElement | null;
   bookConfig: BookConfig;
   chapterIndex: number;
   onChapterIndexChange: (index: number) => void;
@@ -115,6 +118,7 @@ export function CoverPreview({
   const pageSize = bookConfig.pageSize ?? "a4";
   const pageDims = pageDimsCm(pageSize);
   const singlePage = isSinglePageCover(bookConfig);
+  const double = isDoubleCover(bookConfig);
   const boardWidth = singlePage ? pageDims.width : ARTBOARD_WIDTH_CM;
   const boardHeight = singlePage ? pageDims.height : ARTBOARD_HEIGHT_CM;
   const stripeLayout = pageSize === "a5" ? stripeA5 : stripeA4;
@@ -175,24 +179,26 @@ export function CoverPreview({
     const overlay = overlayRef.current;
     if (!container || !canvas || !overlay) return;
 
-    const guides = !guidesOn
-      ? []
-      : singlePage
-        ? singlePageGuidesCm(boardWidth, boardHeight)
-        : coverGuidesCm(
-            layoutCoverCm(
-              chapter.pages,
-              coverSide,
-              pagesPerSpineCm,
-              pageSize,
-              {
-                widthCm: stripeLayout.widthCm,
-                insetCm: stripeLayout.insetCm,
-                edgeGapCm: stripeLayout.edgeGapCm,
-              },
-              hideSpine,
-            ),
-          );
+    const guides = (
+      !guidesOn
+        ? []
+        : singlePage
+          ? singlePageGuidesCm(boardWidth, boardHeight)
+          : coverGuidesCm(
+              layoutCoverCm(
+                chapter.pages,
+                coverSide,
+                pagesPerSpineCm,
+                pageSize,
+                {
+                  widthCm: stripeLayout.widthCm,
+                  insetCm: stripeLayout.insetCm,
+                  edgeGapCm: stripeLayout.edgeGapCm,
+                },
+                hideSpine,
+              ),
+            )
+    ).filter((guide) => !double || guide.kind !== "stripe");
 
     const fitCanvas = () => {
       const widthPx = Math.round(cmToPx(boardWidth, PREVIEW_DPI));
@@ -218,6 +224,7 @@ export function CoverPreview({
     const frame = requestAnimationFrame(() => {
       drawCoverOnCanvas(canvas, {
         sourceImage: image,
+        backImage,
         pages: chapter.pages,
         label: chapterTitle,
         bookName: bookConfig.bookName ?? "",
@@ -265,6 +272,7 @@ export function CoverPreview({
     };
   }, [
     image,
+    backImage,
     chapter.pages,
     chapterTitle,
     chapter.index,
@@ -387,7 +395,7 @@ export function CoverPreview({
         <p className="text-muted-foreground text-[11px] leading-relaxed">
           {singlePage
             ? `صفحة ${pageSize.toUpperCase()} واحدة (${pageDims.width}×${pageDims.height} سم). ملف PDF لكل فصل: ${chapters.length}.`
-            : `اللوحة ${ARTBOARD_WIDTH_CM}×${ARTBOARD_HEIGHT_CM} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote} · الشريط ${stripeLayout.widthCm} سم · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
+            : `اللوحة ${ARTBOARD_WIDTH_CM}×${ARTBOARD_HEIGHT_CM} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote}${double ? " · غلافان بلا شريط" : ` · الشريط ${stripeLayout.widthCm} سم`} · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
         </p>
       )}
     </section>

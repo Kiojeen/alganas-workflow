@@ -25,7 +25,7 @@ export type BookLanguage = "ar" | "en";
 
 export type CoverPageSize = "a4" | "a5";
 
-export type CoverKind = "wrap" | "page";
+export type CoverKind = "wrap" | "page" | "double";
 
 export type ChapterDivision = "pages" | "chapters";
 

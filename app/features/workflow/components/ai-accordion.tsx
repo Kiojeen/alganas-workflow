@@ -74,7 +74,7 @@ export function AiAccordion({
               className="text-muted-foreground size-4"
               strokeWidth={2}
             />
-            اسم الكتاب ووصفه
+            {singlePage ? "اسم الكتاب" : "اسم الكتاب ووصفه"}
           </span>
         </AccordionTrigger>
         <AccordionContent className="flex flex-col gap-2 px-1 pb-3">

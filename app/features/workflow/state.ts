@@ -18,9 +18,17 @@ export type WorkflowState = {
   prompt: string;
   /** Image generation in flight. */
   generating: boolean;
+  /** Which cover the image model is redrawing. */
+  generatingSide: "front" | "back";
   /** Title/description extraction in flight. */
   extracting: boolean;
   outputImage: string | null;
+  /** Uploaded back cover, used by the double-cover layout. */
+  backFile: File | null;
+  backPdfPage: number;
+  backPreview: Preview | null;
+  backBusy: boolean;
+  backOutputImage: string | null;
   bookConfig: BookConfig;
 };
 
@@ -67,8 +75,14 @@ export function createDefaultWorkflowState(
     describeAi: models.describeAi || DEFAULT_DESCRIBE_MODEL_ID,
     prompt: DEFAULT_GENERATE_PROMPT,
     generating: false,
+    generatingSide: "front",
     extracting: false,
     outputImage: null,
+    backFile: null,
+    backPdfPage: 1,
+    backPreview: null,
+    backBusy: false,
+    backOutputImage: null,
     bookConfig: { ...defaultBookConfig },
   };
 }

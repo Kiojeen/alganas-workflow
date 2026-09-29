@@ -99,8 +99,9 @@ export function WorkflowsProvider({ children }: { children: ReactNode }) {
     setWorkflows((prev) =>
       prev.filter((w) => {
         if (w.id !== id) return true;
-        const url = w.state.preview?.url;
-        if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+        for (const url of [w.state.preview?.url, w.state.backPreview?.url]) {
+          if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+        }
         return false;
       }),
     );

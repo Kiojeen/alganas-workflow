@@ -92,6 +92,8 @@ export type CoverChapter = {
 
 export type DrawCoverOptions = {
   sourceImage: HTMLImageElement | null;
+  /** Back panel image for a double cover. */
+  backImage?: HTMLImageElement | null;
   pages: number;
   label: string;
   bookName: string;
@@ -160,6 +162,11 @@ export function spineNumberLines(chapterNumber: string): string[] {
 
 export function isSinglePageCover(config: { coverKind?: CoverKind }) {
   return config.coverKind === "page";
+}
+
+/** Front and back are both full cover images; there is no description stripe. */
+export function isDoubleCover(config: { coverKind?: CoverKind }) {
+  return config.coverKind === "double";
 }
 
 export function pageDimsCm(pageSize: CoverPageSize = "a4") {
@@ -494,25 +501,32 @@ export function drawCoverOnCanvas(
   const frontOnLeft = layout.frontOnLeft;
   const coverH = p(layout.height);
 
+  const double = options.coverKind === "double";
   ctx.fillStyle = fill;
   ctx.fillRect(backX, originY, a4W, coverH);
   if (!hideSpine) ctx.fillRect(spineX, originY, Math.max(1, spineW), coverH);
-  ctx.fillStyle = stripeFill;
-  ctx.fillRect(stripeX, originY, stripeW, coverH);
+  if (double && options.backImage && options.backImage.naturalWidth > 0) {
+    drawImageCovering(ctx, options.backImage, backX, originY, a4W, coverH);
+  }
+  if (!double) {
+    ctx.fillStyle = stripeFill;
+    ctx.fillRect(stripeX, originY, stripeW, coverH);
+  }
 
-  drawStripeParagraph(ctx, {
-    x: stripeX,
-    y: originY,
-    width: stripeW,
-    height: coverH,
-    text: stripeText?.trim() || STRIPE_TEXT,
-    color: textFill,
-    dpi,
-    fontFamily: descriptionFamily,
-    fontWeight: stripeWeight,
-    insetCm: stripeInsetCm ?? defaultStripeLayout(pageSize).insetCm,
-    scale: descriptionScale,
-  });
+  if (!double)
+    drawStripeParagraph(ctx, {
+      x: stripeX,
+      y: originY,
+      width: stripeW,
+      height: coverH,
+      text: stripeText?.trim() || STRIPE_TEXT,
+      color: textFill,
+      dpi,
+      fontFamily: descriptionFamily,
+      fontWeight: stripeWeight,
+      insetCm: stripeInsetCm ?? defaultStripeLayout(pageSize).insetCm,
+      scale: descriptionScale,
+    });
 
   if (!hideSpine) {
     drawSpineTitle(ctx, {

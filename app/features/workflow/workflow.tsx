@@ -82,6 +82,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     defaultImageModel,
   } = useModels();
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
+  const backFileRef = useRef<File | null>(workflow?.state.backFile ?? null);
   const generatingRef = useRef(false);
   const extractingRef = useRef(false);
   const [showLines, setShowLines] = useState(true);
@@ -99,7 +100,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
   useEffect(() => {
     fileRef.current = workflow?.state.file ?? null;
-  }, [workflow?.state.file]);
+    backFileRef.current = workflow?.state.backFile ?? null;
+  }, [workflow?.state.file, workflow?.state.backFile]);
 
   const update = workflow?.update;
   const outputImage = workflow?.state.outputImage ?? null;
@@ -107,7 +109,11 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   // The uploaded file shows on the artboard right away; an AI result replaces
   // it until the user removes that result.
   const sourceImage = outputImage ?? preview?.url ?? null;
+  const backOutputImage = workflow?.state.backOutputImage ?? null;
+  const backPreview = workflow?.state.backPreview ?? null;
+  const backSource = backOutputImage ?? backPreview?.url ?? null;
   const { image: coverImage, palette } = useCoverImage(sourceImage);
+  const { image: backImage } = useCoverImage(backSource);
 
   useEffect(() => {
     const first = palette[0];
@@ -170,8 +176,16 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
   if (!workflow || !update) return null;
   const { state } = workflow;
-  const { busy, ai, describeAi, prompt, generating, extracting, bookConfig } =
-    state;
+  const {
+    busy,
+    ai,
+    describeAi,
+    prompt,
+    generating,
+    generatingSide,
+    extracting,
+    bookConfig,
+  } = state;
 
   const textModels = modelsByKind(models, "text");
   const imageModels = modelsByKind(models, "image");
@@ -195,6 +209,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         (bookConfig.pageSize ?? "a4") === "a5" ? stripeA5 : stripeA4;
       await exportCoverPdf({
         sourceUrl: sourceImage,
+        backSourceUrl: bookConfig.coverKind === "double" ? backSource : null,
         bookConfig,
         pagesPerSpineCm,
         stripeWidthCm: stripe.widthCm,
@@ -232,14 +247,15 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     try {
       const imageBuffer = await fetch(preview.url).then((r) => r.arrayBuffer());
       const imageBytes = new Uint8Array(imageBuffer);
-      const singlePage = bookConfig.coverKind === "page";
+      const titleOnly =
+        bookConfig.coverKind === "page" || bookConfig.coverKind === "double";
       const model = languageModel(
         selectedDescribeModel.provider,
         apiKey,
         selectedDescribeModel.modelId,
       );
       const imagePart = { type: "image" as const, image: imageBytes };
-      const extracted = singlePage
+      const extracted = titleOnly
         ? await generateObject({
             model,
             schema: titleSchema,
@@ -300,10 +316,15 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     }
   };
 
-  const generateCover = async () => {
+  const generateCover = async (side: "front" | "back" = "front") => {
     if (generatingRef.current) return;
-    if (!preview?.url) {
-      toast.error("ارفع صورة أو ملف PDF أولاً.");
+    const sourceUrl = side === "back" ? backPreview?.url : preview?.url;
+    if (!sourceUrl) {
+      toast.error(
+        side === "back"
+          ? "ارفع صورة الظهر أولاً."
+          : "ارفع صورة أو ملف PDF أولاً.",
+      );
       return;
     }
     if (!selectedImageModel) {
@@ -316,14 +337,14 @@ export function Workflow({ workflowId }: { workflowId: string }) {
       return;
     }
     generatingRef.current = true;
-    update({ generating: true });
+    update({ generating: true, generatingSide: side });
     try {
       const model = imageModel(
         selectedImageModel.provider,
         apiKey,
         selectedImageModel.modelId,
       ) as any;
-      const imageBytes = await fetch(preview.url).then((r) => r.arrayBuffer());
+      const imageBytes = await fetch(sourceUrl).then((r) => r.arrayBuffer());
       const result = await generateImage({
         model,
         prompt: { text: prompt, images: [new Uint8Array(imageBytes)] },
@@ -331,9 +352,12 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         maxRetries: 0,
       });
       const imageData = result.images[0];
-      update({
-        outputImage: `data:${imageData.mediaType};base64,${imageData.base64}`,
-      });
+      const dataUrl = `data:${imageData.mediaType};base64,${imageData.base64}`;
+      update(
+        side === "back"
+          ? { backOutputImage: dataUrl }
+          : { outputImage: dataUrl },
+      );
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -350,55 +374,93 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     if (await extractText()) await generateCover();
   };
 
-  const removeOutput = () => {
-    update({ outputImage: null });
+  const removeOutput = (side: "front" | "back" = "front") => {
+    update(side === "back" ? { backOutputImage: null } : { outputImage: null });
   };
 
-  const handleFile = async (f: File | null) => {
+  const handleFile = async (
+    f: File | null,
+    side: "front" | "back" = "front",
+  ) => {
     if (!f) return;
-    update({ file: f, pdfPage: 1, busy: true, outputImage: null });
+    const back = side === "back";
+    update(
+      back
+        ? { backFile: f, backPdfPage: 1, backBusy: true, backOutputImage: null }
+        : { file: f, pdfPage: 1, busy: true, outputImage: null },
+    );
+    const clearBusy = back ? { backBusy: false } : { busy: false };
     try {
       if (f.type.startsWith("image/")) {
         const url = URL.createObjectURL(f);
         update((prev) => {
-          if (prev.preview?.url.startsWith("blob:"))
-            URL.revokeObjectURL(prev.preview.url);
-          return { preview: { kind: "image", url, name: f.name }, busy: false };
+          const current = back ? prev.backPreview : prev.preview;
+          if (current?.url.startsWith("blob:"))
+            URL.revokeObjectURL(current.url);
+          return back
+            ? {
+                backPreview: { kind: "image", url, name: f.name },
+                backBusy: false,
+              }
+            : { preview: { kind: "image", url, name: f.name }, busy: false };
         });
         return;
       }
       if (f.type === "application/pdf") {
         const url = await renderPdfPage(f, 1);
         update((prev) => {
-          if (prev.preview?.url.startsWith("blob:"))
-            URL.revokeObjectURL(prev.preview.url);
-          return { preview: { kind: "pdf", url, name: f.name }, busy: false };
+          const current = back ? prev.backPreview : prev.preview;
+          if (current?.url.startsWith("blob:"))
+            URL.revokeObjectURL(current.url);
+          return back
+            ? {
+                backPreview: { kind: "pdf", url, name: f.name },
+                backBusy: false,
+              }
+            : { preview: { kind: "pdf", url, name: f.name }, busy: false };
         });
         return;
       }
       toast.error("الملف يجب أن يكون صورة أو PDF.");
-      update({ busy: false });
+      update(clearBusy);
     } catch {
-      update({ preview: null, busy: false });
+      update(
+        back
+          ? { backPreview: null, backBusy: false }
+          : { preview: null, busy: false },
+      );
     }
   };
 
-  const handlePageChange = async (page: number) => {
-    const currentFile = fileRef.current;
+  const handlePageChange = async (
+    page: number,
+    side: "front" | "back" = "front",
+  ) => {
+    const back = side === "back";
+    const currentFile = back ? backFileRef.current : fileRef.current;
     if (!currentFile || currentFile.type !== "application/pdf") return;
-    update({ pdfPage: page, busy: true });
+    update(
+      back
+        ? { backPdfPage: page, backBusy: true }
+        : { pdfPage: page, busy: true },
+    );
     try {
       const url = await renderPdfPage(currentFile, page);
       update((prev) => {
-        if (prev.preview?.url.startsWith("blob:"))
-          URL.revokeObjectURL(prev.preview.url);
-        return {
-          preview: { kind: "pdf", url, name: currentFile.name },
-          busy: false,
-        };
+        const current = back ? prev.backPreview : prev.preview;
+        if (current?.url.startsWith("blob:")) URL.revokeObjectURL(current.url);
+        return back
+          ? {
+              backPreview: { kind: "pdf", url, name: currentFile.name },
+              backBusy: false,
+            }
+          : {
+              preview: { kind: "pdf", url, name: currentFile.name },
+              busy: false,
+            };
       });
     } catch {
-      update({ busy: false });
+      update(back ? { backBusy: false } : { busy: false });
     }
   };
 
@@ -504,7 +566,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                   onFile: handleFile,
                   onPageChange: handlePageChange,
                   outputImage,
-                  generating,
+                  generating: generating && generatingSide !== "back",
                   extracting,
                   canRunAi,
                   onGenerateImage: () => {
@@ -516,8 +578,37 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                   onGenerateBoth: () => {
                     void generateBoth();
                   },
-                  onRemoveOutput: removeOutput,
+                  onRemoveOutput: () => removeOutput("front"),
                 }}
+                back={
+                  bookConfig.coverKind === "double"
+                    ? {
+                        preview: state.backPreview,
+                        pdfPage: state.backPdfPage,
+                        busy: state.backBusy,
+                        onFile: (f) => {
+                          void handleFile(f, "back");
+                        },
+                        onPageChange: (page) => {
+                          void handlePageChange(page, "back");
+                        },
+                        outputImage: state.backOutputImage,
+                        generating: generating && generatingSide === "back",
+                        extracting: false,
+                        canRunAi:
+                          Boolean(state.backPreview) &&
+                          !state.backBusy &&
+                          !generating &&
+                          !extracting,
+                        onGenerateImage: () => {
+                          void generateCover("back");
+                        },
+                        onGenerateText: () => {},
+                        onGenerateBoth: () => {},
+                        onRemoveOutput: () => removeOutput("back"),
+                      }
+                    : undefined
+                }
                 bookConfig={bookConfig}
                 onBookConfigChange={handleBookConfigChange}
                 disabled={false}
@@ -536,7 +627,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                     bookDescription: value,
                   })
                 }
-                singlePage={singlePage}
+                singlePage={singlePage || bookConfig.coverKind === "double"}
                 imageAi={ai}
                 onImageAiChange={(id) => update({ ai: id })}
                 prompt={prompt}
@@ -561,6 +652,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         <CoverPreview
           sourceImage={sourceImage}
           image={coverImage}
+          backImage={bookConfig.coverKind === "double" ? backImage : null}
           bookConfig={bookConfig}
           chapterIndex={chapterIndex}
           onChapterIndexChange={setChapterIndex}

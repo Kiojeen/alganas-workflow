@@ -425,6 +425,7 @@ async function drawVectorCover(args: {
   label: string;
   coverImageElement?: HTMLImageElement | null;
   chapterNumber?: string;
+  backSourceUrl?: string | null;
   pagesPerSpineCm?: number;
   stripeWidthCm?: number;
   stripeInsetCm?: number;
@@ -463,6 +464,11 @@ async function drawVectorCover(args: {
     }
   }
   const coverImage = await embedCoverImage(pdf, args.sourceUrl);
+  const double = args.bookConfig.coverKind === "double";
+  const backImage =
+    double && args.backSourceUrl
+      ? await embedCoverImage(pdf, args.backSourceUrl).catch(() => null)
+      : null;
 
   const singlePage = isSinglePageCover(args.bookConfig);
   const dims = pageDimsCm(args.bookConfig.pageSize ?? "a4");
@@ -568,7 +574,8 @@ async function drawVectorCover(args: {
 
   page.drawRectangle({ ...back, color: color(fillHex) });
   if (!hideSpine) page.drawRectangle({ ...spine, color: color(fillHex) });
-  page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
+  if (backImage) drawCoverImage(page, backImage, back);
+  if (!double) page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
 
   const padX = cmToPt(args.stripeInsetCm ?? STRIPE_INSET_CM);
   const padY = cmToPt(args.stripeInsetCm ?? STRIPE_INSET_CM);
@@ -576,9 +583,11 @@ async function drawVectorCover(args: {
   const fontSize = cmToPt(STRIPE_TEXT_SIZE_CM * (pair.descriptionScale ?? 1));
   const lineHeight = fontSize * 1.45;
   const stripeFont = fontForText(stripeText, descriptionFont, arabic, pair);
-  const lines = wrapWords(stripeText, maxWidth, (value) =>
-    stripeFont.widthOfTextAtSize(value, fontSize),
-  );
+  const lines = double
+    ? []
+    : wrapWords(stripeText, maxWidth, (value) =>
+        stripeFont.widthOfTextAtSize(value, fontSize),
+      );
   const blockHeight = (lines.length - 1) * lineHeight;
   const startY =
     stripe.y + stripe.height / 2 + blockHeight / 2 - fontSize * 0.35;
@@ -736,6 +745,7 @@ async function drawVectorCover(args: {
 export async function exportCoverPdf(args: {
   sourceUrl: string;
   bookConfig: BookConfig;
+  backSourceUrl?: string | null;
   pagesPerSpineCm?: number;
   stripeWidthCm?: number;
   stripeInsetCm?: number;
@@ -751,6 +761,10 @@ export async function exportCoverPdf(args: {
   );
 
   await downloadCoverImage(args.sourceUrl, bookTitle);
+  if (args.bookConfig.coverKind === "double" && args.backSourceUrl) {
+    await delay(350);
+    await downloadCoverImage(args.backSourceUrl, `${bookTitle}-back`);
+  }
   await delay(350);
 
   for (const [index, chapter] of chapters.entries()) {
@@ -765,6 +779,7 @@ export async function exportCoverPdf(args: {
           ? formatSpineNumber(args.bookConfig.chapterLabel, chapter.index)
           : undefined,
       // Spine visibility is decided per chapter from its own page count.
+      backSourceUrl: args.backSourceUrl,
       pagesPerSpineCm: args.pagesPerSpineCm,
       stripeWidthCm: args.stripeWidthCm,
       stripeInsetCm: args.stripeInsetCm,

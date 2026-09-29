@@ -49,6 +49,7 @@ import {
 
 /** Shared with the `U` shortcut in the workflow. */
 export const COVER_FILE_INPUT_ID = "cover-file-input";
+export const COVER_BACK_FILE_INPUT_ID = "cover-back-file-input";
 
 export { ACTIVE_TOGGLE_CLASS };
 
@@ -71,11 +72,14 @@ export type FileFieldProps = {
 
 export function UploadFileStep({
   file,
+  back,
   bookConfig,
   onBookConfigChange,
   disabled,
 }: {
   file: FileFieldProps;
+  /** Back cover, shown only for the double-cover layout. */
+  back?: FileFieldProps;
   bookConfig: BookConfig;
   onBookConfigChange: (config: BookConfig) => void;
   disabled: boolean;
@@ -104,7 +108,9 @@ export function UploadFileStep({
             value={bookConfig.coverKind ?? "wrap"}
             disabled={disabled}
             onValueChange={(value) => {
-              if (value !== "wrap" && value !== "page") return;
+              if (value !== "wrap" && value !== "page" && value !== "double") {
+                return;
+              }
               onBookConfigChange({
                 ...bookConfig,
                 coverKind: value as CoverKind,
@@ -116,6 +122,7 @@ export function UploadFileStep({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="wrap">غلاف وشريط</SelectItem>
+              <SelectItem value="double">غلاف مزدوج</SelectItem>
               <SelectItem value="page">غلاف صفحة واحدة</SelectItem>
             </SelectContent>
           </Select>
@@ -214,7 +221,21 @@ export function UploadFileStep({
         onBookConfigChange={onBookConfigChange}
       />
 
-      <FileField {...file} disabled={disabled} />
+      <FileField
+        {...file}
+        disabled={disabled}
+        heading={bookConfig.coverKind === "double" ? "الغلاف" : undefined}
+      />
+      {bookConfig.coverKind === "double" && back && (
+        <FileField
+          {...back}
+          disabled={disabled}
+          heading="الظهر"
+          imageOnly
+          inputId={COVER_BACK_FILE_INPUT_ID}
+          listenPaste={false}
+        />
+      )}
       <Separator />
     </div>
   );
@@ -296,13 +317,24 @@ function FileField({
   onGenerateText,
   onGenerateBoth,
   onRemoveOutput,
-}: FileFieldProps & { disabled: boolean }) {
+  heading,
+  imageOnly = false,
+  inputId = COVER_FILE_INPUT_ID,
+  listenPaste = true,
+}: FileFieldProps & {
+  disabled: boolean;
+  heading?: string;
+  /** Hide title extraction; the back cover is only redrawn. */
+  imageOnly?: boolean;
+  inputId?: string;
+  listenPaste?: boolean;
+}) {
   const [dragging, setDragging] = useState(false);
   const onFileRef = useRef(onFile);
   onFileRef.current = onFile;
 
   useEffect(() => {
-    if (disabled) return;
+    if (disabled || !listenPaste) return;
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, [contenteditable=true]")) return;
@@ -317,7 +349,7 @@ function FileField({
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [disabled]);
+  }, [disabled, listenPaste]);
 
   const dragProps = {
     onDragOver: (event: React.DragEvent) => {
@@ -337,7 +369,7 @@ function FileField({
 
   const input = (
     <Input
-      id={COVER_FILE_INPUT_ID}
+      id={inputId}
       type="file"
       accept="image/*,application/pdf"
       className="hidden"
@@ -349,8 +381,20 @@ function FileField({
     />
   );
 
+  const frame = (node: React.ReactNode) =>
+    heading ? (
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-muted-foreground text-xs font-medium">
+          {heading}
+        </Label>
+        {node}
+      </div>
+    ) : (
+      node
+    );
+
   if (!preview) {
-    return (
+    return frame(
       <Label
         {...dragProps}
         className={cn(
@@ -362,15 +406,21 @@ function FileField({
         <HugeiconsIcon icon={FileUploadIcon} className="size-4 shrink-0" />
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="text-foreground font-medium">
-            {dragging ? "أفلت الملف هنا" : "صورة الغلاف أو ملف PDF"}
+            {dragging
+              ? "أفلت الملف هنا"
+              : heading === "الظهر"
+                ? "صورة الظهر أو ملف PDF"
+                : "صورة الغلاف أو ملف PDF"}
           </span>
           <span className="text-[11px]">
             اسحب أو اضغط
-            <span className="hidden md:inline"> أو الصق بـ Ctrl+V</span>
+            {listenPaste && (
+              <span className="hidden md:inline"> أو الصق بـ Ctrl+V</span>
+            )}
           </span>
         </span>
         {input}
-      </Label>
+      </Label>,
     );
   }
 
@@ -378,7 +428,7 @@ function FileField({
   const aiBusy = generating || extracting;
   const aiDisabled = disabled || !canRunAi || aiBusy;
 
-  return (
+  return frame(
     <div
       {...dragProps}
       className={cn(
@@ -415,22 +465,26 @@ function FileField({
           busy={generating && !extracting}
           onClick={onGenerateImage}
         />
-        <IconAction
-          label={`استخراج الاسم والوصف · ${comboText("ai-text")}`}
-          icon={TextCreationIcon}
-          tone="primary"
-          disabled={aiDisabled}
-          busy={extracting && !generating}
-          onClick={onGenerateText}
-        />
-        <IconAction
-          label={`الاسم والوصف ثم الصورة · ${comboText("ai-both")}`}
-          icon={AiMagicIcon}
-          tone="primary"
-          disabled={aiDisabled}
-          busy={generating && extracting}
-          onClick={onGenerateBoth}
-        />
+        {!imageOnly && (
+          <>
+            <IconAction
+              label={`${heading === "الغلاف" ? "استخراج الاسم" : "استخراج الاسم والوصف"} · ${comboText("ai-text")}`}
+              icon={TextCreationIcon}
+              tone="primary"
+              disabled={aiDisabled}
+              busy={extracting && !generating}
+              onClick={onGenerateText}
+            />
+            <IconAction
+              label={`${heading === "الغلاف" ? "الاسم ثم الصورة" : "الاسم والوصف ثم الصورة"} · ${comboText("ai-both")}`}
+              icon={AiMagicIcon}
+              tone="primary"
+              disabled={aiDisabled}
+              busy={generating && extracting}
+              onClick={onGenerateBoth}
+            />
+          </>
+        )}
         {outputImage && (
           <IconAction
             label="إزالة الصورة المولّدة"
@@ -475,6 +529,6 @@ function FileField({
           <TooltipContent>استبدال الملف</TooltipContent>
         </Tooltip>
       </div>
-    </div>
+    </div>,
   );
 }

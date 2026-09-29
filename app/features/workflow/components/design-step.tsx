@@ -137,7 +137,7 @@ export function DesignStep({
           disabled={disabled}
           swatches={palette}
         />
-        {!singlePage && (
+        {(bookConfig.coverKind ?? "wrap") === "wrap" && (
           <>
             <CoverColorPicker
               label="لون الشريط"
