@@ -7,7 +7,9 @@ export const A5_WIDTH_CM = 14.8;
 export const A5_HEIGHT_CM = 21;
 export const ARTBOARD_WIDTH_CM = 47;
 export const ARTBOARD_HEIGHT_CM = 29.7;
-export const PAGES_PER_SPINE_CM = 200;
+export const PAGES_PER_SPINE_CM = 167;
+/** Earlier builds shipped this default; stored prefs still carrying it are migrated. */
+export const LEGACY_PAGES_PER_SPINE_CM = 200;
 export const MAX_PAGES_PER_VOLUME = 720;
 export const DEFAULT_STRIPE_LAYOUT_A4 = {
   widthCm: 12,
@@ -33,7 +35,9 @@ export type StripeLayoutCm = {
   edgeGapCm: number;
 };
 
-export function defaultStripeLayout(pageSize: CoverPageSize = "a4"): StripeLayoutCm {
+export function defaultStripeLayout(
+  pageSize: CoverPageSize = "a4",
+): StripeLayoutCm {
   const source =
     pageSize === "a5" ? DEFAULT_STRIPE_LAYOUT_A5 : DEFAULT_STRIPE_LAYOUT_A4;
   return { ...source };
@@ -41,9 +45,26 @@ export function defaultStripeLayout(pageSize: CoverPageSize = "a4"): StripeLayou
 export const PREVIEW_DPI = 150;
 export const EXPORT_DPI = 200;
 export const DEFAULT_COVER_COLOR = "#5c5044";
-const GUIDE_COLOR = "#ff2e94";
 export const DEFAULT_STRIPE_FOREGROUND = "#f4efe6";
 export const DEFAULT_CHAPTER_LABEL_COLOR = "#ffffff";
+export const DEFAULT_CHAPTER_LABEL_SIZE_CM = 0.9;
+export const MIN_CHAPTER_LABEL_SIZE_CM = 0.3;
+export const MAX_CHAPTER_LABEL_SIZE_CM = 4;
+
+/** Hebrew, Arabic, Syriac, Thaana, N'Ko and the Arabic presentation forms. */
+export function isRtlText(value: string) {
+  return /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/.test(value);
+}
+
+export function clampChapterLabelSize(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_CHAPTER_LABEL_SIZE_CM;
+  }
+  return Math.min(
+    MAX_CHAPTER_LABEL_SIZE_CM,
+    Math.max(MIN_CHAPTER_LABEL_SIZE_CM, value),
+  );
+}
 export const SPINE_MARK_WIDTH_CM = 0.1;
 export const SPINE_MARK_HEIGHT_CM = 0.7;
 export const SPINE_TITLE_MIN_GAP_CM = 1;
@@ -72,7 +93,6 @@ export type DrawCoverOptions = {
   bookName: string;
   coverSide: CoverSide;
   coverKind?: CoverKind;
-  showGuides: boolean;
   dpi: number;
   coverColor: string;
   stripeColor?: string;
@@ -80,6 +100,7 @@ export type DrawCoverOptions = {
   chapterLabelColor: string;
   chapterLabelX: number;
   chapterLabelY: number;
+  chapterLabelSizeCm?: number;
   stripeText?: string;
   spineMarkColor?: string;
   titleFont?: string;
@@ -175,10 +196,8 @@ export function layoutCoverCm(
   const backX = frontOnLeft ? originX + a4W + spineW : originX;
   const edgeGap = metrics.edgeGapCm * fitScale;
   const stripeW =
-    Math.min(
-      metrics.widthCm,
-      Math.max(0.5, dims.width - metrics.edgeGapCm),
-    ) * fitScale;
+    Math.min(metrics.widthCm, Math.max(0.5, dims.width - metrics.edgeGapCm)) *
+    fitScale;
   const stripeX = frontOnLeft
     ? backX + a4W - stripeW - edgeGap
     : backX + edgeGap;
@@ -197,6 +216,40 @@ export function layoutCoverCm(
     stripeW,
     frontOnLeft,
   };
+}
+
+export type GuideLine =
+  | { axis: "x"; cm: number; kind: "trim" | "fold" | "stripe" | "center" }
+  | { axis: "y"; cm: number; kind: "trim" | "fold" | "stripe" | "center" };
+
+/**
+ * Guide positions on the artboard, in centimetres. Trim edges, spine folds,
+ * the stripe box, and the centre lines of each panel.
+ */
+export function coverGuidesCm(layout: CoverLayoutCm): GuideLine[] {
+  const top = layout.originY;
+  const bottom = layout.originY + layout.height;
+  const guides: GuideLine[] = [
+    { axis: "x", cm: layout.originX, kind: "trim" },
+    { axis: "x", cm: layout.originX + layout.wrapW, kind: "trim" },
+    { axis: "y", cm: top, kind: "trim" },
+    { axis: "y", cm: bottom, kind: "trim" },
+    { axis: "x", cm: layout.spineX, kind: "fold" },
+    { axis: "x", cm: layout.spineX + layout.spineW, kind: "fold" },
+    { axis: "x", cm: layout.stripeX, kind: "stripe" },
+    { axis: "x", cm: layout.stripeX + layout.stripeW, kind: "stripe" },
+    { axis: "x", cm: layout.frontX + layout.a4W / 2, kind: "center" },
+    { axis: "x", cm: layout.backX + layout.a4W / 2, kind: "center" },
+    { axis: "y", cm: (top + bottom) / 2, kind: "center" },
+  ];
+  if (layout.spineW > 0.05) {
+    guides.push({
+      axis: "x",
+      cm: layout.spineX + layout.spineW / 2,
+      kind: "center",
+    });
+  }
+  return guides;
 }
 
 export function wrapWords(
@@ -282,7 +335,10 @@ export function extractPalette(
 
   ctx.drawImage(image, 0, 0, size, size);
   const data = ctx.getImageData(0, 0, size, size).data;
-  const buckets = new Map<string, { r: number; g: number; b: number; n: number }>();
+  const buckets = new Map<
+    string,
+    { r: number; g: number; b: number; n: number }
+  >();
 
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] < 80) continue;
@@ -322,7 +378,6 @@ export function drawCoverOnCanvas(
     label,
     bookName,
     coverSide,
-    showGuides,
     dpi,
     coverColor,
     stripeColor,
@@ -330,6 +385,7 @@ export function drawCoverOnCanvas(
     chapterLabelColor,
     chapterLabelX,
     chapterLabelY,
+    chapterLabelSizeCm,
     stripeText,
     spineMarkColor,
     titleFont,
@@ -381,8 +437,6 @@ export function drawCoverOnCanvas(
   const originY = p(layout.originY);
   const a4W = p(layout.a4W);
   const spineW = p(layout.spineW);
-  const wrapW = p(layout.wrapW);
-  const originX = p(layout.originX);
   const frontX = p(layout.frontX);
   const spineX = p(layout.spineX);
   const backX = p(layout.backX);
@@ -452,30 +506,10 @@ export function drawCoverOnCanvas(
       dpi,
       xRatio: chapterLabelX,
       yRatio: chapterLabelY,
+      sizeCm: chapterLabelSizeCm,
       fontFamily: chapterFamily,
       fontWeight: chapterWeight,
     });
-  }
-
-  if (showGuides) {
-    ctx.save();
-    // The preview canvas is scaled down a lot for display, so guides are
-    // drawn thick in canvas space to stay visible.
-    const guideWidth = Math.max(2, dpi * 0.08);
-    for (const x of [originX, spineX, spineX + spineW, originX + wrapW]) {
-      ctx.beginPath();
-      ctx.moveTo(x, originY);
-      ctx.lineTo(x, originY + coverH);
-      ctx.setLineDash([]);
-      ctx.lineWidth = guideWidth * 2;
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.stroke();
-      ctx.setLineDash([dpi * 0.25, dpi * 0.15]);
-      ctx.lineWidth = guideWidth;
-      ctx.strokeStyle = GUIDE_COLOR;
-      ctx.stroke();
-    }
-    ctx.restore();
   }
 }
 
@@ -491,6 +525,7 @@ function drawSinglePageCanvas(
     chapterLabelColor,
     chapterLabelX,
     chapterLabelY,
+    chapterLabelSizeCm,
     labelFont,
     titleFont,
     labelWeight,
@@ -524,6 +559,7 @@ function drawSinglePageCanvas(
       dpi,
       xRatio: chapterLabelX,
       yRatio: chapterLabelY,
+      sizeCm: chapterLabelSizeCm,
       fontFamily: chapterFamily,
       fontWeight: chapterWeight,
     });
@@ -567,6 +603,7 @@ function drawCoverTitle(
     dpi: number;
     xRatio: number;
     yRatio: number;
+    sizeCm?: number;
     fontFamily: string;
     fontWeight: number;
   },
@@ -581,10 +618,10 @@ function drawCoverTitle(
   ctx.fillStyle = args.color;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.direction = "ltr";
+  ctx.direction = isRtlText(args.label) ? "rtl" : "ltr";
   ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
   ctx.shadowBlur = Math.max(4, args.dpi * 0.04);
-  const fontSize = Math.min(cmToPx(0.9, args.dpi), args.width * 0.08);
+  const fontSize = cmToPx(clampChapterLabelSize(args.sizeCm), args.dpi);
   ctx.font = `${args.fontWeight} ${fontSize}px "${args.fontFamily}", sans-serif`;
   ctx.fillText(args.label, textX, textY, args.width - pad * 2);
   ctx.restore();
@@ -659,7 +696,10 @@ export function fitSpineTitle(args: {
   const sizeByAcross = Math.max(1, (args.maxAcross * 0.82 - acrossGap) / 2);
   const sizeByAlong =
     longer > 0 ? args.size * (args.maxAlong / longer) : args.size;
-  const size = Math.max(1, Math.min(args.size * 0.85, sizeByAcross, sizeByAlong));
+  const size = Math.max(
+    1,
+    Math.min(args.size * 0.85, sizeByAcross, sizeByAlong),
+  );
   const scale = size / args.size;
   return {
     lines: [first, second],
@@ -803,10 +843,15 @@ function drawStripeParagraph(
   ctx.clip();
   ctx.fillStyle = args.color;
   ctx.textBaseline = "middle";
-  ctx.direction = "ltr";
+  const rtl = isRtlText(args.text);
+  ctx.direction = rtl ? "rtl" : "ltr";
   ctx.font = `${args.fontWeight} ${fontSize}px "${args.fontFamily}", serif`;
 
-  const lines = wrapWords(args.text, maxWidth, (value) => ctx.measureText(value).width);
+  const lines = wrapWords(
+    args.text,
+    maxWidth,
+    (value) => ctx.measureText(value).width,
+  );
   const startY =
     args.y + args.height / 2 - ((lines.length - 1) * lineHeight) / 2;
   const left = args.x + padX;
@@ -815,11 +860,16 @@ function drawStripeParagraph(
     const y = startY + index * lineHeight;
     if (y < args.y + padY || y > args.y + args.height - padY) continue;
     const isLast = index === lines.length - 1;
-    drawJustifiedLine(ctx, line, centerX, left, y, maxWidth, isLast);
+    drawJustifiedLine(ctx, line, centerX, left, y, maxWidth, isLast, rtl);
   }
   ctx.restore();
 }
 
+/**
+ * Full-justified line. Right-to-left text starts at the right edge and each
+ * word steps leftwards; the short last line is centred with the paragraph's
+ * own direction so trailing punctuation lands at the end of the sentence.
+ */
 function drawJustifiedLine(
   ctx: CanvasRenderingContext2D,
   line: string,
@@ -828,6 +878,7 @@ function drawJustifiedLine(
   y: number,
   maxWidth: number,
   isLast: boolean,
+  rtl: boolean,
 ) {
   const words = line.split(/\s+/).filter(Boolean);
   if (isLast || words.length < 2) {
@@ -836,8 +887,20 @@ function drawJustifiedLine(
     return;
   }
 
-  const total = words.reduce((sum, word) => sum + ctx.measureText(word).width, 0);
+  const total = words.reduce(
+    (sum, word) => sum + ctx.measureText(word).width,
+    0,
+  );
   const gap = (maxWidth - total) / (words.length - 1);
+  if (rtl) {
+    let x = left + maxWidth;
+    ctx.textAlign = "right";
+    for (const word of words) {
+      ctx.fillText(word, x, y);
+      x -= ctx.measureText(word).width + gap;
+    }
+    return;
+  }
   let x = left;
   ctx.textAlign = "left";
   for (const word of words) {
@@ -912,7 +975,8 @@ export function contrastHex(hex: string): string {
 /** Keep a chosen ink when it already stands out; otherwise pick the clearer one. */
 export function readableOn(foreground: string, background: string) {
   const ink = foreground.trim();
-  if (!ink || contrastRatio(ink, background) < 3) return contrastHex(background);
+  if (!ink || contrastRatio(ink, background) < 3)
+    return contrastHex(background);
   return ink;
 }
 
@@ -930,17 +994,21 @@ export function sampleChapterBackdrop(
   const xRatio = Math.min(1, Math.max(0, xPercent / 100));
   const yRatio = Math.min(1, Math.max(0, yPercent / 100));
   const pad = 1.2;
-  const panelX =
-    (pad + (panelWidthCm - pad * 2) * xRatio) / panelWidthCm;
-  const panelY =
-    (pad + (panelHeightCm - pad * 2) * yRatio) / panelHeightCm;
+  const panelX = (pad + (panelWidthCm - pad * 2) * xRatio) / panelWidthCm;
+  const panelY = (pad + (panelHeightCm - pad * 2) * yRatio) / panelHeightCm;
   const iw = image.naturalWidth;
   const ih = image.naturalHeight;
   const scale = Math.max(panelWidthCm / iw, panelHeightCm / ih);
   const dx = (panelWidthCm - iw * scale) / 2;
   const dy = (panelHeightCm - ih * scale) / 2;
-  const sx = Math.min(iw - 1, Math.max(0, (panelX * panelWidthCm - dx) / scale));
-  const sy = Math.min(ih - 1, Math.max(0, (panelY * panelHeightCm - dy) / scale));
+  const sx = Math.min(
+    iw - 1,
+    Math.max(0, (panelX * panelWidthCm - dx) / scale),
+  );
+  const sy = Math.min(
+    ih - 1,
+    Math.max(0, (panelY * panelHeightCm - dy) / scale),
+  );
   const radius = Math.max(4, Math.round(Math.min(iw, ih) * 0.03));
   const canvas = document.createElement("canvas");
   const sample = 12;

@@ -1,4 +1,4 @@
-import { JOBS } from "./jobs";
+import { DEFAULT_CHAPTER_LABEL_SIZE_CM } from "./lib/cover-layout";
 import {
   DEFAULT_DESCRIBE_MODEL_ID,
   DEFAULT_IMAGE_MODEL_ID,
@@ -16,12 +16,12 @@ export type WorkflowState = {
   ai: string;
   describeAi: string;
   prompt: string;
-  runningSteps: Set<number>;
-  completed: Set<number>;
+  /** Image generation in flight. */
+  generating: boolean;
+  /** Title/description extraction in flight. */
+  extracting: boolean;
   outputImage: string | null;
-  involved: Set<string>;
   bookConfig: BookConfig;
-  canvasImage: string | null;
 };
 
 const defaultBookConfig: BookConfig = {
@@ -31,13 +31,13 @@ const defaultBookConfig: BookConfig = {
   chapterCount: 1,
   chapterPages: [720],
   chapterNames: [],
-  language: "ar",
-  chapterLabel: "ar:فصل",
+  language: "en",
+  chapterLabel: "en:Volume",
   chapterLabelUppercase: false,
   bookName: "",
   bookDescription: "",
   coverKind: "wrap",
-  coverSide: "rtl",
+  coverSide: "ltr",
   pageSize: "a4",
   fontPair: "montserrat",
   coverColor: "",
@@ -47,10 +47,10 @@ const defaultBookConfig: BookConfig = {
   spineMarkColor: "",
   chapterLabelX: 50,
   chapterLabelY: 88,
+  chapterLabelSizeCm: DEFAULT_CHAPTER_LABEL_SIZE_CM,
 };
 
 export function createDefaultWorkflowState(
-  jobIds: readonly string[] = JOBS.map((j) => j.id),
   models: { describeAi?: string; ai?: string } = {},
 ): WorkflowState {
   return {
@@ -61,11 +61,9 @@ export function createDefaultWorkflowState(
     ai: models.ai || DEFAULT_IMAGE_MODEL_ID,
     describeAi: models.describeAi || DEFAULT_DESCRIBE_MODEL_ID,
     prompt: DEFAULT_GENERATE_PROMPT,
-    runningSteps: new Set(),
-    completed: new Set(),
+    generating: false,
+    extracting: false,
     outputImage: null,
-    involved: new Set(jobIds),
     bookConfig: { ...defaultBookConfig },
-    canvasImage: null,
   };
 }

@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
+
 import type { CoverFontPair } from "./lib/cover-fonts";
 
 export type IconType = ComponentProps<typeof HugeiconsIcon>["icon"];
@@ -7,8 +8,6 @@ export type IconType = ComponentProps<typeof HugeiconsIcon>["icon"];
 export type Job = {
   id: string;
   title: string;
-  shortTitle: string;
-  description: string;
   icon: IconType;
 };
 
@@ -18,13 +17,7 @@ export type Preview = {
   name: string;
 };
 
-export type StepStatus =
-  | "muted"
-  | "waiting"
-  | "ready"
-  | "pending"
-  | "running"
-  | "done";
+export type StepStatus = "waiting" | "ready" | "pending" | "done";
 
 export type CoverSide = "ltr" | "rtl";
 
@@ -59,5 +52,6 @@ export type BookConfig = {
   spineMarkColor: string;
   chapterLabelX: number;
   chapterLabelY: number;
+  /** Chapter label cap height in centimetres. */
+  chapterLabelSizeCm: number;
 };
-

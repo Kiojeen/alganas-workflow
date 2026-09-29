@@ -1,8 +1,8 @@
 import fontkit from "@pdf-lib/fontkit";
 import {
-  PDFDocument,
   clip,
   endPath,
+  PDFDocument,
   popGraphicsState,
   pushGraphicsState,
   rectangle,
@@ -26,26 +26,28 @@ import {
 import {
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
+  clampChapterLabelSize,
+  cmToPt,
+  contrastHex,
   DEFAULT_COVER_COLOR,
+  fileSafeName,
+  fitSpineTitle,
+  hexToRgb01,
+  isRtlText,
+  isSinglePageCover,
+  layoutCoverCm,
+  loadCoverImage,
+  pageDimsCm,
+  resolveChapters,
+  sampleChapterBackdrop,
+  shiftHex,
   SPINE_MARK_HEIGHT_CM,
   SPINE_MARK_WIDTH_CM,
   SPINE_TITLE_MIN_GAP_CM,
-  fitSpineTitle,
   spineNumberFontSize,
   spineNumberFromTopCm,
   STRIPE_INSET_CM,
   STRIPE_TEXT,
-  cmToPt,
-  contrastHex,
-  fileSafeName,
-  isSinglePageCover,
-  loadCoverImage,
-  pageDimsCm,
-  sampleChapterBackdrop,
-  hexToRgb01,
-  layoutCoverCm,
-  resolveChapters,
-  shiftHex,
   wrapWords,
 } from "./cover-layout";
 
@@ -58,6 +60,14 @@ function downloadBlob(blob: Blob, filename: string) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Saves the cover image (uploaded or generated) under the book's name. */
+export async function downloadCoverImage(sourceUrl: string, baseName: string) {
+  const blob = await fetch(sourceUrl).then((response) => response.blob());
+  const type = blob.type || "image/png";
+  const ext = /jpe?g/i.test(type) ? "jpg" : /webp/i.test(type) ? "webp" : "png";
+  downloadBlob(blob, `${baseName}.${ext}`);
 }
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -169,10 +179,7 @@ function drawCoverImage(
   image: PDFImage,
   box: { x: number; y: number; width: number; height: number },
 ) {
-  const scale = Math.max(
-    box.width / image.width,
-    box.height / image.height,
-  );
+  const scale = Math.max(box.width / image.width, box.height / image.height);
   const drawW = image.width * scale;
   const drawH = image.height * scale;
   const x = box.x + (box.width - drawW) / 2;
@@ -216,6 +223,16 @@ function drawJustifiedLine(
     0,
   );
   const gap = (maxWidth - total) / (words.length - 1);
+  if (isRtlText(line)) {
+    // First word sits at the right edge; later words step leftwards.
+    let right = left + maxWidth;
+    for (const word of words) {
+      const width = font.widthOfTextAtSize(word, size);
+      page.drawText(word, { x: right - width, y, size, font, color: fill });
+      right -= width + gap;
+    }
+    return;
+  }
   let x = left;
   for (const word of words) {
     page.drawText(word, { x, y, size, font, color: fill });
@@ -232,6 +249,7 @@ function drawChapterLabel(
     box: { x: number; y: number; width: number; height: number };
     xPercent: number;
     yPercent: number;
+    sizeCm?: number;
     fill: RGB;
   },
 ) {
@@ -242,7 +260,7 @@ function drawChapterLabel(
   const maxWidth = box.width - pad * 2;
   const centerX = box.x + pad + maxWidth * xRatio;
   const centerY = box.y + box.height - pad - (box.height - pad * 2) * yRatio;
-  let size = Math.min(cmToPt(0.9), box.width * 0.08);
+  let size = cmToPt(clampChapterLabelSize(args.sizeCm));
   const natural = font.widthOfTextAtSize(label, size);
   if (natural > maxWidth) size *= maxWidth / natural;
   const width = font.widthOfTextAtSize(label, size);
@@ -297,7 +315,6 @@ function drawRotatedSpineLines(
 async function drawVectorCover(args: {
   sourceUrl: string;
   bookConfig: BookConfig;
-  showGuides: boolean;
   pages: number;
   label: string;
   coverImageElement?: HTMLImageElement | null;
@@ -375,8 +392,7 @@ async function drawVectorCover(args: {
     args.bookConfig.chapterLabelColor?.trim() || contrastHex(labelBackdrop);
   const markHex =
     args.bookConfig.spineMarkColor?.trim() || contrastHex(fillHex);
-  const stripeText =
-    args.bookConfig.bookDescription?.trim() || STRIPE_TEXT;
+  const stripeText = args.bookConfig.bookDescription?.trim() || STRIPE_TEXT;
   const bookName = args.bookConfig.bookName ?? "";
 
   page.drawRectangle({
@@ -397,6 +413,7 @@ async function drawVectorCover(args: {
         box: front,
         xPercent: args.bookConfig.chapterLabelX ?? 50,
         yPercent: args.bookConfig.chapterLabelY ?? 88,
+        sizeCm: args.bookConfig.chapterLabelSizeCm,
         fill: color(labelHex),
       });
     }
@@ -446,7 +463,8 @@ async function drawVectorCover(args: {
     stripeFont.widthOfTextAtSize(value, fontSize),
   );
   const blockHeight = (lines.length - 1) * lineHeight;
-  const startY = stripe.y + stripe.height / 2 + blockHeight / 2 - fontSize * 0.35;
+  const startY =
+    stripe.y + stripe.height / 2 + blockHeight / 2 - fontSize * 0.35;
   const left = stripe.x + padX;
   const centerX = stripe.x + stripe.width / 2;
   for (const [index, line] of lines.entries()) {
@@ -490,7 +508,10 @@ async function drawVectorCover(args: {
     const zoneBottom = spine.height - markH - edge;
     if (chapterNumber) {
       const maxNumberWidth = spine.width * 0.92;
-      const numberWidth = numberFont.widthOfTextAtSize(chapterNumber, numberSize);
+      const numberWidth = numberFont.widthOfTextAtSize(
+        chapterNumber,
+        numberSize,
+      );
       if (numberWidth > maxNumberWidth && numberWidth > 0) {
         numberSize *= maxNumberWidth / numberWidth;
       }
@@ -512,7 +533,10 @@ async function drawVectorCover(args: {
       : null;
 
     if (chapterNumber) {
-      const numberWidth = numberFont.widthOfTextAtSize(chapterNumber, numberSize);
+      const numberWidth = numberFont.widthOfTextAtSize(
+        chapterNumber,
+        numberSize,
+      );
       const ascent = numberFont.heightAtSize(numberSize, { descender: false });
       page.drawText(chapterNumber, {
         x: cx - numberWidth / 2,
@@ -570,43 +594,21 @@ async function drawVectorCover(args: {
       box: front,
       xPercent: args.bookConfig.chapterLabelX ?? 50,
       yPercent: args.bookConfig.chapterLabelY ?? 88,
+      sizeCm: args.bookConfig.chapterLabelSizeCm,
       fill: color(labelHex),
     });
-  }
-
-  if (args.showGuides) {
-    const xs = [
-      layout.originX,
-      layout.spineX,
-      layout.spineX + layout.spineW,
-      layout.originX + layout.wrapW,
-    ];
-    for (const xCm of xs) {
-      const x = cmToPt(xCm);
-      page.drawLine({
-        start: { x, y: spine.y },
-        end: { x, y: spine.y + spine.height },
-        thickness: 2.2,
-        color: rgb(1, 1, 1),
-        opacity: 0.85,
-      });
-      page.drawLine({
-        start: { x, y: spine.y },
-        end: { x, y: spine.y + spine.height },
-        thickness: 1,
-        color: rgb(1, 0.18, 0.58),
-        dashArray: [8, 5],
-      });
-    }
   }
 
   return pdf.save();
 }
 
+/**
+ * Downloads one PDF per chapter plus the cover image itself, all named after
+ * the book. Guides are never part of the export.
+ */
 export async function exportCoverPdf(args: {
   sourceUrl: string;
   bookConfig: BookConfig;
-  showGuides: boolean;
   pagesPerSpineCm?: number;
   stripeWidthCm?: number;
   stripeInsetCm?: number;
@@ -621,11 +623,13 @@ export async function exportCoverPdf(args: {
     () => null,
   );
 
+  await downloadCoverImage(args.sourceUrl, bookTitle);
+  await delay(350);
+
   for (const [index, chapter] of chapters.entries()) {
     const bytes = await drawVectorCover({
       sourceUrl: args.sourceUrl,
       bookConfig: args.bookConfig,
-      showGuides: args.showGuides,
       pages: chapter.pages,
       label: showTitle ? chapter.label : "",
       coverImageElement,

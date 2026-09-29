@@ -1,9 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { FileUploadIcon, RefreshIcon } from "@hugeicons/core-free-icons";
+import {
+  AiMagicIcon,
+  Cancel01Icon,
+  FileUploadIcon,
+  RefreshIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { ImageZoom } from "@/components/ui/image-zoom";
 import { Input } from "@/components/ui/input";
 import {
   InputGroup,
@@ -19,9 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-import type { BookConfig, BookLanguage, CoverKind, Preview } from "../types";
 import { useModels } from "../context";
 import {
   chapterNameInput,
@@ -38,16 +49,21 @@ import {
   unassignedPagesError,
 } from "../lib/chapter-division";
 import {
-  ARABIC_CHAPTER_LABELS,
-  ENGLISH_CHAPTER_LABELS,
-  formatChapterLabel,
+  defaultChapterLabel,
   isEnglishChapterLabel,
-  normalizeChapterLabelId,
 } from "../lib/chapter-labels";
-import { isSinglePageCover, resolveChapters, spineWidthCm } from "../lib/cover-layout";
-import { ImageZoom } from "@/components/ui/image-zoom";
-import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
+import {
+  isSinglePageCover,
+  resolveChapters,
+  spineWidthCm,
+} from "../lib/cover-layout";
+import type {
+  BookConfig,
+  BookLanguage,
+  CoverKind,
+  CoverPageSize,
+  Preview,
+} from "../types";
 
 const SEGMENT_COLORS = [
   "bg-chart-1",
@@ -57,21 +73,27 @@ const SEGMENT_COLORS = [
   "bg-chart-5",
 ];
 
-export function UploadFileStep({
-  preview,
-  pdfPage,
-  busy,
-  onFile,
-  onPageChange,
-  bookConfig,
-  onBookConfigChange,
-  disabled,
-}: {
+export type FileFieldProps = {
   preview: Preview | null;
   pdfPage: number;
   busy: boolean;
   onFile: (f: File | null) => void;
   onPageChange: (page: number) => void;
+  /** AI result shown in place of the upload until removed. */
+  outputImage: string | null;
+  generating: boolean;
+  canGenerate: boolean;
+  onGenerate: () => void;
+  onRemoveOutput: () => void;
+};
+
+export function UploadFileStep({
+  file,
+  bookConfig,
+  onBookConfigChange,
+  disabled,
+}: {
+  file: FileFieldProps;
   bookConfig: BookConfig;
   onBookConfigChange: (config: BookConfig) => void;
   disabled: boolean;
@@ -80,8 +102,7 @@ export function UploadFileStep({
   const chapters = resolveChapters(bookConfig);
   const cap = pageCap(bookConfig);
   const singlePage = isSinglePageCover(bookConfig);
-  const labelId = normalizeChapterLabelId(bookConfig.chapterLabel);
-  const englishLabel = isEnglishChapterLabel(labelId);
+  const englishLabel = isEnglishChapterLabel(bookConfig.chapterLabel);
   const language: BookLanguage =
     bookConfig.language ?? (englishLabel ? "en" : "ar");
 
@@ -93,61 +114,14 @@ export function UploadFileStep({
       coverSide: next === "en" ? "ltr" : "rtl",
       chapterLabel: keepLabel
         ? bookConfig.chapterLabel
-        : next === "en"
-          ? "en:Chapter"
-          : "ar:فصل",
+        : defaultChapterLabel(next),
     });
   };
 
   return (
     <div className="flex flex-col gap-4">
-      <FileField
-        preview={preview}
-        pdfPage={pdfPage}
-        busy={busy}
-        disabled={disabled}
-        onFile={onFile}
-        onPageChange={onPageChange}
-      />
-
-      <Separator />
-
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-muted-foreground text-xs font-medium">
-            لغة الكتاب
-          </Label>
-          <ToggleGroup
-            type="single"
-            value={language}
-            disabled={disabled}
-            onValueChange={(value) => {
-              if (value !== "ar" && value !== "en") return;
-              setLanguage(value);
-            }}
-            variant="outline"
-            size="sm"
-            spacing={0}
-            className="w-full"
-          >
-            <ToggleGroupItem value="ar" className="flex-1 text-xs">
-              عربي
-            </ToggleGroupItem>
-            <ToggleGroupItem value="en" className="flex-1 text-xs">
-              English
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <p className="text-muted-foreground text-[11px]">
-            {language === "en"
-              ? "الغلاف الأمامي يمين الكعب، والتسميات بالإنجليزية."
-              : "الغلاف الأمامي يسار الكعب، والتسميات بالعربية."}
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-muted-foreground text-xs font-medium">
-            نوع الغلاف
-          </Label>
+        <Field label="نوع الغلاف">
           <Select
             value={bookConfig.coverKind ?? "wrap"}
             disabled={disabled}
@@ -167,12 +141,54 @@ export function UploadFileStep({
               <SelectItem value="page">غلاف صفحة واحدة</SelectItem>
             </SelectContent>
           </Select>
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-muted-foreground text-xs font-medium">
-            تقسيم الفصول
-          </Label>
+        <Field label="لغة الكتاب">
+          <ToggleGroup
+            type="single"
+            value={language}
+            disabled={disabled}
+            onValueChange={(value) => {
+              if (value !== "ar" && value !== "en") return;
+              setLanguage(value);
+            }}
+            variant="outline"
+            size="sm"
+            spacing={0}
+            className="w-full"
+          >
+            <ToggleGroupItem value="en" className="flex-1 text-xs">
+              English
+            </ToggleGroupItem>
+            <ToggleGroupItem value="ar" className="flex-1 text-xs">
+              عربي
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </Field>
+
+        <Field label="حجم الغلاف">
+          <Select
+            value={bookConfig.pageSize ?? "a4"}
+            disabled={disabled}
+            onValueChange={(value) => {
+              if (value !== "a4" && value !== "a5") return;
+              onBookConfigChange({
+                ...bookConfig,
+                pageSize: value as CoverPageSize,
+              });
+            }}
+          >
+            <SelectTrigger className="w-full" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="a4">A4 — 21×29.7 سم</SelectItem>
+              <SelectItem value="a5">A5 — 14.8×21 سم</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="تقسيم الفصول">
           <ToggleGroup
             type="single"
             value={bookConfig.division}
@@ -188,32 +204,18 @@ export function UploadFileStep({
           >
             <ToggleGroupItem
               value="pages"
-              className="flex-1 whitespace-normal text-xs"
+              className="flex-1 text-xs whitespace-normal"
             >
               حسب الصفحات
             </ToggleGroupItem>
             <ToggleGroupItem
               value="chapters"
-              className="flex-1 whitespace-normal text-xs"
+              className="flex-1 text-xs whitespace-normal"
             >
               حسب الفصول
             </ToggleGroupItem>
           </ToggleGroup>
-        </div>
-
-        <ChapterLabelField
-          labelId={labelId}
-          language={language}
-          englishLabel={englishLabel}
-          uppercase={bookConfig.chapterLabelUppercase === true}
-          disabled={disabled}
-          onLabelChange={(chapterLabel) =>
-            onBookConfigChange({ ...bookConfig, chapterLabel })
-          }
-          onUppercaseChange={(chapterLabelUppercase) =>
-            onBookConfigChange({ ...bookConfig, chapterLabelUppercase })
-          }
-        />
+        </Field>
       </div>
 
       {bookConfig.division === "pages" ? (
@@ -236,7 +238,72 @@ export function UploadFileStep({
           onBookConfigChange={onBookConfigChange}
         />
       )}
+
+
+      <FileField {...file} disabled={disabled} />
+      <Separator />
     </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label className="text-muted-foreground text-xs font-medium">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+function IconAction({
+  label,
+  icon,
+  disabled,
+  busy,
+  tone = "default",
+  onClick,
+}: {
+  label: string;
+  icon: typeof AiMagicIcon;
+  disabled?: boolean;
+  busy?: boolean;
+  tone?: "default" | "primary" | "destructive";
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled || busy}
+          onClick={onClick}
+          aria-label={label}
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-md border transition-colors disabled:opacity-50",
+            tone === "default" && "border-input hover:bg-muted text-foreground",
+            tone === "primary" &&
+              "bg-primary text-primary-foreground border-primary hover:bg-primary/90",
+            tone === "destructive" &&
+              "border-input text-muted-foreground hover:border-destructive/40 hover:text-destructive hover:bg-destructive/10",
+          )}
+        >
+          {busy ? (
+            <Spinner className="size-3.5" />
+          ) : (
+            <HugeiconsIcon icon={icon} className="size-4" strokeWidth={2} />
+          )}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -247,14 +314,12 @@ function FileField({
   disabled,
   onFile,
   onPageChange,
-}: {
-  preview: Preview | null;
-  pdfPage: number;
-  busy: boolean;
-  disabled: boolean;
-  onFile: (f: File | null) => void;
-  onPageChange: (page: number) => void;
-}) {
+  outputImage,
+  generating,
+  canGenerate,
+  onGenerate,
+  onRemoveOutput,
+}: FileFieldProps & { disabled: boolean }) {
   const [dragging, setDragging] = useState(false);
   const onFileRef = useRef(onFile);
   onFileRef.current = onFile;
@@ -318,16 +383,18 @@ function FileField({
       >
         <HugeiconsIcon icon={FileUploadIcon} className="size-5" />
         <span className="text-foreground font-medium">
-          {dragging ? "أفلت الملف هنا" : "رفع صورة الغلاف أو ملف PDF"}
+          {dragging ? "أفلت الملف هنا" : "صورة الغلاف أو ملف PDF"}
         </span>
         <span className="text-[11px]">
-          اسحب الملف هنا أو اضغط للاختيار
-          <span className="hidden md:inline"> أو الصقه بـ Ctrl+V</span>
+          اسحب أو اضغط
+          <span className="hidden md:inline"> أو الصق بـ Ctrl+V</span>
         </span>
         {input}
       </Label>
     );
   }
+
+  const shown = outputImage ?? preview.url;
 
   return (
     <div
@@ -340,53 +407,83 @@ function FileField({
       <div className="bg-muted relative size-16 shrink-0 overflow-hidden rounded-md border">
         <ImageZoom>
           <img
-            src={preview.url}
-            alt={preview.name}
+            src={shown}
+            alt={outputImage ? "الصورة المولّدة" : "صورة الغلاف"}
             className="size-16 object-cover"
           />
         </ImageZoom>
-        {busy && (
+        {outputImage && !generating && (
+          <span className="bg-primary text-primary-foreground pointer-events-none absolute start-0 bottom-0 rounded-tr-md px-1 text-[9px] font-semibold">
+            AI
+          </span>
+        )}
+        {(busy || generating) && (
           <div className="bg-background/60 absolute inset-0 flex items-center justify-center">
             <Spinner />
           </div>
         )}
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="truncate text-xs font-medium" title={preview.name}>
-          {preview.name}
-        </p>
-        <p className="text-muted-foreground text-[11px]">
-          {preview.kind === "pdf" ? "ملف PDF" : "صورة"} · اضغط الصورة للتكبير
-          <span className="hidden md:inline"> · اسحب أو الصق ملفًا لاستبداله</span>
-        </p>
-        {preview.kind === "pdf" && (
-          <div className="flex items-center gap-1.5">
-            <Label className="text-muted-foreground text-[11px] font-medium">
-              الصفحة
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        {outputImage ? (
+          <IconAction
+            label="إزالة الصورة المولّدة"
+            icon={Cancel01Icon}
+            tone="destructive"
+            disabled={disabled || generating}
+            onClick={onRemoveOutput}
+          />
+        ) : (
+          <IconAction
+            label="معالجة الصورة بالذكاء الاصطناعي"
+            icon={AiMagicIcon}
+            tone="primary"
+            disabled={disabled || !canGenerate}
+            busy={generating}
+            onClick={onGenerate}
+          />
+        )}
+        {outputImage && (
+          <IconAction
+            label="إعادة المعالجة بالذكاء الاصطناعي"
+            icon={AiMagicIcon}
+            disabled={disabled || !canGenerate}
+            busy={generating}
+            onClick={onGenerate}
+          />
+        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Label
+              aria-label="استبدال الملف"
+              className={cn(
+                "border-input hover:bg-muted flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-colors",
+                disabled && "cursor-not-allowed opacity-50",
+              )}
+            >
+              <HugeiconsIcon
+                icon={RefreshIcon}
+                className="size-4"
+                strokeWidth={2}
+              />
+              {input}
             </Label>
-            <Input
-              type="number"
-              min={1}
-              value={pdfPage}
-              disabled={disabled || busy}
-              onChange={(e) => onPageChange(Number(e.target.value) || 1)}
-              className="h-6 w-16 text-xs"
-            />
-          </div>
+          </TooltipTrigger>
+          <TooltipContent>استبدال الملف</TooltipContent>
+        </Tooltip>
+        {preview.kind === "pdf" && (
+          <Input
+            type="number"
+            min={1}
+            value={pdfPage}
+            disabled={disabled || busy}
+            onChange={(e) => onPageChange(Number(e.target.value) || 1)}
+            aria-label="صفحة PDF"
+            title="صفحة PDF"
+            className="h-8 w-16 text-xs"
+          />
         )}
       </div>
-
-      <Label
-        className={cn(
-          "border-input hover:bg-muted flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors",
-          disabled && "cursor-not-allowed opacity-50",
-        )}
-      >
-        <HugeiconsIcon icon={RefreshIcon} className="size-3.5" />
-        استبدال
-        {input}
-      </Label>
     </div>
   );
 }
@@ -504,97 +601,40 @@ function ChaptersDivision({
       <ul className="space-y-2">
         {chapters.map((chapter, index) => (
           <li key={chapter.index} className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "size-2.5 shrink-0 rounded-sm",
-                  SEGMENT_COLORS[index % SEGMENT_COLORS.length],
-                )}
-              />
-              <ChapterNameField
-                bookConfig={bookConfig}
-                index={index}
-                disabled={disabled}
-                onBookConfigChange={onBookConfigChange}
-              />
-              <DraftNumberInput
-                value={chapter.pages}
-                disabled={disabled}
-                invalid={allocationError !== null}
-                onCommit={(value) =>
-                  onBookConfigChange(setChapterPageAt(bookConfig, index, value))
-                }
-                className="h-8 w-16 md:w-24"
-              />
-              <span className="text-muted-foreground shrink-0 text-[11px]">
-                صفحة
-                {showSpine && (
-                  <span className="hidden font-mono md:inline" dir="ltr">
-                    {" · "}
-                    {spineWidthCm(chapter.pages, pagesPerSpineCm).toFixed(2)} سم
-                  </span>
-                )}
-              </span>
-            </li>
+            <span
+              className={cn(
+                "size-2.5 shrink-0 rounded-sm",
+                SEGMENT_COLORS[index % SEGMENT_COLORS.length],
+              )}
+            />
+            <ChapterNameField
+              bookConfig={bookConfig}
+              index={index}
+              disabled={disabled}
+              onBookConfigChange={onBookConfigChange}
+            />
+            <DraftNumberInput
+              value={chapter.pages}
+              disabled={disabled}
+              invalid={allocationError !== null}
+              onCommit={(value) =>
+                onBookConfigChange(setChapterPageAt(bookConfig, index, value))
+              }
+              className="h-8 w-16 md:w-24"
+            />
+            <span className="text-muted-foreground shrink-0 text-[11px]">
+              صفحة
+              {showSpine && (
+                <span className="hidden font-mono md:inline" dir="ltr">
+                  {" · "}
+                  {spineWidthCm(chapter.pages, pagesPerSpineCm).toFixed(2)} سم
+                </span>
+              )}
+            </span>
+          </li>
         ))}
       </ul>
     </>
-  );
-}
-
-function ChapterLabelField({
-  labelId,
-  language,
-  englishLabel,
-  uppercase,
-  disabled,
-  onLabelChange,
-  onUppercaseChange,
-}: {
-  labelId: string;
-  language: BookLanguage;
-  englishLabel: boolean;
-  uppercase: boolean;
-  disabled: boolean;
-  onLabelChange: (id: string) => void;
-  onUppercaseChange: (uppercase: boolean) => void;
-}) {
-  const options =
-    language === "en" ? ENGLISH_CHAPTER_LABELS : ARABIC_CHAPTER_LABELS;
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label className="text-muted-foreground text-xs font-medium">
-        تسمية الفصل
-      </Label>
-      <Select
-        value={labelId}
-        disabled={disabled}
-        onValueChange={onLabelChange}
-      >
-        <SelectTrigger className="w-full" size="sm">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <p className="text-muted-foreground text-[11px]">
-        مثال: {formatChapterLabel(labelId, 1, uppercase)}
-      </p>
-      {englishLabel && (
-        <label className="flex items-center gap-2 text-xs">
-          <Checkbox
-            checked={uppercase}
-            disabled={disabled}
-            onCheckedChange={(checked) => onUppercaseChange(checked === true)}
-          />
-          أحرف كبيرة
-        </label>
-      )}
-    </div>
   );
 }
 
@@ -616,7 +656,12 @@ function ChapterNameList({
   const total = Math.max(1, bookConfig.numPages || 1);
   return (
     <div className="flex flex-col gap-2">
-      <DivisionBar chapters={chapters} total={total} remaining={0} invalid={false} />
+      <DivisionBar
+        chapters={chapters}
+        total={total}
+        remaining={0}
+        invalid={false}
+      />
       <p className="text-muted-foreground text-[11px]">
         {chapters.length} {chapters.length === 1 ? "فصل" : "فصول"}
       </p>
@@ -679,7 +724,9 @@ function ChapterNameField({
           aria-label="تلقائي"
           title="تلقائي"
           disabled={disabled || !custom}
-          onClick={() => onBookConfigChange(resetChapterName(bookConfig, index))}
+          onClick={() =>
+            onBookConfigChange(resetChapterName(bookConfig, index))
+          }
         >
           <HugeiconsIcon icon={RefreshIcon} />
         </InputGroupButton>
@@ -704,7 +751,7 @@ function DivisionBar({
     <div
       className={cn(
         "bg-muted flex h-8 w-full overflow-hidden rounded-md",
-        invalid && "ring-1 ring-destructive",
+        invalid && "ring-destructive ring-1",
       )}
       dir="ltr"
       role="img"
@@ -721,7 +768,7 @@ function DivisionBar({
       ))}
       {remaining > 0 && (
         <div
-          className="flex h-full min-w-7 items-center justify-center overflow-hidden bg-destructive px-0.5 text-[11px] font-semibold text-white tabular-nums"
+          className="bg-destructive flex h-full min-w-7 items-center justify-center overflow-hidden px-0.5 text-[11px] font-semibold text-white tabular-nums"
           style={{ width: `${(remaining / scale) * 100}%` }}
           title={`متبقي ${remaining}`}
         >
@@ -777,8 +824,15 @@ function ContrastSegment({
 }
 
 function inkForBackground(color: string): string {
-  const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number);
-  if (!channels || channels.length < 3 || channels.some((channel) => !Number.isFinite(channel))) {
+  const channels = color
+    .match(/[\d.]+/g)
+    ?.slice(0, 3)
+    .map(Number);
+  if (
+    !channels ||
+    channels.length < 3 ||
+    channels.some((channel) => !Number.isFinite(channel))
+  ) {
     return "#f7f3ea";
   }
   const [r, g, b] = channels.map((channel) => {

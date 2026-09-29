@@ -6,18 +6,16 @@ The interface is in Arabic. Optional steps can read the cover with a vision mode
 
 ## Steps
 
-| Step | Required | What it does |
-| --- | --- | --- |
-| إعداد غلاف الكتاب | Yes | Upload a cover image or a PDF page. Choose wrap or single page and how the book is split into chapters. |
-| اسم الكتاب ووصفه | No | Edit the title and, for a wrap, the back-cover description. When run, a vision model suggests them from the cover. A single-page cover asks for the title only. |
-| توليد الصورة بالذكاء الاصطناعي | No | Redraw the cover from a saved prompt. Turn the step off to pass the uploaded image straight through. |
-| تصميم الغلاف | Yes | Page size, front side, font, colors, and the chapter label position. |
+| Step | What it does |
+| --- | --- |
+| الملف والكتاب | Upload a cover image or a PDF page; it shows on the artboard at once. Choose wrap or single page, the book language (English by default), A4 or A5, and how the book is split into chapters. An AI button on the file field redraws the cover with the chosen image model and prompt; the result can be removed to return to the upload. An accordion below holds the title and description (with one-click extraction by a vision model) and the image model and prompt. |
+| التصميم | Font, colors, and — when there is more than one chapter — the chapter word (Volume / الجزء by default), its size, and its position. |
 
-The steps sit in a stepper beside a live preview of the artboard. The preview pane holds the chapter switcher, fold guides, and the PDF export, which downloads one PDF per chapter. Steps 2 and 3 can be switched off; the «تشغيل» button above the stepper runs the enabled ones in order, so the generated image is saved under the extracted title. Each can be rerun on its own. The first step picks the book language (Arabic or English), which sets the chapter-label options and which side of the spine the front cover sits on. The file field accepts click, drag and drop, and paste.
+The two tabs sit beside a live preview of the artboard. The preview pane holds the chapter switcher, on-screen guides (trim, folds, stripe, and centre lines, never exported), and «تصدير», which saves the cover image and one PDF per chapter under the book's name. The file field accepts click, drag and drop, and paste.
 
 ## Cover layouts
 
-**غلاف وشريط** is a 47×29.7 cm artboard: front cover, spine, and back stripe. The front is A4 (21×29.7 cm) or A5 (14.8×21 cm). Spine width is `pages ÷ pages per centimeter` (200 by default, so 200 pages is 1 cm). Stripe width and insets are set in settings, separately for A4 and A5.
+**غلاف وشريط** is a 47×29.7 cm artboard: front cover, spine, and back stripe. The front is A4 (21×29.7 cm) or A5 (14.8×21 cm). Spine width is `pages ÷ pages per centimeter` (167 by default, so 167 pages is 1 cm). Stripe width and insets are set in settings, separately for A4 and A5.
 
 **غلاف صفحة واحدة** is that same A4 or A5 page on its own: no stripe, spine, or spine marks, and no description. Page count and chapters are still used to decide how many covers to export.
 

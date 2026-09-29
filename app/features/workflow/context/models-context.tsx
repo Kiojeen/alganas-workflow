@@ -10,6 +10,7 @@ import {
 import {
   DEFAULT_STRIPE_LAYOUT_A4,
   DEFAULT_STRIPE_LAYOUT_A5,
+  LEGACY_PAGES_PER_SPINE_CM,
   PAGES_PER_SPINE_CM,
   type StripeLayoutCm,
 } from "../lib/cover-layout";
@@ -17,8 +18,8 @@ import {
   DEFAULT_CATALOG,
   DEFAULT_DESCRIBE_MODEL_ID,
   DEFAULT_IMAGE_MODEL_ID,
-  modelSelectionId,
   loadProviderCatalog,
+  modelSelectionId,
   parseModelSelection,
   type CatalogModel,
   type ProviderId,
@@ -39,7 +40,10 @@ type ModelsContextValue = {
   models: CatalogModel[];
   prompts: SavedPrompt[];
   addPrompt: () => void;
-  updatePrompt: (id: string, patch: Partial<Pick<SavedPrompt, "name" | "text">>) => void;
+  updatePrompt: (
+    id: string,
+    patch: Partial<Pick<SavedPrompt, "name" | "text">>,
+  ) => void;
   removePrompt: (id: string) => void;
   pagesPerSpineCm: number;
   setPagesPerSpineCm: (value: number) => void;
@@ -122,9 +126,7 @@ function parseStripe(
 ): StripeLayoutCm {
   const widthRaw = stored?.widthCm ?? legacyWidth;
   const width =
-    typeof widthRaw === "number" &&
-    widthRaw > 0 &&
-    widthRaw !== oldDefaultWidth
+    typeof widthRaw === "number" && widthRaw > 0 && widthRaw !== oldDefaultWidth
       ? widthRaw
       : fallback.widthCm;
   return {
@@ -138,6 +140,12 @@ function parseStripe(
         ? stored.edgeGapCm
         : fallback.edgeGapCm,
   };
+}
+
+/** Keeps a chosen value; the old shipped default rolls forward to the new one. */
+function loadPagesPerSpineCm(stored: unknown) {
+  if (typeof stored !== "number" || !(stored > 0)) return PAGES_PER_SPINE_CM;
+  return stored === LEGACY_PAGES_PER_SPINE_CM ? PAGES_PER_SPINE_CM : stored;
 }
 
 const PREVIOUS_DESCRIBE_DEFAULT = modelSelectionId(
@@ -161,7 +169,10 @@ function loadDescribeDefault(parsed: {
     DEFAULT_DESCRIBE_MODEL_ID,
   );
   const revision = parsed.modelDefaultsRevision ?? 0;
-  if (revision < MODEL_DEFAULTS_REVISION && stored === PREVIOUS_DESCRIBE_DEFAULT) {
+  if (
+    revision < MODEL_DEFAULTS_REVISION &&
+    stored === PREVIOUS_DESCRIBE_DEFAULT
+  ) {
     return DEFAULT_DESCRIBE_MODEL_ID;
   }
   return stored;
@@ -215,10 +226,7 @@ function loadPrefs(): {
         : DEFAULT_PROMPTS;
       return {
         prompts: prompts.length > 0 ? prompts : DEFAULT_PROMPTS,
-        pagesPerSpineCm:
-          typeof parsed.pagesPerSpineCm === "number" && parsed.pagesPerSpineCm > 0
-            ? parsed.pagesPerSpineCm
-            : PAGES_PER_SPINE_CM,
+        pagesPerSpineCm: loadPagesPerSpineCm(parsed.pagesPerSpineCm),
         stripeA4: parseStripe(
           parsed.stripeA4,
           parsed.stripeWidthA4Cm,
@@ -287,10 +295,7 @@ function loadPrefsFromUnknown(parsed: Record<string, unknown>) {
     : fallback.prompts;
   return {
     prompts: prompts.length > 0 ? prompts : fallback.prompts,
-    pagesPerSpineCm:
-      typeof parsed.pagesPerSpineCm === "number" && parsed.pagesPerSpineCm > 0
-        ? parsed.pagesPerSpineCm
-        : fallback.pagesPerSpineCm,
+    pagesPerSpineCm: loadPagesPerSpineCm(parsed.pagesPerSpineCm),
     stripeA4: parseStripe(
       parsed.stripeA4 as Partial<StripeLayoutCm> | undefined,
       undefined,

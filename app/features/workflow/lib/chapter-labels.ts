@@ -1,10 +1,5 @@
 export type ChapterLabelId =
-  | "ar:جزء"
-  | "ar:مجلد"
-  | "ar:فصل"
-  | "en:Chapter"
-  | "en:Volume"
-  | "en:Part";
+  "ar:جزء" | "ar:مجلد" | "ar:فصل" | "en:Chapter" | "en:Volume" | "en:Part";
 
 export const ARABIC_CHAPTER_LABELS: { id: ChapterLabelId; label: string }[] = [
   { id: "ar:جزء", label: "الجزء" },
@@ -93,7 +88,9 @@ export function arabicOrdinal(n: number): string {
   return `${COMPOUND_UNITS[units]} و${TENS[tens]}`;
 }
 
-export function normalizeChapterLabelId(value: string | null | undefined): ChapterLabelId {
+export function normalizeChapterLabelId(
+  value: string | null | undefined,
+): ChapterLabelId {
   switch ((value ?? "").trim()) {
     case "ar:جزء":
     case "الجزء":
@@ -117,11 +114,18 @@ export function normalizeChapterLabelId(value: string | null | undefined): Chapt
     case "Chapter":
       return "en:Chapter";
     default:
-      return "ar:فصل";
+      return "en:Volume";
   }
 }
 
-export function isEnglishChapterLabel(value: string | null | undefined): boolean {
+/** The label a book falls back to when its language changes. */
+export function defaultChapterLabel(language: "ar" | "en"): ChapterLabelId {
+  return language === "en" ? "en:Volume" : "ar:جزء";
+}
+
+export function isEnglishChapterLabel(
+  value: string | null | undefined,
+): boolean {
   return normalizeChapterLabelId(value).startsWith("en:");
 }
 
