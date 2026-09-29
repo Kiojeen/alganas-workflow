@@ -44,10 +44,13 @@ import {
   SPINE_MARK_HEIGHT_CM,
   SPINE_MARK_WIDTH_CM,
   SPINE_TITLE_MIN_GAP_CM,
+  spineHiddenFor,
   spineNumberFontSize,
   spineNumberFromTopCm,
+  spineNumberLines,
   STRIPE_INSET_CM,
   STRIPE_TEXT,
+  STRIPE_TEXT_SIZE_CM,
   wrapWords,
 } from "./cover-layout";
 
@@ -363,6 +366,11 @@ async function drawVectorCover(args: {
   const pageWidth = cmToPt(singlePage ? dims.width : ARTBOARD_WIDTH_CM);
   const pageHeight = cmToPt(singlePage ? dims.height : ARTBOARD_HEIGHT_CM);
   const page = pdf.addPage([pageWidth, pageHeight]);
+  const hideSpine = spineHiddenFor(
+    args.pages,
+    args.pagesPerSpineCm,
+    args.bookConfig.forceSpine,
+  );
   const layout = layoutCoverCm(
     args.pages,
     (args.bookConfig.coverSide ?? "rtl") as CoverSide,
@@ -373,6 +381,7 @@ async function drawVectorCover(args: {
       insetCm: args.stripeInsetCm,
       edgeGapCm: args.stripeEdgeGapCm,
     },
+    hideSpine,
   );
   const fillHex = args.bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeFillHex =
@@ -450,13 +459,13 @@ async function drawVectorCover(args: {
   );
 
   page.drawRectangle({ ...back, color: color(fillHex) });
-  page.drawRectangle({ ...spine, color: color(fillHex) });
+  if (!hideSpine) page.drawRectangle({ ...spine, color: color(fillHex) });
   page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
 
   const padX = cmToPt(args.stripeInsetCm ?? STRIPE_INSET_CM);
   const padY = cmToPt(args.stripeInsetCm ?? STRIPE_INSET_CM);
   const maxWidth = stripe.width - padX * 2;
-  const fontSize = cmToPt(0.42);
+  const fontSize = cmToPt(STRIPE_TEXT_SIZE_CM * (pair.descriptionScale ?? 1));
   const lineHeight = fontSize * 1.45;
   const stripeFont = fontForText(stripeText, descriptionFont, arabic, pair);
   const lines = wrapWords(stripeText, maxWidth, (value) =>
@@ -486,10 +495,12 @@ async function drawVectorCover(args: {
 
   const title = bookName.trim();
   const chapterNumber = args.chapterNumber?.trim() ?? "";
-  const spineInk = color(contrastHex(fillHex));
+  const spineInk = color(
+    args.bookConfig.spineTextColor?.trim() || contrastHex(fillHex),
+  );
   const cx = cmToPt(layout.spineX + layout.spineW / 2);
 
-  if ((title || chapterNumber) && layout.spineW > 0.08) {
+  if (!hideSpine && (title || chapterNumber) && layout.spineW > 0.08) {
     const numberFont = fontForText(chapterNumber, titleFont, arabic, pair);
     const spineFont = fontForText(title, titleFont, arabic, pair);
     const baseSize = Math.min(
@@ -506,19 +517,24 @@ async function drawVectorCover(args: {
       ? cmToPt(spineNumberFromTopCm(args.bookConfig.pageSize))
       : 0;
     const zoneBottom = spine.height - markH - edge;
-    if (chapterNumber) {
+    const numberLines = spineNumberLines(chapterNumber);
+    if (numberLines.length > 0) {
       const maxNumberWidth = spine.width * 0.92;
-      const numberWidth = numberFont.widthOfTextAtSize(
-        chapterNumber,
-        numberSize,
+      const widest = Math.max(
+        ...numberLines.map((line) =>
+          numberFont.widthOfTextAtSize(line, numberSize),
+        ),
       );
-      if (numberWidth > maxNumberWidth && numberWidth > 0) {
-        numberSize *= maxNumberWidth / numberWidth;
+      if (widest > maxNumberWidth && widest > 0) {
+        numberSize *= maxNumberWidth / widest;
       }
     }
-    const numberAlong = chapterNumber
-      ? numberFont.heightAtSize(numberSize, { descender: true })
-      : 0;
+    const numberLineHeight = numberSize * 1.1;
+    const numberAlong =
+      numberLines.length > 0
+        ? numberLineHeight * (numberLines.length - 1) +
+          numberFont.heightAtSize(numberSize, { descender: true })
+        : 0;
     const zoneTop = chapterNumber
       ? numberFromTop + numberAlong + minGap
       : markH + edge;
@@ -532,18 +548,17 @@ async function drawVectorCover(args: {
         })
       : null;
 
-    if (chapterNumber) {
-      const numberWidth = numberFont.widthOfTextAtSize(
-        chapterNumber,
-        numberSize,
-      );
+    if (numberLines.length > 0) {
       const ascent = numberFont.heightAtSize(numberSize, { descender: false });
-      page.drawText(chapterNumber, {
-        x: cx - numberWidth / 2,
-        y: spineTop - numberFromTop - ascent,
-        size: numberSize,
-        font: numberFont,
-        color: spineInk,
+      numberLines.forEach((line, index) => {
+        const lineWidth = numberFont.widthOfTextAtSize(line, numberSize);
+        page.drawText(line, {
+          x: cx - lineWidth / 2,
+          y: spineTop - numberFromTop - ascent - index * numberLineHeight,
+          size: numberSize,
+          font: numberFont,
+          color: spineInk,
+        });
       });
     }
     if (fitted) {
@@ -566,23 +581,25 @@ async function drawVectorCover(args: {
     }
   }
 
-  const markW = cmToPt(SPINE_MARK_WIDTH_CM);
-  const markH = cmToPt(SPINE_MARK_HEIGHT_CM);
-  const markX = cmToPt(layout.spineX + layout.spineW / 2) - markW / 2;
-  page.drawRectangle({
-    x: markX,
-    y: spine.y + spine.height - markH,
-    width: markW,
-    height: markH,
-    color: color(markHex),
-  });
-  page.drawRectangle({
-    x: markX,
-    y: spine.y,
-    width: markW,
-    height: markH,
-    color: color(markHex),
-  });
+  if (!hideSpine) {
+    const markW = cmToPt(SPINE_MARK_WIDTH_CM);
+    const markH = cmToPt(SPINE_MARK_HEIGHT_CM);
+    const markX = cmToPt(layout.spineX + layout.spineW / 2) - markW / 2;
+    page.drawRectangle({
+      x: markX,
+      y: spine.y + spine.height - markH,
+      width: markW,
+      height: markH,
+      color: color(markHex),
+    });
+    page.drawRectangle({
+      x: markX,
+      y: spine.y,
+      width: markW,
+      height: markH,
+      color: color(markHex),
+    });
+  }
 
   page.drawRectangle({ ...front, color: color("#e7e1d4") });
   drawCoverImage(page, coverImage, front);
@@ -637,6 +654,7 @@ export async function exportCoverPdf(args: {
         chapters.length > 1
           ? formatSpineNumber(args.bookConfig.chapterLabel, chapter.index)
           : undefined,
+      // Spine visibility is decided per chapter from its own page count.
       pagesPerSpineCm: args.pagesPerSpineCm,
       stripeWidthCm: args.stripeWidthCm,
       stripeInsetCm: args.stripeInsetCm,

@@ -65,6 +65,8 @@ export function clampChapterLabelSize(value: number | undefined) {
     Math.max(MIN_CHAPTER_LABEL_SIZE_CM, value),
   );
 }
+/** Spines thinner than this are dropped from the wrap unless the user forces them. */
+export const MIN_SPINE_CM = 1;
 export const SPINE_MARK_WIDTH_CM = 0.1;
 export const SPINE_MARK_HEIGHT_CM = 0.7;
 export const SPINE_TITLE_MIN_GAP_CM = 1;
@@ -77,6 +79,7 @@ export function spineNumberFromTopCm(pageSize: CoverPageSize = "a4") {
 export function spineNumberFontSize(baseSize: number, text: string) {
   return /[\u0600-\u06FF]/.test(text) ? baseSize * 0.75 : baseSize;
 }
+export const STRIPE_TEXT_SIZE_CM = 0.42;
 export const STRIPE_TEXT =
   "The afternoon light slipped across the desk and caught the edge of a half-open notebook. Outside, a dry wind moved through the trees as if turning pages of its own. Someone had left a cup of tea to cool beside a stack of letters, each one waiting for a reply that might never come. In that quiet, even the smallest mark of ink felt like a beginning.";
 
@@ -103,6 +106,10 @@ export type DrawCoverOptions = {
   chapterLabelSizeCm?: number;
   stripeText?: string;
   spineMarkColor?: string;
+  spineTextColor?: string;
+  /** Skip the spine and everything on it. */
+  hideSpine?: boolean;
+  descriptionScale?: number;
   titleFont?: string;
   descriptionFont?: string;
   labelFont?: string;
@@ -128,8 +135,25 @@ export function wrapWidthCm(
   pages: number,
   pagesPerCm = PAGES_PER_SPINE_CM,
   pageWidthCm = A4_WIDTH_CM,
+  hideSpine = false,
 ): number {
-  return pageWidthCm * 2 + spineWidthCm(pages, pagesPerCm);
+  return pageWidthCm * 2 + (hideSpine ? 0 : spineWidthCm(pages, pagesPerCm));
+}
+
+/** True when the natural spine is too thin to print and the user has not forced it. */
+export function spineHiddenFor(
+  pages: number,
+  pagesPerCm = PAGES_PER_SPINE_CM,
+  forceSpine = false,
+): boolean {
+  return !forceSpine && spineWidthCm(pages, pagesPerCm) < MIN_SPINE_CM;
+}
+
+/** Lines for the chapter number on the spine: Arabic ordinals stack word under word. */
+export function spineNumberLines(chapterNumber: string): string[] {
+  const text = chapterNumber.trim();
+  if (!text) return [];
+  return isRtlText(text) ? text.split(/\s+/).filter(Boolean) : [text];
 }
 
 export function isSinglePageCover(config: { coverKind?: CoverKind }) {
@@ -172,6 +196,7 @@ export function layoutCoverCm(
   pagesPerCm = PAGES_PER_SPINE_CM,
   pageSize: CoverPageSize = "a4",
   stripe?: Partial<StripeLayoutCm>,
+  hideSpine = false,
 ): CoverLayoutCm {
   const dims = pageDimsCm(pageSize);
   const metrics = {
@@ -182,10 +207,10 @@ export function layoutCoverCm(
       ),
     ),
   } as StripeLayoutCm;
-  const wrapCm = wrapWidthCm(pages, pagesPerCm, dims.width);
+  const wrapCm = wrapWidthCm(pages, pagesPerCm, dims.width, hideSpine);
   const fitScale = wrapCm > ARTBOARD_WIDTH_CM ? ARTBOARD_WIDTH_CM / wrapCm : 1;
   const a4W = dims.width * fitScale;
-  const spineW = spineWidthCm(pages, pagesPerCm) * fitScale;
+  const spineW = hideSpine ? 0 : spineWidthCm(pages, pagesPerCm) * fitScale;
   const wrapW = a4W * 2 + spineW;
   const originX = (ARTBOARD_WIDTH_CM - wrapW) / 2;
   const originY = 0;
@@ -388,6 +413,9 @@ export function drawCoverOnCanvas(
     chapterLabelSizeCm,
     stripeText,
     spineMarkColor,
+    spineTextColor,
+    hideSpine = false,
+    descriptionScale,
     titleFont,
     descriptionFont,
     labelFont,
@@ -418,11 +446,18 @@ export function drawCoverOnCanvas(
   const spineWeight = titleWeight ?? 600;
   const stripeWeight = descriptionWeight ?? 400;
   const chapterWeight = labelWeight ?? 700;
-  const layout = layoutCoverCm(pages, coverSide, pagesPerSpineCm, pageSize, {
-    widthCm: stripeWidthCm,
-    insetCm: stripeInsetCm,
-    edgeGapCm: stripeEdgeGapCm,
-  });
+  const layout = layoutCoverCm(
+    pages,
+    coverSide,
+    pagesPerSpineCm,
+    pageSize,
+    {
+      widthCm: stripeWidthCm,
+      insetCm: stripeInsetCm,
+      edgeGapCm: stripeEdgeGapCm,
+    },
+    hideSpine,
+  );
   const p = (cm: number) => cmToPx(cm, dpi);
 
   canvas.width = widthPx;
@@ -447,7 +482,7 @@ export function drawCoverOnCanvas(
 
   ctx.fillStyle = fill;
   ctx.fillRect(backX, originY, a4W, coverH);
-  ctx.fillRect(spineX, originY, Math.max(1, spineW), coverH);
+  if (!hideSpine) ctx.fillRect(spineX, originY, Math.max(1, spineW), coverH);
   ctx.fillStyle = stripeFill;
   ctx.fillRect(stripeX, originY, stripeW, coverH);
 
@@ -462,31 +497,34 @@ export function drawCoverOnCanvas(
     fontFamily: descriptionFamily,
     fontWeight: stripeWeight,
     insetCm: stripeInsetCm ?? defaultStripeLayout(pageSize).insetCm,
+    scale: descriptionScale,
   });
 
-  drawSpineTitle(ctx, {
-    x: spineX,
-    y: originY,
-    width: spineW,
-    height: coverH,
-    title: bookName,
-    chapterNumber,
-    fill,
-    rtl: frontOnLeft,
-    fontFamily: titleFamily,
-    fontWeight: spineWeight,
-    dpi,
-    pageSize,
-  });
+  if (!hideSpine) {
+    drawSpineTitle(ctx, {
+      x: spineX,
+      y: originY,
+      width: spineW,
+      height: coverH,
+      title: bookName,
+      chapterNumber,
+      ink: spineTextColor?.trim() || contrastHex(fill),
+      rtl: frontOnLeft,
+      fontFamily: titleFamily,
+      fontWeight: spineWeight,
+      dpi,
+      pageSize,
+    });
 
-  drawSpineMarks(ctx, {
-    x: spineX,
-    y: originY,
-    width: spineW,
-    height: coverH,
-    dpi,
-    color: spineMarkColor?.trim() || contrastHex(fill),
-  });
+    drawSpineMarks(ctx, {
+      x: spineX,
+      y: originY,
+      width: spineW,
+      height: coverH,
+      dpi,
+      color: spineMarkColor?.trim() || contrastHex(fill),
+    });
+  }
 
   ctx.fillStyle = "#e7e1d4";
   ctx.fillRect(frontX, originY, a4W, coverH);
@@ -717,7 +755,7 @@ function drawSpineTitle(
     height: number;
     title: string;
     chapterNumber?: string;
-    fill: string;
+    ink: string;
     rtl: boolean;
     fontFamily: string;
     fontWeight: number;
@@ -729,7 +767,7 @@ function drawSpineTitle(
   const chapterNumber = args.chapterNumber?.trim() ?? "";
   if ((!title && !chapterNumber) || args.width < 6) return;
 
-  const ink = contrastHex(args.fill);
+  const ink = args.ink;
   const markH = cmToPx(SPINE_MARK_HEIGHT_CM, args.dpi);
   const edge = cmToPx(0.15, args.dpi);
   const minGap = cmToPx(SPINE_TITLE_MIN_GAP_CM, args.dpi);
@@ -741,19 +779,24 @@ function drawSpineTitle(
     return ctx.measureText(text).width;
   };
 
+  const numberLines = spineNumberLines(chapterNumber);
   let numberSize = spineNumberFontSize(baseSize, chapterNumber);
   const numberFromTop = chapterNumber
     ? cmToPx(spineNumberFromTopCm(args.pageSize), args.dpi)
     : 0;
   const zoneBottom = args.height - markH - edge;
-  if (chapterNumber) {
+  if (numberLines.length > 0) {
     const maxNumberWidth = args.width * 0.92;
-    const numberWidth = widthOf(chapterNumber, numberSize);
-    if (numberWidth > maxNumberWidth && numberWidth > 0) {
-      numberSize *= maxNumberWidth / numberWidth;
+    const widest = Math.max(
+      ...numberLines.map((line) => widthOf(line, numberSize)),
+    );
+    if (widest > maxNumberWidth && widest > 0) {
+      numberSize *= maxNumberWidth / widest;
     }
   }
-  const numberAlong = chapterNumber ? numberSize : 0;
+  const numberLineHeight = numberSize * 1.1;
+  const numberAlong =
+    numberLines.length > 0 ? numberLineHeight * numberLines.length : 0;
 
   const zoneTop = chapterNumber
     ? numberFromTop + numberAlong + minGap
@@ -792,13 +835,21 @@ function drawSpineTitle(
     ctx.restore();
   };
 
-  if (chapterNumber) {
+  if (numberLines.length > 0) {
     ctx.save();
     ctx.fillStyle = ink;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
+    ctx.direction = isRtlText(chapterNumber) ? "rtl" : "ltr";
     ctx.font = `${args.fontWeight} ${numberSize}px ${family}`;
-    ctx.fillText(chapterNumber, cx, args.y + numberFromTop, args.width * 0.92);
+    for (const [index, line] of numberLines.entries()) {
+      ctx.fillText(
+        line,
+        cx,
+        args.y + numberFromTop + index * numberLineHeight,
+        args.width * 0.92,
+      );
+    }
     ctx.restore();
   }
   if (!fitted) return;
@@ -826,6 +877,7 @@ function drawStripeParagraph(
     fontFamily: string;
     fontWeight: number;
     insetCm?: number;
+    scale?: number;
   },
 ) {
   if (!args.text) return;
@@ -834,7 +886,7 @@ function drawStripeParagraph(
   const padX = cmToPx(inset, args.dpi);
   const padY = cmToPx(inset, args.dpi);
   const maxWidth = args.width - padX * 2;
-  const fontSize = cmToPx(0.42, args.dpi);
+  const fontSize = cmToPx(STRIPE_TEXT_SIZE_CM * (args.scale ?? 1), args.dpi);
   const lineHeight = fontSize * 1.45;
 
   ctx.save();

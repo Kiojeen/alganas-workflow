@@ -11,11 +11,11 @@ The interface is in Arabic. Optional steps can read the cover with a vision mode
 | الملف والكتاب | Upload a cover image or a PDF page; it shows on the artboard at once. Choose wrap or single page, the book language (English by default), A4 or A5, and how the book is split into chapters. An AI button on the file field redraws the cover with the chosen image model and prompt; the result can be removed to return to the upload. An accordion below holds the title and description (with one-click extraction by a vision model) and the image model and prompt. |
 | التصميم | Font, colors, and — when there is more than one chapter — the chapter word (Volume / الجزء by default), its size, and its position. |
 
-The two tabs sit beside a live preview of the artboard. The preview pane holds the chapter switcher, on-screen guides (trim, folds, stripe, and centre lines, never exported), and «تصدير», which saves the cover image and one PDF per chapter under the book's name. The file field accepts click, drag and drop, and paste.
+The two tabs sit beside a live preview of the artboard. Above the tabs, «تصدير» saves the cover image and one PDF per chapter under the book's name, and the ruler toggle shows on-screen guides (trim, folds, stripe, and centre lines, never exported). The preview pane has a chapter dropdown. The file field accepts click, drag and drop, and paste, and carries three AI buttons: generate the image, extract the title and description, or both in sequence.
 
 ## Cover layouts
 
-**غلاف وشريط** is a 47×29.7 cm artboard: front cover, spine, and back stripe. The front is A4 (21×29.7 cm) or A5 (14.8×21 cm). Spine width is `pages ÷ pages per centimeter` (167 by default, so 167 pages is 1 cm). Stripe width and insets are set in settings, separately for A4 and A5.
+**غلاف وشريط** is a 47×29.7 cm artboard: front cover, spine, and back stripe. The front is A4 (21×29.7 cm) or A5 (14.8×21 cm). Spine width is `pages ÷ pages per centimeter` (167 by default, so 167 pages is 1 cm). A spine under 1 cm is dropped, along with its text, marks, and colour controls, unless «إظهار الكعب» in the design tab forces it. Arabic chapter numbers with several words stack one word per line on the spine. Stripe width and insets are set in settings, separately for A4 and A5.
 
 **غلاف صفحة واحدة** is that same A4 or A5 page on its own: no stripe, spine, or spine marks, and no description. Page count and chapters are still used to decide how many covers to export.
 

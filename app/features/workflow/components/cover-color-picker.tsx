@@ -1,6 +1,9 @@
-import Color from "color";
 import { useEffect, useRef, useState } from "react";
+import { ContrastIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import Color from "color";
 
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   ColorPicker,
@@ -15,11 +18,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 
 function toHex(value: Parameters<typeof Color.rgb>[0]): string {
   if (Array.isArray(value)) {
-    return Color.rgb(Number(value[0]), Number(value[1]), Number(value[2])).hex();
+    return Color.rgb(
+      Number(value[0]),
+      Number(value[1]),
+      Number(value[2]),
+    ).hex();
   }
   return Color.rgb(value).hex();
 }
@@ -31,6 +37,7 @@ export function CoverColorPicker({
   onChange,
   disabled,
   swatches,
+  special,
 }: {
   label: string;
   value: string;
@@ -38,6 +45,8 @@ export function CoverColorPicker({
   onChange: (hex: string) => void;
   disabled: boolean;
   swatches?: string[];
+  /** A computed swatch shown last, e.g. the ink that contrasts with what sits under the text. */
+  special?: { hex: string; backdrop: string; label: string };
 }) {
   const committed = value || fallback;
   const [local, setLocal] = useState(committed);
@@ -59,7 +68,9 @@ export function CoverColorPicker({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="text-muted-foreground text-xs font-medium">{label}</Label>
+      <Label className="text-muted-foreground text-xs font-medium">
+        {label}
+      </Label>
       {swatches && swatches.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {swatches.map((hex) => (
@@ -82,6 +93,34 @@ export function CoverColorPicker({
               style={{ backgroundColor: hex }}
             />
           ))}
+          {special && (
+            <button
+              type="button"
+              disabled={disabled}
+              title={special.label}
+              aria-label={special.label}
+              onClick={() => {
+                dragging.current = false;
+                setLocal(special.hex);
+                onChange(special.hex);
+              }}
+              className={cn(
+                "flex size-7 items-center justify-center rounded-md border shadow-xs transition-transform disabled:opacity-50",
+                local.toLowerCase() === special.hex.toLowerCase()
+                  ? "ring-primary ring-2 ring-offset-1"
+                  : "hover:scale-105",
+              )}
+              style={{
+                background: `linear-gradient(135deg, ${special.backdrop} 50%, ${special.hex} 50%)`,
+              }}
+            >
+              <HugeiconsIcon
+                icon={ContrastIcon}
+                className="size-3.5 text-white drop-shadow-[0_0_1.5px_rgba(0,0,0,1)]"
+                strokeWidth={2.5}
+              />
+            </button>
+          )}
         </div>
       )}
       <Popover

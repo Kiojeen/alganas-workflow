@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  AiImageIcon,
   AiMagicIcon,
   Cancel01Icon,
   FileUploadIcon,
   RefreshIcon,
+  TextCreationIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
@@ -82,10 +84,17 @@ export type FileFieldProps = {
   /** AI result shown in place of the upload until removed. */
   outputImage: string | null;
   generating: boolean;
-  canGenerate: boolean;
-  onGenerate: () => void;
+  extracting: boolean;
+  canRunAi: boolean;
+  onGenerateImage: () => void;
+  onGenerateText: () => void;
+  onGenerateBoth: () => void;
   onRemoveOutput: () => void;
 };
+
+/** Selected segment in a toggle group reads as the primary palette color. */
+export const ACTIVE_TOGGLE_CLASS =
+  "data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:border-primary hover:data-[state=on]:bg-primary/90 hover:data-[state=on]:text-primary-foreground";
 
 export function UploadFileStep({
   file,
@@ -157,10 +166,16 @@ export function UploadFileStep({
             spacing={0}
             className="w-full"
           >
-            <ToggleGroupItem value="en" className="flex-1 text-xs">
+            <ToggleGroupItem
+              value="en"
+              className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
+            >
               English
             </ToggleGroupItem>
-            <ToggleGroupItem value="ar" className="flex-1 text-xs">
+            <ToggleGroupItem
+              value="ar"
+              className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
+            >
               عربي
             </ToggleGroupItem>
           </ToggleGroup>
@@ -204,13 +219,19 @@ export function UploadFileStep({
           >
             <ToggleGroupItem
               value="pages"
-              className="flex-1 text-xs whitespace-normal"
+              className={cn(
+                "flex-1 text-xs whitespace-normal",
+                ACTIVE_TOGGLE_CLASS,
+              )}
             >
               حسب الصفحات
             </ToggleGroupItem>
             <ToggleGroupItem
               value="chapters"
-              className="flex-1 text-xs whitespace-normal"
+              className={cn(
+                "flex-1 text-xs whitespace-normal",
+                ACTIVE_TOGGLE_CLASS,
+              )}
             >
               حسب الفصول
             </ToggleGroupItem>
@@ -238,7 +259,6 @@ export function UploadFileStep({
           onBookConfigChange={onBookConfigChange}
         />
       )}
-
 
       <FileField {...file} disabled={disabled} />
       <Separator />
@@ -316,8 +336,11 @@ function FileField({
   onPageChange,
   outputImage,
   generating,
-  canGenerate,
-  onGenerate,
+  extracting,
+  canRunAi,
+  onGenerateImage,
+  onGenerateText,
+  onGenerateBoth,
   onRemoveOutput,
 }: FileFieldProps & { disabled: boolean }) {
   const [dragging, setDragging] = useState(false);
@@ -395,25 +418,27 @@ function FileField({
   }
 
   const shown = outputImage ?? preview.url;
+  const aiBusy = generating || extracting;
+  const aiDisabled = disabled || !canRunAi || aiBusy;
 
   return (
     <div
       {...dragProps}
       className={cn(
-        "flex items-center gap-3 rounded-md border p-2 transition-colors",
+        "bg-card flex items-stretch gap-3 rounded-lg border p-2 transition-colors",
         dragging && "border-primary bg-primary/10",
       )}
     >
-      <div className="bg-muted relative size-16 shrink-0 overflow-hidden rounded-md border">
+      <div className="bg-muted relative h-24 w-[4.5rem] shrink-0 overflow-hidden rounded-md border">
         <ImageZoom>
           <img
             src={shown}
             alt={outputImage ? "الصورة المولّدة" : "صورة الغلاف"}
-            className="size-16 object-cover"
+            className="h-24 w-[4.5rem] object-cover"
           />
         </ImageZoom>
         {outputImage && !generating && (
-          <span className="bg-primary text-primary-foreground pointer-events-none absolute start-0 bottom-0 rounded-tr-md px-1 text-[9px] font-semibold">
+          <span className="bg-primary text-primary-foreground pointer-events-none absolute start-1 top-1 rounded px-1 text-[9px] font-semibold">
             AI
           </span>
         )}
@@ -424,65 +449,80 @@ function FileField({
         )}
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        {outputImage ? (
+      <div className="flex min-w-0 flex-1 flex-col justify-between gap-2 py-0.5">
+        <div className="flex items-center gap-1.5">
           <IconAction
-            label="إزالة الصورة المولّدة"
-            icon={Cancel01Icon}
-            tone="destructive"
-            disabled={disabled || generating}
-            onClick={onRemoveOutput}
+            label="توليد الصورة بالذكاء الاصطناعي"
+            icon={AiImageIcon}
+            tone="primary"
+            disabled={aiDisabled}
+            busy={generating && !extracting}
+            onClick={onGenerateImage}
           />
-        ) : (
           <IconAction
-            label="معالجة الصورة بالذكاء الاصطناعي"
+            label="استخراج الاسم والوصف"
+            icon={TextCreationIcon}
+            tone="primary"
+            disabled={aiDisabled}
+            busy={extracting && !generating}
+            onClick={onGenerateText}
+          />
+          <IconAction
+            label="الاسم والوصف ثم الصورة"
             icon={AiMagicIcon}
             tone="primary"
-            disabled={disabled || !canGenerate}
-            busy={generating}
-            onClick={onGenerate}
+            disabled={aiDisabled}
+            busy={generating && extracting}
+            onClick={onGenerateBoth}
           />
-        )}
-        {outputImage && (
-          <IconAction
-            label="إعادة المعالجة بالذكاء الاصطناعي"
-            icon={AiMagicIcon}
-            disabled={disabled || !canGenerate}
-            busy={generating}
-            onClick={onGenerate}
-          />
-        )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Label
-              aria-label="استبدال الملف"
-              className={cn(
-                "border-input hover:bg-muted flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-colors",
-                disabled && "cursor-not-allowed opacity-50",
-              )}
-            >
-              <HugeiconsIcon
-                icon={RefreshIcon}
-                className="size-4"
-                strokeWidth={2}
-              />
-              {input}
-            </Label>
-          </TooltipTrigger>
-          <TooltipContent>استبدال الملف</TooltipContent>
-        </Tooltip>
-        {preview.kind === "pdf" && (
-          <Input
-            type="number"
-            min={1}
-            value={pdfPage}
-            disabled={disabled || busy}
-            onChange={(e) => onPageChange(Number(e.target.value) || 1)}
-            aria-label="صفحة PDF"
-            title="صفحة PDF"
-            className="h-8 w-16 text-xs"
-          />
-        )}
+          {outputImage && (
+            <IconAction
+              label="إزالة الصورة المولّدة"
+              icon={Cancel01Icon}
+              tone="destructive"
+              disabled={disabled || generating}
+              onClick={onRemoveOutput}
+            />
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Label
+                aria-label="استبدال الملف"
+                className={cn(
+                  "border-input hover:bg-muted flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-colors",
+                  disabled && "cursor-not-allowed opacity-50",
+                )}
+              >
+                <HugeiconsIcon
+                  icon={RefreshIcon}
+                  className="size-4"
+                  strokeWidth={2}
+                />
+                {input}
+              </Label>
+            </TooltipTrigger>
+            <TooltipContent>استبدال الملف</TooltipContent>
+          </Tooltip>
+          {preview.kind === "pdf" && (
+            <Input
+              type="number"
+              min={1}
+              value={pdfPage}
+              disabled={disabled || busy}
+              onChange={(e) => onPageChange(Number(e.target.value) || 1)}
+              aria-label="صفحة PDF"
+              title="صفحة PDF"
+              className="h-8 w-16 text-xs"
+            />
+          )}
+          <span className="text-muted-foreground truncate text-[11px]">
+            {preview.kind === "pdf" ? "PDF" : "صورة"}
+            {outputImage ? " · مولّدة" : ""}
+          </span>
+        </div>
       </div>
     </div>
   );

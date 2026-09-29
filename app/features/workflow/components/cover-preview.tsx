@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download01Icon, ImageUploadIcon } from "@hugeicons/core-free-icons";
+import { Book02Icon, ImageUploadIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { useModels } from "../context";
 import {
@@ -31,6 +34,7 @@ import {
   resolveChapters,
   sampleChapterBackdrop,
   shiftHex,
+  spineHiddenFor,
   spineWidthCm,
   wrapWidthCm,
   type GuideLine,
@@ -85,9 +89,6 @@ export function CoverPreview({
   chapterIndex,
   onChapterIndexChange,
   showLines,
-  onShowLinesChange,
-  onExport,
-  exporting,
   onBookConfigChange,
 }: {
   sourceImage: string | null;
@@ -96,9 +97,6 @@ export function CoverPreview({
   chapterIndex: number;
   onChapterIndexChange: (index: number) => void;
   showLines: boolean;
-  onShowLinesChange: (value: boolean) => void;
-  onExport: () => void;
-  exporting: boolean;
   onBookConfigChange: (config: BookConfig) => void;
 }) {
   const { pagesPerSpineCm, stripeA4, stripeA5 } = useModels();
@@ -111,7 +109,8 @@ export function CoverPreview({
 
   const chapters = useMemo(() => resolveChapters(bookConfig), [bookConfig]);
   const allocationError = unassignedPagesError(bookConfig);
-  const chapter = chapters[Math.min(chapterIndex, chapters.length - 1)];
+  const safeIndex = Math.min(chapterIndex, chapters.length - 1);
+  const chapter = chapters[safeIndex];
   const hasChapters = chapters.length > 1;
   const fontPair = getCoverFontPair(bookConfig.fontPair);
   const pageSize = bookConfig.pageSize ?? "a4";
@@ -120,8 +119,18 @@ export function CoverPreview({
   const boardWidth = singlePage ? pageDims.width : ARTBOARD_WIDTH_CM;
   const boardHeight = singlePage ? pageDims.height : ARTBOARD_HEIGHT_CM;
   const stripeLayout = pageSize === "a5" ? stripeA5 : stripeA4;
-  const spineCm = spineWidthCm(chapter.pages, pagesPerSpineCm);
-  const wrapCm = wrapWidthCm(chapter.pages, pagesPerSpineCm, pageDims.width);
+  const hideSpine = spineHiddenFor(
+    chapter.pages,
+    pagesPerSpineCm,
+    bookConfig.forceSpine,
+  );
+  const naturalSpineCm = spineWidthCm(chapter.pages, pagesPerSpineCm);
+  const wrapCm = wrapWidthCm(
+    chapter.pages,
+    pagesPerSpineCm,
+    pageDims.width,
+    hideSpine,
+  );
   const coverColor = bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeColor = bookConfig.stripeColor || shiftHex(coverColor, -18);
   const stripeForeground =
@@ -142,6 +151,8 @@ export function CoverPreview({
     bookConfig.chapterLabelColor.trim() || contrastHex(chapterBackdrop);
   const spineMarkColor =
     bookConfig.spineMarkColor.trim() || contrastHex(coverColor);
+  const spineTextColor =
+    bookConfig.spineTextColor?.trim() || contrastHex(coverColor);
   const chapterTitle = showsChapterTitle(bookConfig) ? chapter.label : "";
   const coverSide = bookConfig.coverSide ?? "rtl";
   const guidesOn = showLines && !singlePage;
@@ -172,11 +183,18 @@ export function CoverPreview({
 
     const guides = guidesOn
       ? coverGuidesCm(
-          layoutCoverCm(chapter.pages, coverSide, pagesPerSpineCm, pageSize, {
-            widthCm: stripeLayout.widthCm,
-            insetCm: stripeLayout.insetCm,
-            edgeGapCm: stripeLayout.edgeGapCm,
-          }),
+          layoutCoverCm(
+            chapter.pages,
+            coverSide,
+            pagesPerSpineCm,
+            pageSize,
+            {
+              widthCm: stripeLayout.widthCm,
+              insetCm: stripeLayout.insetCm,
+              edgeGapCm: stripeLayout.edgeGapCm,
+            },
+            hideSpine,
+          ),
         )
       : [];
 
@@ -219,6 +237,9 @@ export function CoverPreview({
         chapterLabelSizeCm,
         stripeText: bookConfig.bookDescription,
         spineMarkColor,
+        spineTextColor,
+        hideSpine,
+        descriptionScale: fontPair.descriptionScale,
         titleFont: fontPair.titleFamily,
         descriptionFont: fontPair.descriptionFamily,
         labelFont: fontPair.labelFamily,
@@ -267,7 +288,10 @@ export function CoverPreview({
     chapterLabelY,
     chapterLabelSizeCm,
     spineMarkColor,
+    spineTextColor,
+    hideSpine,
     guidesOn,
+    fontPair.descriptionScale,
     fontPair.titleFamily,
     fontPair.descriptionFamily,
     fontPair.labelFamily,
@@ -282,8 +306,9 @@ export function CoverPreview({
     stripeLayout.edgeGapCm,
   ]);
 
-  const canExport =
-    Boolean(sourceImage) && !exporting && allocationError === null;
+  const spineNote = hideSpine
+    ? `بلا كعب (${naturalSpineCm.toFixed(2)} سم أقل من الحد)`
+    : `الكعب ${naturalSpineCm.toFixed(2)} سم من ${chapter.pages} صفحة`;
 
   return (
     <section
@@ -291,57 +316,42 @@ export function CoverPreview({
       aria-label="معاينة الغلاف"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          {hasChapters ? (
-            chapters.map((item, index) => (
-              <Button
-                key={`${item.label}-${index}`}
-                size="sm"
-                variant={index === chapterIndex ? "default" : "outline"}
-                className="h-7 px-2.5 text-xs"
-                onClick={() => onChapterIndexChange(index)}
-              >
-                {item.label || `غلاف ${item.index}`}
-              </Button>
-            ))
-          ) : (
-            <span className="text-muted-foreground text-xs">
-              غلاف واحد · {chapter.pages} صفحة
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          {!singlePage && (
-            <div className="flex items-center gap-2">
-              <Switch
-                id="fold-guides"
-                checked={showLines}
-                onCheckedChange={onShowLinesChange}
-              />
-              <Label htmlFor="fold-guides" className="text-xs font-medium">
-                الأدلة
-              </Label>
-            </div>
-          )}
-          <Button
-            size="sm"
-            disabled={!canExport}
-            onClick={onExport}
-            className="gap-1.5"
-            title="يحفظ صورة الغلاف وملف PDF لكل فصل باسم الكتاب"
+        {hasChapters ? (
+          <Select
+            value={String(safeIndex)}
+            onValueChange={(value) => onChapterIndexChange(Number(value))}
           >
-            {exporting ? (
-              <Spinner />
-            ) : (
-              <HugeiconsIcon icon={Download01Icon} className="size-3.5" />
-            )}
-            تصدير
-            {chapters.length > 1 && (
-              <span className="opacity-70">({chapters.length})</span>
-            )}
-          </Button>
-        </div>
+            <SelectTrigger
+              className="w-60 max-w-full"
+              size="sm"
+              aria-label="الفصل المعروض"
+            >
+              <HugeiconsIcon
+                icon={Book02Icon}
+                className="text-muted-foreground size-3.5 shrink-0"
+                strokeWidth={2}
+              />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {chapters.map((item, index) => (
+                <SelectItem
+                  key={`${item.label}-${index}`}
+                  value={String(index)}
+                >
+                  {item.label || `غلاف ${item.index}`}
+                  <span className="text-muted-foreground ms-2 text-[11px] tabular-nums">
+                    {item.pages} صفحة
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-muted-foreground text-xs">
+            غلاف واحد · {chapter.pages} صفحة
+          </span>
+        )}
       </div>
 
       <div
@@ -379,7 +389,7 @@ export function CoverPreview({
         <p className="text-muted-foreground text-[11px] leading-relaxed">
           {singlePage
             ? `صفحة ${pageSize.toUpperCase()} واحدة (${pageDims.width}×${pageDims.height} سم). ملف PDF لكل فصل: ${chapters.length}.`
-            : `اللوحة ${ARTBOARD_WIDTH_CM}×${ARTBOARD_HEIGHT_CM} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · الكعب ${spineCm.toFixed(2)} سم من ${chapter.pages} صفحة · الشريط ${stripeLayout.widthCm} سم · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
+            : `اللوحة ${ARTBOARD_WIDTH_CM}×${ARTBOARD_HEIGHT_CM} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote} · الشريط ${stripeLayout.widthCm} سم · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
         </p>
       )}
     </section>

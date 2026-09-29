@@ -1,19 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { Download01Icon, RulerIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { generateImage, generateObject } from "ai";
 import { toast } from "sonner";
 import { z } from "zod";
+
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { Toggle } from "@/components/ui/toggle";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { AiAccordion } from "./components/ai-accordion";
 import { CoverPreview } from "./components/cover-preview";
 import { DesignStep } from "./components/design-step";
 import { StepRail } from "./components/step-panel";
-import { UploadFileStep } from "./components/upload-file-step";
+import {
+  ACTIVE_TOGGLE_CLASS,
+  UploadFileStep,
+} from "./components/upload-file-step";
 import { useWorkflow } from "./context";
 import { useModels } from "./context/models-context";
 import { JOBS } from "./jobs";
+import { unassignedPagesError } from "./lib/chapter-division";
 import { COVER_FONT_PAIRS, getCoverFontPair } from "./lib/cover-fonts";
+import { resolveChapters } from "./lib/cover-layout";
 import { exportCoverPdf } from "./lib/export-cover-pdf";
 import { renderPdfPage } from "./lib/pdf";
 import { modelsByKind } from "./lib/provider-models";
@@ -185,20 +201,21 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     }
   };
 
-  const extractText = async () => {
-    if (extractingRef.current) return;
+  /** Fills the title/description from the uploaded file; false on failure. */
+  const extractText = async (): Promise<boolean> => {
+    if (extractingRef.current) return false;
     if (!preview?.url) {
       toast.error("ارفع صورة أو ملف PDF أولاً.");
-      return;
+      return false;
     }
     if (!selectedDescribeModel) {
       toast.error("اختر نموذج نص/رؤية من القائمة.");
-      return;
+      return false;
     }
     const apiKey = keys[selectedDescribeModel.provider]?.trim();
     if (!apiKey) {
       toast.error("أضف مفتاح API من الإعدادات.");
-      return;
+      return false;
     }
     extractingRef.current = true;
     update({ extracting: true });
@@ -259,12 +276,14 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           bookDescription: extracted.description.trim(),
         },
       }));
+      return true;
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
           : "فشل استخراج اسم الكتاب والوصف.",
       );
+      return false;
     } finally {
       extractingRef.current = false;
       update({ extracting: false });
@@ -315,6 +334,10 @@ export function Workflow({ workflowId }: { workflowId: string }) {
       generatingRef.current = false;
       update({ generating: false });
     }
+  };
+
+  const generateBoth = async () => {
+    if (await extractText()) await generateCover();
   };
 
   const removeOutput = () => {
@@ -375,10 +398,59 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     return "pending";
   });
   const job = JOBS[activeStep];
+  const canRunAi = Boolean(preview) && !busy && !generating && !extracting;
+  const chapterCount = resolveChapters(bookConfig).length;
+  const singlePage = bookConfig.coverKind === "page";
+  const canExport =
+    Boolean(sourceImage) &&
+    !exporting &&
+    unassignedPagesError(bookConfig) === null;
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col lg:h-[calc(100svh-var(--header-height))] lg:flex-row lg:overflow-hidden">
+    // `lg:flex-none` keeps the explicit height from acting as a flex basis
+    // inside the column layout, so tall tool content scrolls in the aside
+    // rather than growing the page.
+    <div className="flex min-h-0 w-full flex-1 flex-col lg:h-[calc(100svh-var(--header-height))] lg:flex-none lg:flex-row lg:overflow-hidden">
       <aside className="order-2 flex w-full shrink-0 flex-col lg:order-none lg:h-full lg:w-[26rem] lg:border-e">
+        <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+          <Button
+            size="sm"
+            disabled={!canExport}
+            onClick={() => {
+              void exportAll();
+            }}
+            className="gap-1.5"
+            title="يحفظ صورة الغلاف وملف PDF لكل فصل باسم الكتاب"
+          >
+            {exporting ? (
+              <Spinner />
+            ) : (
+              <HugeiconsIcon icon={Download01Icon} className="size-3.5" />
+            )}
+            تصدير
+            {chapterCount > 1 && (
+              <span className="opacity-70">({chapterCount})</span>
+            )}
+          </Button>
+          {!singlePage && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Toggle
+                  size="sm"
+                  variant="outline"
+                  pressed={showLines}
+                  onPressedChange={setShowLines}
+                  aria-label="أدلة الطي"
+                  className={ACTIVE_TOGGLE_CLASS}
+                >
+                  <HugeiconsIcon icon={RulerIcon} className="size-4" />
+                </Toggle>
+              </TooltipTrigger>
+              <TooltipContent>أدلة الطي (لا تُحفظ في التصدير)</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+
         <StepRail
           jobs={JOBS}
           statuses={statuses}
@@ -398,9 +470,16 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                   onPageChange: handlePageChange,
                   outputImage,
                   generating,
-                  canGenerate: Boolean(preview) && !busy,
-                  onGenerate: () => {
+                  extracting,
+                  canRunAi,
+                  onGenerateImage: () => {
                     void generateCover();
+                  },
+                  onGenerateText: () => {
+                    void extractText();
+                  },
+                  onGenerateBoth: () => {
+                    void generateBoth();
                   },
                   onRemoveOutput: removeOutput,
                 }}
@@ -422,12 +501,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                     bookDescription: value,
                   })
                 }
-                singlePage={bookConfig.coverKind === "page"}
-                canExtract={Boolean(preview) && !busy}
-                extracting={extracting}
-                onExtract={() => {
-                  void extractText();
-                }}
+                singlePage={singlePage}
                 imageAi={ai}
                 onImageAiChange={(id) => update({ ai: id })}
                 prompt={prompt}
@@ -456,11 +530,6 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           chapterIndex={chapterIndex}
           onChapterIndexChange={setChapterIndex}
           showLines={showLines}
-          onShowLinesChange={setShowLines}
-          onExport={() => {
-            void exportAll();
-          }}
-          exporting={exporting}
           onBookConfigChange={handleBookConfigChange}
         />
       </div>

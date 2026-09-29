@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   AiBrain01Icon,
   AiImageIcon,
-  AiMagicIcon,
   BookOpen01Icon,
   Note01Icon,
   TextFontIcon,
@@ -28,21 +27,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 import { useModels } from "../context";
 import { ModelSelect } from "./model-select";
 
 /**
- * Two collapsed sections under the file: the book's title/description (with a
- * one-click extraction) and the image model/prompt used by the AI button on
- * the file field.
+ * Two collapsed sections under the file: the book's title/description and the
+ * image model/prompt. The AI buttons on the file field run them.
  */
 export function AiAccordion({
   describeAi,
@@ -52,9 +44,6 @@ export function AiAccordion({
   onBookNameChange,
   onDescriptionChange,
   singlePage,
-  canExtract,
-  extracting,
-  onExtract,
   imageAi,
   onImageAiChange,
   prompt,
@@ -67,9 +56,6 @@ export function AiAccordion({
   onBookNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   singlePage: boolean;
-  canExtract: boolean;
-  extracting: boolean;
-  onExtract: () => void;
   imageAi: string;
   onImageAiChange: (id: string) => void;
   prompt: string;
@@ -92,35 +78,14 @@ export function AiAccordion({
           </span>
         </AccordionTrigger>
         <AccordionContent className="flex flex-col gap-2 px-1 pb-3">
-          <div className="flex items-center gap-2">
-            <ModelSelect
-              kind="text"
-              value={describeAi}
-              onChange={onDescribeAiChange}
-              placeholder="نموذج الرؤية"
-              label={null}
-              icon={AiBrain01Icon}
-              className="min-w-0 flex-1"
-            />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  disabled={!canExtract || extracting}
-                  onClick={onExtract}
-                  aria-label="استخراج الاسم والوصف من الغلاف"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex size-8 shrink-0 items-center justify-center rounded-md disabled:opacity-50"
-                >
-                  {extracting ? (
-                    <Spinner className="size-3.5" />
-                  ) : (
-                    <HugeiconsIcon icon={AiMagicIcon} className="size-4" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>استخراج الاسم والوصف من الغلاف</TooltipContent>
-            </Tooltip>
-          </div>
+          <ModelSelect
+            kind="text"
+            value={describeAi}
+            onChange={onDescribeAiChange}
+            placeholder="نموذج الرؤية"
+            label={null}
+            icon={AiBrain01Icon}
+          />
 
           <InputGroup className="h-8">
             <InputGroupAddon>

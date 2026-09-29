@@ -7,6 +7,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
+import { useModels } from "../context";
 import {
   COVER_FONT_CATEGORIES,
   COVER_FONT_PAIRS,
@@ -31,10 +33,12 @@ import {
   isSinglePageCover,
   MAX_CHAPTER_LABEL_SIZE_CM,
   MIN_CHAPTER_LABEL_SIZE_CM,
+  MIN_SPINE_CM,
   pageDimsCm,
   resolveChapters,
   sampleChapterBackdrop,
   shiftHex,
+  spineHiddenFor,
 } from "../lib/cover-layout";
 import type { BookConfig } from "../types";
 import { ChapterLabelField } from "./chapter-label-field";
@@ -53,10 +57,20 @@ export function DesignStep({
   bookConfig: BookConfig;
   onBookConfigChange: (config: BookConfig) => void;
 }) {
+  const { pagesPerSpineCm } = useModels();
   const configRef = useRef(bookConfig);
   configRef.current = bookConfig;
   const chapters = useMemo(() => resolveChapters(bookConfig), [bookConfig]);
   const hasChapters = chapters.length > 1;
+  // A spine thinner than the minimum is dropped unless forced; its controls
+  // only matter while some chapter still prints one.
+  const thinSpine = chapters.some((chapter) =>
+    spineHiddenFor(chapter.pages, pagesPerSpineCm, false),
+  );
+  const spineShown = chapters.some(
+    (chapter) =>
+      !spineHiddenFor(chapter.pages, pagesPerSpineCm, bookConfig.forceSpine),
+  );
   const fontCategory = bookConfig.language === "en" ? "english" : "arabic";
   const fontOptions = COVER_FONT_PAIRS.filter(
     (pair) => pair.category === fontCategory,
@@ -140,6 +154,18 @@ export function DesignStep({
               disabled={disabled}
               swatches={palette}
             />
+          </>
+        )}
+        {!singlePage && spineShown && (
+          <>
+            <CoverColorPicker
+              label="لون نص الكعب"
+              value={bookConfig.spineTextColor}
+              fallback={contrastHex(coverColor)}
+              onChange={(hex) => patch({ spineTextColor: hex })}
+              disabled={disabled}
+              swatches={palette}
+            />
             <CoverColorPicker
               label="لون علامات الكعب"
               value={bookConfig.spineMarkColor}
@@ -158,9 +184,27 @@ export function DesignStep({
             onChange={(hex) => patch({ chapterLabelColor: hex })}
             disabled={disabled}
             swatches={palette}
+            special={{
+              hex: contrastHex(chapterBackdrop),
+              backdrop: chapterBackdrop,
+              label: "لون متباين مع ما تحت التسمية",
+            }}
           />
         )}
       </div>
+
+      {!singlePage && thinSpine && (
+        <label className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
+          <Checkbox
+            checked={bookConfig.forceSpine === true}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              patch({ forceSpine: checked === true })
+            }
+          />
+          <span>إظهار الكعب رغم أنه أقل من {MIN_SPINE_CM} سم</span>
+        </label>
+      )}
 
       {hasChapters && (
         <div className="flex flex-col gap-3 rounded-md border p-3">
