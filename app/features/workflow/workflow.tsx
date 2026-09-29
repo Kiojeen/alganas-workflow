@@ -39,14 +39,28 @@ import { useCoverImage } from "./lib/use-cover-image";
 import { compressForVision } from "./lib/vision-image";
 import type { BookConfig, StepStatus } from "./types";
 
+const bookNameField = z
+  .string()
+  .describe(
+    "Main title only, in reading order. No subtitle, tagline, series name, author, or publisher. Right-to-left text in logical order, not left-to-right visual order. Multi-line titles joined from top to bottom.",
+  );
+
 const describeSchema = z.object({
-  bookName: z.string(),
-  description: z.string(),
+  bookName: bookNameField,
+  description: z
+    .string()
+    .describe(
+      "Back-cover blurb of 100 to 110 words, one paragraph, in the title's language. Do not repeat the title.",
+    ),
 });
 
 const titleSchema = z.object({
-  bookName: z.string(),
+  bookName: bookNameField,
 });
+
+const TITLE_RULES = `bookName is the main title only, in the cover's language.
+Use the largest, most prominent title wording. Leave out any subtitle, tagline, series name, author, translator, or publisher, even when that text sits on the line above or below the title or looks similar in size.
+Write bookName in reading order. For Arabic and other right-to-left scripts, use logical order (the first spoken word first), never the left-to-right order of the letters on the image. When the title wraps onto several lines, join those lines from top to bottom.`;
 
 const UPLOAD = JOBS.findIndex((job) => job.id === "upload");
 const CONVERT = JOBS.findIndex((job) => job.id === "convert");
@@ -270,7 +284,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                 content: [
                   {
                     type: "text",
-                    text: "Look at this book cover image. Infer a fitting book title. Match the language of any visible text on the cover when possible. Return JSON with bookName only.",
+                    text: `Look at this book cover image.\n${TITLE_RULES}\nReturn JSON with bookName only.`,
                   },
                   imagePart,
                 ],
@@ -289,7 +303,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                 content: [
                   {
                     type: "text",
-                    text: "Look at this book cover image. Infer a fitting book title and a back-cover description of between 100 and 110 words, written as one paragraph. Match the language of any visible text on the cover when possible. Return JSON with bookName and description only.",
+                    text: `Look at this book cover image.\n${TITLE_RULES}\ndescription is a back-cover blurb of 100 to 110 words, written as one paragraph in the same language as the title. Base it on the cover, and do not repeat the title.\nReturn JSON with bookName and description only.`,
                   },
                   imagePart,
                 ],
