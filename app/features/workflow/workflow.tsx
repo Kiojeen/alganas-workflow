@@ -441,12 +441,6 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     },
   });
 
-  const statuses = JOBS.map((_, i) => statusOf(i));
-  const job = JOBS[activeStep];
-  const status = statuses[activeStep];
-  const isInvolved = involved.has(job.id);
-  const isAiStep = AI_STEPS.includes(activeStep);
-
   return (
     // `lg:flex-none` keeps the explicit height from acting as a flex basis
     // inside the column layout, so tall tool content scrolls in the aside
