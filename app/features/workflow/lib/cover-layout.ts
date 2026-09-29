@@ -66,7 +66,7 @@ export function clampChapterLabelSize(value: number | undefined) {
     Math.max(MIN_CHAPTER_LABEL_SIZE_CM, value),
   );
 }
-/** Spines thinner than this are dropped from the wrap unless the user forces them. */
+/** Spines thinner than this keep their width, but lose their text unless forced. */
 export const MIN_SPINE_CM = 1;
 export const SPINE_MARK_WIDTH_CM = 0.1;
 export const SPINE_MARK_HEIGHT_CM = 0.7;
@@ -113,6 +113,8 @@ export type DrawCoverOptions = {
   spineTextColor?: string;
   /** Skip the spine and everything on it. */
   hideSpine?: boolean;
+  /** Keep the spine, but omit the title and chapter number. */
+  hideSpineText?: boolean;
   descriptionScale?: number;
   titleFont?: string;
   descriptionFont?: string;
@@ -144,7 +146,7 @@ export function wrapWidthCm(
   return pageWidthCm * 2 + (hideSpine ? 0 : spineWidthCm(pages, pagesPerCm));
 }
 
-/** True when the natural spine is too thin to print and the user has not forced it. */
+/** True when the spine is too thin for text and the user has not forced it. */
 export function spineHiddenFor(
   pages: number,
   pagesPerCm = PAGES_PER_SPINE_CM,
@@ -436,6 +438,7 @@ export function drawCoverOnCanvas(
     spineMarkColor,
     spineTextColor,
     hideSpine = false,
+    hideSpineText = false,
     descriptionScale,
     titleFont,
     descriptionFont,
@@ -529,20 +532,22 @@ export function drawCoverOnCanvas(
     });
 
   if (!hideSpine) {
-    drawSpineTitle(ctx, {
-      x: spineX,
-      y: originY,
-      width: spineW,
-      height: coverH,
-      title: bookName,
-      chapterNumber,
-      ink: spineTextColor?.trim() || contrastHex(fill),
-      rtl: frontOnLeft,
-      fontFamily: titleFamily,
-      fontWeight: spineWeight,
-      dpi,
-      pageSize,
-    });
+    if (!hideSpineText) {
+      drawSpineTitle(ctx, {
+        x: spineX,
+        y: originY,
+        width: spineW,
+        height: coverH,
+        title: bookName,
+        chapterNumber,
+        ink: spineTextColor?.trim() || contrastHex(fill),
+        rtl: frontOnLeft,
+        fontFamily: titleFamily,
+        fontWeight: spineWeight,
+        dpi,
+        pageSize,
+      });
+    }
 
     drawSpineMarks(ctx, {
       x: spineX,

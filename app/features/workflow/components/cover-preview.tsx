@@ -122,18 +122,13 @@ export function CoverPreview({
   const boardWidth = singlePage ? pageDims.width : ARTBOARD_WIDTH_CM;
   const boardHeight = singlePage ? pageDims.height : ARTBOARD_HEIGHT_CM;
   const stripeLayout = pageSize === "a5" ? stripeA5 : stripeA4;
-  const hideSpine = spineHiddenFor(
+  const hideSpineText = spineHiddenFor(
     chapter.pages,
     pagesPerSpineCm,
     bookConfig.forceSpine,
   );
   const naturalSpineCm = spineWidthCm(chapter.pages, pagesPerSpineCm);
-  const wrapCm = wrapWidthCm(
-    chapter.pages,
-    pagesPerSpineCm,
-    pageDims.width,
-    hideSpine,
-  );
+  const wrapCm = wrapWidthCm(chapter.pages, pagesPerSpineCm, pageDims.width);
   const coverColor = bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeColor = bookConfig.stripeColor || shiftHex(coverColor, -18);
   const stripeForeground =
@@ -195,7 +190,6 @@ export function CoverPreview({
                   insetCm: stripeLayout.insetCm,
                   edgeGapCm: stripeLayout.edgeGapCm,
                 },
-                hideSpine,
               ),
             )
     ).filter((guide) => !double || guide.kind !== "stripe");
@@ -242,7 +236,7 @@ export function CoverPreview({
         stripeText: bookConfig.bookDescription,
         spineMarkColor,
         spineTextColor,
-        hideSpine,
+        hideSpineText,
         descriptionScale: fontPair.descriptionScale,
         titleFont: fontPair.titleFamily,
         descriptionFont: fontPair.descriptionFamily,
@@ -295,7 +289,7 @@ export function CoverPreview({
     chapterLabelShadow,
     spineMarkColor,
     spineTextColor,
-    hideSpine,
+    hideSpineText,
     guidesOn,
     fontPair.descriptionScale,
     fontPair.titleFamily,
@@ -312,8 +306,8 @@ export function CoverPreview({
     stripeLayout.edgeGapCm,
   ]);
 
-  const spineNote = hideSpine
-    ? `بلا كعب (${naturalSpineCm.toFixed(2)} سم أقل من الحد)`
+  const spineNote = hideSpineText
+    ? `الكعب ${naturalSpineCm.toFixed(2)} سم بلا نص`
     : `الكعب ${naturalSpineCm.toFixed(2)} سم من ${chapter.pages} صفحة`;
 
   return (

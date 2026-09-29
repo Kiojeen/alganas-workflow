@@ -15,7 +15,7 @@ The two tabs sit beside a live preview of the artboard. Above the tabs, «تصد
 
 ## Cover layouts
 
-**غلاف وشريط** is a 47×29.7 cm artboard: front cover, spine, and back stripe. The front is A4 (21×29.7 cm) or A5 (14.8×21 cm). Spine width is `pages ÷ pages per centimeter` (167 by default, so 167 pages is 1 cm). A spine under 1 cm is dropped, along with its text, marks, and colour controls, unless «إظهار الكعب» in the design tab forces it. Arabic chapter numbers with several words stack one word per line on the spine. Stripe width and insets are set in settings, separately for A4 and A5.
+**غلاف وشريط** is a 47×29.7 cm artboard: front cover, spine, and back stripe. The front is A4 (21×29.7 cm) or A5 (14.8×21 cm). Spine width is `pages ÷ pages per centimeter` (167 by default, so 167 pages is 1 cm). A spine under 1 cm keeps its width and marks, but its text is omitted unless «إظهار نص الكعب» in the design tab forces it. Arabic chapter numbers with several words stack one word per line on the spine. Stripe width and insets are set in settings, separately for A4 and A5.
 
 **غلاف مزدوج** uses the same artboard, but the back is a second uploaded image instead of a description stripe. The vision step reads only the book name, and each image can be redrawn on its own.
 

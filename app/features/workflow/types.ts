@@ -60,7 +60,7 @@ export type BookConfig = {
   spineMarkColor: string;
   /** Ink for the spine title and chapter number; empty means contrast with the cover color. */
   spineTextColor: string;
-  /** Draw the spine even when it is thinner than the minimum. */
+  /** Draw spine text even when the spine is thinner than the minimum. */
   forceSpine: boolean;
   chapterLabelX: number;
   chapterLabelY: number;

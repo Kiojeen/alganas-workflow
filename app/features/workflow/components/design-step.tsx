@@ -63,14 +63,9 @@ export function DesignStep({
   configRef.current = bookConfig;
   const chapters = useMemo(() => resolveChapters(bookConfig), [bookConfig]);
   const hasChapters = chapters.length > 1;
-  // A spine thinner than the minimum is dropped unless forced; its controls
-  // only matter while some chapter still prints one.
+  // A thin spine keeps its width; the checkbox only brings its text back.
   const thinSpine = chapters.some((chapter) =>
     spineHiddenFor(chapter.pages, pagesPerSpineCm, false),
-  );
-  const spineShown = chapters.some(
-    (chapter) =>
-      !spineHiddenFor(chapter.pages, pagesPerSpineCm, bookConfig.forceSpine),
   );
   const fontCategory = bookConfig.language === "en" ? "english" : "arabic";
   const fontOptions = COVER_FONT_PAIRS.filter(
@@ -157,7 +152,7 @@ export function DesignStep({
             />
           </>
         )}
-        {!singlePage && spineShown && (
+        {!singlePage && (
           <>
             <CoverColorPicker
               label="لون نص الكعب"
@@ -211,7 +206,7 @@ export function DesignStep({
               patch({ forceSpine: checked === true })
             }
           />
-          <span>إظهار الكعب رغم أنه أقل من {MIN_SPINE_CM} سم</span>
+          <span>إظهار نص الكعب رغم أنه أقل من {MIN_SPINE_CM} سم</span>
         </label>
       )}
 

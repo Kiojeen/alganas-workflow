@@ -475,7 +475,7 @@ async function drawVectorCover(args: {
   const pageWidth = cmToPt(singlePage ? dims.width : ARTBOARD_WIDTH_CM);
   const pageHeight = cmToPt(singlePage ? dims.height : ARTBOARD_HEIGHT_CM);
   const page = pdf.addPage([pageWidth, pageHeight]);
-  const hideSpine = spineHiddenFor(
+  const hideSpineText = spineHiddenFor(
     args.pages,
     args.pagesPerSpineCm,
     args.bookConfig.forceSpine,
@@ -490,7 +490,6 @@ async function drawVectorCover(args: {
       insetCm: args.stripeInsetCm,
       edgeGapCm: args.stripeEdgeGapCm,
     },
-    hideSpine,
   );
   const fillHex = args.bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeFillHex =
@@ -573,7 +572,7 @@ async function drawVectorCover(args: {
   );
 
   page.drawRectangle({ ...back, color: color(fillHex) });
-  if (!hideSpine) page.drawRectangle({ ...spine, color: color(fillHex) });
+  page.drawRectangle({ ...spine, color: color(fillHex) });
   if (backImage) drawCoverImage(page, backImage, back);
   if (!double) page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
 
@@ -617,7 +616,7 @@ async function drawVectorCover(args: {
   );
   const cx = cmToPt(layout.spineX + layout.spineW / 2);
 
-  if (!hideSpine && (title || chapterNumber) && layout.spineW > 0.08) {
+  if (!hideSpineText && (title || chapterNumber) && layout.spineW > 0.08) {
     const numberFont = fontForText(chapterNumber, titleFont, arabic, pair);
     const spineFont = fontForText(title, titleFont, arabic, pair);
     const baseSize = Math.min(
@@ -698,7 +697,7 @@ async function drawVectorCover(args: {
     }
   }
 
-  if (!hideSpine) {
+  {
     const markW = cmToPt(SPINE_MARK_WIDTH_CM);
     const markH = cmToPt(SPINE_MARK_HEIGHT_CM);
     const markX = cmToPt(layout.spineX + layout.spineW / 2) - markW / 2;
