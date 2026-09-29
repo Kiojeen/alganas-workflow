@@ -154,11 +154,15 @@ export function AppSidebar() {
                             e.stopPropagation();
                             remove(wf.id);
                           }}
-                          className="hover:text-destructive top-2.5"
+                          className="hover:text-destructive !top-1/2 !-translate-y-1/2"
                           aria-label={`حذف ${title}`}
                           title={`حذف ${title}`}
                         >
-                          <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
+                          <HugeiconsIcon
+                            icon={Delete02Icon}
+                            size={16}
+                            strokeWidth={2}
+                          />
                         </SidebarMenuAction>
                       </SidebarMenuItem>
                     );
