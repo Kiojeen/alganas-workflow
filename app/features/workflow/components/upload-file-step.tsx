@@ -8,6 +8,7 @@ import {
   TextCreationIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { toast } from "sonner";
 
 import { comboText, type ShortcutId } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,50 @@ import {
 
 /** Shared with the `U` shortcut in the workflow. */
 export const COVER_FILE_INPUT_ID = "cover-file-input";
+
+/**
+ * Paste events do not report Shift or Ctrl, so Ctrl+Shift+V is remembered
+ * here and the next paste is routed to the back cover.
+ */
+let backPasteUntil = 0;
+let backPasteConsumed = false;
+
+function isTypingTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    Boolean(target.closest("input, textarea, [contenteditable=true]"))
+  );
+}
+
+function fileFromTransfer(data: DataTransfer | null) {
+  if (!data) return null;
+  const items = Array.from(data.items ?? []);
+  return (
+    items.find((item) => item.kind === "file")?.getAsFile() ??
+    data.files?.[0] ??
+    null
+  );
+}
+
+async function fileFromClipboardRead() {
+  if (!navigator.clipboard?.read) return null;
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const type = item.types.find(
+        (entry) => entry.startsWith("image/") || entry === "application/pdf",
+      );
+      if (!type) continue;
+      const blob = await item.getType(type);
+      const ext =
+        type === "application/pdf" ? "pdf" : type.slice(type.indexOf("/") + 1);
+      return new File([blob], `paste.${ext}`, { type });
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 export const COVER_BACK_FILE_INPUT_ID = "cover-back-file-input";
 
 export { ACTIVE_TOGGLE_CLASS };
@@ -235,7 +280,7 @@ export function UploadFileStep({
           heading="الظهر"
           imageOnly
           inputId={COVER_BACK_FILE_INPUT_ID}
-          listenPaste={false}
+          pasteMode="shift"
         />
       )}
       <Separator />
@@ -323,36 +368,80 @@ function FileField({
   imageOnly = false,
   imageShortcut = "ai-image",
   inputId = COVER_FILE_INPUT_ID,
-  listenPaste = true,
+  pasteMode = "plain",
 }: FileFieldProps & {
   disabled: boolean;
   heading?: string;
   /** Hide title extraction; the back cover is only redrawn. */
   imageOnly?: boolean;
   inputId?: string;
-  listenPaste?: boolean;
+  /** `plain` is Ctrl+V. `shift` is the back-cover shortcut. */
+  pasteMode?: "plain" | "shift";
 }) {
   const [dragging, setDragging] = useState(false);
   const onFileRef = useRef(onFile);
   onFileRef.current = onFile;
 
   useEffect(() => {
-    if (disabled || !listenPaste) return;
+    if (disabled || !pasteMode) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.code !== "KeyV") return;
+      if (!event.shiftKey || !(event.ctrlKey || event.metaKey) || event.altKey)
+        return;
+      if (isTypingTarget(event.target)) return;
+      backPasteConsumed = false;
+      const armedAt = performance.now() + 1000;
+      backPasteUntil = armedAt;
+      void fileFromClipboardRead().then((file) => {
+        if (backPasteUntil !== armedAt || backPasteConsumed) return;
+        if (file) {
+          backPasteConsumed = true;
+          backPasteUntil = 0;
+          window.setTimeout(() => {
+            backPasteConsumed = false;
+          }, 500);
+          onFileRef.current(file);
+          return;
+        }
+        window.setTimeout(() => {
+          if (backPasteUntil !== armedAt || backPasteConsumed) return;
+          backPasteUntil = 0;
+          toast.error("تعذّر لصق صورة الظهر.");
+        }, 300);
+      });
+    };
+
     const onPaste = (event: ClipboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea, [contenteditable=true]")) return;
-      const items = Array.from(event.clipboardData?.items ?? []);
-      const file =
-        items.find((item) => item.kind === "file")?.getAsFile() ??
-        event.clipboardData?.files?.[0] ??
-        null;
+      const armed = performance.now() < backPasteUntil;
+      if (pasteMode === "plain") {
+        if (armed || backPasteConsumed) return;
+      } else if (!armed) {
+        return;
+      }
+      if (isTypingTarget(event.target)) return;
+      const file = fileFromTransfer(event.clipboardData);
       if (!file) return;
+      if (armed) {
+        backPasteConsumed = true;
+        backPasteUntil = 0;
+        window.setTimeout(() => {
+          backPasteConsumed = false;
+        }, 500);
+      }
       event.preventDefault();
       onFileRef.current(file);
     };
+
+    if (pasteMode === "shift") {
+      window.addEventListener("keydown", onKeyDown);
+    }
     document.addEventListener("paste", onPaste);
-    return () => document.removeEventListener("paste", onPaste);
-  }, [disabled, listenPaste]);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("paste", onPaste);
+    };
+  }, [disabled, pasteMode]);
 
   const dragProps = {
     onDragOver: (event: React.DragEvent) => {
@@ -417,8 +506,14 @@ function FileField({
           </span>
           <span className="text-[11px]">
             اسحب أو اضغط
-            {listenPaste && (
+            {pasteMode === "plain" && (
               <span className="hidden md:inline"> أو الصق بـ Ctrl+V</span>
+            )}
+            {pasteMode === "shift" && (
+              <span className="hidden md:inline">
+                {" "}
+                أو الصق بـ {comboText("paste-back")}
+              </span>
             )}
           </span>
         </span>

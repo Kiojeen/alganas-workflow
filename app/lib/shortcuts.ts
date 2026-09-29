@@ -19,6 +19,7 @@ export type ShortcutId =
   | "prev-chapter"
   | "next-chapter"
   | "upload"
+  | "paste-back"
   | "ai-image"
   | "ai-image-back"
   | "ai-text"
@@ -116,6 +117,15 @@ export const SHORTCUTS: Shortcut[] = [
     group: "الملف",
     label: "رفع صورة أو PDF",
     combo: { code: "KeyU", display: "U" },
+  },
+  {
+    id: "paste-back",
+    group: "الملف",
+    label: "لصق صورة الظهر",
+    combo: { code: "KeyV", ctrl: true, shift: true, display: "V" },
+    // The file arrives on the paste event, which does not carry modifier
+    // keys. The back field arms itself from the keydown, then takes that paste.
+    builtIn: true,
   },
   {
     id: "ai-image",
