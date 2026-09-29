@@ -1,8 +1,5 @@
 export type CoverFontPair =
-  | "montserrat"
-  | "castoro"
-  | "montserrat-arabic"
-  | "markazi";
+  "montserrat" | "castoro" | "montserrat-arabic" | "markazi";
 
 export type CoverFontCategory = "arabic" | "english";
 
@@ -25,6 +22,8 @@ export type CoverFontSpec = {
   labelFromDescription: boolean;
   /** Same file, different weights. */
   variable: boolean;
+  /** Multiplier on the back-stripe text size; faces with small x-heights read better a touch larger. */
+  descriptionScale?: number;
 };
 
 function publicFile(path: string) {
@@ -70,6 +69,7 @@ export const COVER_FONT_PAIRS: CoverFontSpec[] = [
     labelWeight: 400,
     labelFromDescription: true,
     variable: true,
+    descriptionScale: 1.32,
   },
   {
     id: "montserrat",

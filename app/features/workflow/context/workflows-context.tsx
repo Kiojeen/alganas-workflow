@@ -7,8 +7,8 @@ import {
   type ReactNode,
 } from "react";
 
-import { useModels } from "./models-context";
 import { createDefaultWorkflowState, type WorkflowState } from "../state";
+import { useModels } from "./models-context";
 
 export type WorkflowInstance = {
   id: string;
@@ -37,7 +37,7 @@ function createInstance(
   return {
     id: crypto.randomUUID(),
     name,
-    state: createDefaultWorkflowState(undefined, models),
+    state: createDefaultWorkflowState(models),
   };
 }
 

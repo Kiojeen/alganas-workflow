@@ -1,21 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { Download01Icon, RulerIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { generateImage, generateObject } from "ai";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { comboText, useShortcuts } from "@/lib/shortcuts";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { Toggle } from "@/components/ui/toggle";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+import { AiAccordion } from "./components/ai-accordion";
 import { CoverPreview } from "./components/cover-preview";
-import { DescribeStep } from "./components/describe-step";
 import { DesignStep } from "./components/design-step";
-import { GenerateStep } from "./components/generate-step";
-import { RunAllBar, StepRail, StepSection } from "./components/step-panel";
-import { UploadFileStep } from "./components/upload-file-step";
+import { StepRail } from "./components/step-panel";
+import {
+  ACTIVE_TOGGLE_CLASS,
+  COVER_FILE_INPUT_ID,
+  UploadFileStep,
+} from "./components/upload-file-step";
 import { useWorkflow } from "./context";
 import { useModels } from "./context/models-context";
 import { JOBS } from "./jobs";
+import { unassignedPagesError } from "./lib/chapter-division";
 import { COVER_FONT_PAIRS, getCoverFontPair } from "./lib/cover-fonts";
-import { downloadDataUrl, fileSafeName } from "./lib/cover-layout";
+import { resolveChapters } from "./lib/cover-layout";
 import { exportCoverPdf } from "./lib/export-cover-pdf";
 import { renderPdfPage } from "./lib/pdf";
 import { modelsByKind } from "./lib/provider-models";
@@ -32,10 +48,7 @@ const titleSchema = z.object({
 });
 
 const UPLOAD = JOBS.findIndex((job) => job.id === "upload");
-const DESCRIBE = JOBS.findIndex((job) => job.id === "describe");
-const GENERATE = JOBS.findIndex((job) => job.id === "generate");
 const CONVERT = JOBS.findIndex((job) => job.id === "convert");
-const AI_STEPS = [DESCRIBE, GENERATE];
 
 function languageModel(
   provider: "openai" | "google",
@@ -69,25 +82,31 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     defaultImageModel,
   } = useModels();
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
-  const runningRef = useRef<Set<number>>(new Set());
-  const bookNameRef = useRef(workflow?.state.bookConfig.bookName ?? "");
-  bookNameRef.current = workflow?.state.bookConfig.bookName ?? bookNameRef.current;
-  const [showLines, setShowLines] = useState(false);
+  const generatingRef = useRef(false);
+  const extractingRef = useRef(false);
+  const [showLines, setShowLines] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [chapterIndex, setChapterIndex] = useState(0);
+  // A `U` press from the design tab switches tabs first, then opens the picker.
+  const [pendingUpload, setPendingUpload] = useState(false);
+
+  useEffect(() => {
+    if (!pendingUpload || activeStep !== UPLOAD) return;
+    setPendingUpload(false);
+    document.getElementById(COVER_FILE_INPUT_ID)?.click();
+  }, [pendingUpload, activeStep]);
 
   useEffect(() => {
     fileRef.current = workflow?.state.file ?? null;
   }, [workflow?.state.file]);
 
   const update = workflow?.update;
-  const generateInvolved = workflow?.state.involved.has("generate") ?? false;
   const outputImage = workflow?.state.outputImage ?? null;
   const preview = workflow?.state.preview ?? null;
-  const sourceImage = generateInvolved
-    ? outputImage
-    : (outputImage ?? preview?.url ?? null);
+  // The uploaded file shows on the artboard right away; an AI result replaces
+  // it until the user removes that result.
+  const sourceImage = outputImage ?? preview?.url ?? null;
   const { image: coverImage, palette } = useCoverImage(sourceImage);
 
   useEffect(() => {
@@ -118,18 +137,21 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     const category =
       workflow.state.bookConfig.language === "en" ? "english" : "arabic";
     if (
-      getCoverFontPair(workflow.state.bookConfig.fontPair).category ===
-      category
+      getCoverFontPair(workflow.state.bookConfig.fontPair).category === category
     ) {
       return;
     }
     update((prev) => {
       const nextCategory =
         prev.bookConfig.language === "en" ? "english" : "arabic";
-      if (getCoverFontPair(prev.bookConfig.fontPair).category === nextCategory) {
+      if (
+        getCoverFontPair(prev.bookConfig.fontPair).category === nextCategory
+      ) {
         return {};
       }
-      const next = COVER_FONT_PAIRS.find((pair) => pair.category === nextCategory);
+      const next = COVER_FONT_PAIRS.find(
+        (pair) => pair.category === nextCategory,
+      );
       if (!next) return {};
       return { bookConfig: { ...prev.bookConfig, fontPair: next.id } };
     });
@@ -148,16 +170,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
   if (!workflow || !update) return null;
   const { state } = workflow;
-  const {
-    busy,
-    ai,
-    describeAi,
-    prompt,
-    runningSteps,
-    completed,
-    involved,
-    bookConfig,
-  } = state;
+  const { busy, ai, describeAi, prompt, generating, extracting, bookConfig } =
+    state;
 
   const textModels = modelsByKind(models, "text");
   const imageModels = modelsByKind(models, "image");
@@ -170,31 +184,9 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     imageModels.find((m) => m.id === defaultImageModel) ??
     imageModels[0];
 
-  const setRunning = (i: number, on: boolean) => {
-    if (on) runningRef.current.add(i);
-    else runningRef.current.delete(i);
-    update((prev) => {
-      const next = new Set(prev.runningSteps);
-      if (on) next.add(i);
-      else next.delete(i);
-      return { runningSteps: next };
-    });
-  };
-
-  const markCompleted = (i: number, extra: Partial<typeof state> = {}) => {
-    update((prev) => ({
-      completed: new Set(prev.completed).add(i),
-      ...extra,
-    }));
-  };
-
-  const exportPdf = async () => {
+  const exportAll = async () => {
     if (!sourceImage) {
-      toast.error(
-        generateInvolved
-          ? "شغّل توليد الصورة أولاً قبل التصدير."
-          : "ارفع صورة غلاف أولاً.",
-      );
+      toast.error("ارفع صورة غلاف أولاً.");
       return;
     }
     setExporting(true);
@@ -204,221 +196,167 @@ export function Workflow({ workflowId }: { workflowId: string }) {
       await exportCoverPdf({
         sourceUrl: sourceImage,
         bookConfig,
-        showGuides: showLines,
         pagesPerSpineCm,
         stripeWidthCm: stripe.widthCm,
         stripeInsetCm: stripe.insetCm,
         stripeEdgeGapCm: stripe.edgeGapCm,
       });
-      markCompleted(CONVERT);
-      toast.success("تم تصدير ملف PDF.");
+      toast.success("تم حفظ صورة الغلاف وملفات PDF.");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "تعذّر تصدير ملف PDF.",
+        error instanceof Error ? error.message : "تعذّر تصدير الغلاف.",
       );
     } finally {
       setExporting(false);
     }
   };
 
-  const runDescribe = async () => {
-    if (!selectedDescribeModel) {
-      throw new Error("اختر نموذج نص/رؤية من القائمة.");
-    }
-    const apiKey = keys[selectedDescribeModel.provider]?.trim();
-    if (!apiKey) throw new Error("أضف مفتاح API من الإعدادات.");
-    if (!preview?.url) throw new Error("ارفع صورة في الخطوة الأولى.");
-
-    const imageBuffer = await fetch(preview.url).then((r) => r.arrayBuffer());
-    const imageBytes = new Uint8Array(imageBuffer);
-    const singlePage = bookConfig.coverKind === "page";
-    const model = languageModel(
-      selectedDescribeModel.provider,
-      apiKey,
-      selectedDescribeModel.modelId,
-    );
-    const imagePart = { type: "image" as const, image: imageBytes };
-    const extracted = singlePage
-      ? await generateObject({
-          model,
-          schema: titleSchema,
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Look at this book cover image. Infer a fitting book title. Match the language of any visible text on the cover when possible. Return JSON with bookName only.",
-                },
-                imagePart,
-              ],
-            },
-          ],
-        }).then((result) => ({
-          bookName: result.object.bookName,
-          description: "",
-        }))
-      : await generateObject({
-          model,
-          schema: describeSchema,
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Look at this book cover image. Infer a fitting book title and a back-cover description (one short paragraph). Match the language of any visible text on the cover when possible. Return JSON with bookName and description only.",
-                },
-                imagePart,
-              ],
-            },
-          ],
-        }).then((result) => ({
-          bookName: result.object.bookName,
-          description: result.object.description,
-        }));
-
-    const name = extracted.bookName.trim();
-    bookNameRef.current = name;
-    update((prev) => ({
-      completed: new Set(prev.completed).add(DESCRIBE),
-      bookConfig: {
-        ...prev.bookConfig,
-        bookName: name,
-        bookDescription: extracted.description.trim(),
-      },
-    }));
-  };
-
-  const runGenerate = async () => {
-    if (!selectedImageModel) {
-      throw new Error("اختر نموذج توليد صور من القائمة.");
-    }
-    const apiKey = keys[selectedImageModel.provider]?.trim();
-    if (!apiKey) throw new Error("أضف مفتاح API من الإعدادات.");
-    if (!preview?.url) throw new Error("ارفع صورة في الخطوة الأولى.");
-
-    const model = imageModel(
-      selectedImageModel.provider,
-      apiKey,
-      selectedImageModel.modelId,
-    ) as any;
-    const imageBytes = await fetch(preview.url).then((r) => r.arrayBuffer());
-    const result = await generateImage({
-      model,
-      prompt: { text: prompt, images: [new Uint8Array(imageBytes)] },
-      n: 1,
-      maxRetries: 0,
-    });
-    const imageData = result.images[0];
-    const imageUrl = `data:${imageData.mediaType};base64,${imageData.base64}`;
-    const name = fileSafeName(bookNameRef.current, "cover");
-    const ext = /jpe?g/i.test(imageData.mediaType ?? "") ? "jpg" : "png";
-    downloadDataUrl(imageUrl, `${name}.${ext}`);
-    markCompleted(GENERATE, { outputImage: imageUrl });
-  };
-
-  const runStep = async (i: number) => {
-    if (runningRef.current.has(i)) return false;
-    if (!involved.has(JOBS[i].id)) return false;
-    if (!preview) {
-      toast.error("ارفع صورة أو ملف PDF للمتابعة.");
+  /** Fills the title/description from the uploaded file; false on failure. */
+  const extractText = async (): Promise<boolean> => {
+    if (extractingRef.current) return false;
+    if (!preview?.url) {
+      toast.error("ارفع صورة أو ملف PDF أولاً.");
       return false;
     }
-    setRunning(i, true);
+    if (!selectedDescribeModel) {
+      toast.error("اختر نموذج نص/رؤية من القائمة.");
+      return false;
+    }
+    const apiKey = keys[selectedDescribeModel.provider]?.trim();
+    if (!apiKey) {
+      toast.error("أضف مفتاح API من الإعدادات.");
+      return false;
+    }
+    extractingRef.current = true;
+    update({ extracting: true });
     try {
-      if (i === DESCRIBE) await runDescribe();
-      else if (i === GENERATE) await runGenerate();
+      const imageBuffer = await fetch(preview.url).then((r) => r.arrayBuffer());
+      const imageBytes = new Uint8Array(imageBuffer);
+      const singlePage = bookConfig.coverKind === "page";
+      const model = languageModel(
+        selectedDescribeModel.provider,
+        apiKey,
+        selectedDescribeModel.modelId,
+      );
+      const imagePart = { type: "image" as const, image: imageBytes };
+      const extracted = singlePage
+        ? await generateObject({
+            model,
+            schema: titleSchema,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Look at this book cover image. Infer a fitting book title. Match the language of any visible text on the cover when possible. Return JSON with bookName only.",
+                  },
+                  imagePart,
+                ],
+              },
+            ],
+          }).then((result) => ({
+            bookName: result.object.bookName,
+            description: "",
+          }))
+        : await generateObject({
+            model,
+            schema: describeSchema,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Look at this book cover image. Infer a fitting book title and a back-cover description of between 100 and 110 words, written as one paragraph. Match the language of any visible text on the cover when possible. Return JSON with bookName and description only.",
+                  },
+                  imagePart,
+                ],
+              },
+            ],
+          }).then((result) => ({
+            bookName: result.object.bookName,
+            description: result.object.description,
+          }));
+
+      update((prev) => ({
+        bookConfig: {
+          ...prev.bookConfig,
+          bookName: extracted.bookName.trim(),
+          bookDescription: extracted.description.trim(),
+        },
+      }));
       return true;
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : i === DESCRIBE
-            ? "فشل استخراج اسم الكتاب والوصف."
-            : "فشل توليد الصورة. تحقق من النموذج والمفتاح.",
+          : "فشل استخراج اسم الكتاب والوصف.",
       );
       return false;
     } finally {
-      setRunning(i, false);
+      extractingRef.current = false;
+      update({ extracting: false });
     }
   };
 
-  const rerunStep = (i: number) => {
-    if (runningRef.current.has(i)) return;
-    update((prev) => {
-      const nextCompleted = new Set(prev.completed);
-      nextCompleted.delete(i);
-      return {
-        completed: nextCompleted,
-        ...(i === GENERATE ? { outputImage: null } : {}),
-      };
-    });
-    void runStep(i);
-  };
-
-  const enabledAiSteps = AI_STEPS.filter((i) => involved.has(JOBS[i].id));
-  const pendingAiSteps = enabledAiSteps.filter((i) => !completed.has(i));
-  const anyRunning = runningSteps.size > 0;
-
-  const runAll = async () => {
-    if (anyRunning) return;
-    if (!preview) {
+  const generateCover = async () => {
+    if (generatingRef.current) return;
+    if (!preview?.url) {
       toast.error("ارفع صورة أو ملف PDF أولاً.");
       return;
     }
-    if (enabledAiSteps.length === 0) {
-      toast.message("لا خطوات ذكاء اصطناعي مفعّلة. الصورة المرفوعة تمر مباشرة إلى التصميم.");
-      setActiveStep(CONVERT);
+    if (!selectedImageModel) {
+      toast.error("اختر نموذج توليد صور من القائمة.");
       return;
     }
-    const targets = pendingAiSteps.length > 0 ? pendingAiSteps : enabledAiSteps;
-    if (pendingAiSteps.length === 0) {
-      update((prev) => {
-        const nextCompleted = new Set(prev.completed);
-        for (const i of targets) nextCompleted.delete(i);
-        return {
-          completed: nextCompleted,
-          ...(targets.includes(GENERATE) ? { outputImage: null } : {}),
-        };
+    const apiKey = keys[selectedImageModel.provider]?.trim();
+    if (!apiKey) {
+      toast.error("أضف مفتاح API من الإعدادات.");
+      return;
+    }
+    generatingRef.current = true;
+    update({ generating: true });
+    try {
+      const model = imageModel(
+        selectedImageModel.provider,
+        apiKey,
+        selectedImageModel.modelId,
+      ) as any;
+      const imageBytes = await fetch(preview.url).then((r) => r.arrayBuffer());
+      const result = await generateImage({
+        model,
+        prompt: { text: prompt, images: [new Uint8Array(imageBytes)] },
+        n: 1,
+        maxRetries: 0,
       });
+      const imageData = result.images[0];
+      update({
+        outputImage: `data:${imageData.mediaType};base64,${imageData.base64}`,
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "فشل توليد الصورة. تحقق من النموذج والمفتاح.",
+      );
+    } finally {
+      generatingRef.current = false;
+      update({ generating: false });
     }
-    for (const i of targets) {
-      const ok = await runStep(i);
-      if (!ok) return;
-    }
-    setActiveStep(CONVERT);
   };
 
-  const resetRun = () => {
-    update({
-      completed: new Set(),
-      outputImage: null,
-      canvasImage: null,
-    });
+  const generateBoth = async () => {
+    if (await extractText()) await generateCover();
   };
 
-  const toggleInvolved = (id: string, value: boolean) => {
-    if (id === JOBS[UPLOAD].id || id === JOBS[CONVERT].id) return;
-    const index = JOBS.findIndex((job) => job.id === id);
-    update((prev) => {
-      const nextInvolved = new Set(prev.involved);
-      if (value) nextInvolved.add(id);
-      else nextInvolved.delete(id);
-      const nextCompleted = new Set(prev.completed);
-      if (!value) nextCompleted.delete(index);
-      return {
-        involved: nextInvolved,
-        completed: nextCompleted,
-        ...(!value && id === "generate" ? { outputImage: null } : {}),
-      };
-    });
+  const removeOutput = () => {
+    update({ outputImage: null });
   };
 
   const handleFile = async (f: File | null) => {
     if (!f) return;
-    resetRun();
-    update({ file: f, pdfPage: 1, busy: true });
+    update({ file: f, pdfPage: 1, busy: true, outputImage: null });
     try {
       if (f.type.startsWith("image/")) {
         const url = URL.createObjectURL(f);
@@ -464,18 +402,44 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     }
   };
 
-  const statusOf = (i: number): StepStatus => {
+  const statuses: StepStatus[] = JOBS.map((_, i) => {
     if (i === UPLOAD) return preview ? "done" : "waiting";
-    if (!involved.has(JOBS[i].id)) return "muted";
-    if (i === CONVERT) {
-      if (exporting) return "running";
-      if (completed.has(i)) return "done";
-      return sourceImage ? "ready" : "pending";
-    }
-    if (runningSteps.has(i)) return "running";
-    if (completed.has(i)) return "done";
-    return preview ? "ready" : "pending";
-  };
+    if (i === CONVERT) return sourceImage ? "ready" : "pending";
+    return "pending";
+  });
+  const job = JOBS[activeStep];
+  const canRunAi = Boolean(preview) && !busy && !generating && !extracting;
+  const chapterCount = resolveChapters(bookConfig).length;
+  const singlePage = bookConfig.coverKind === "page";
+  const canExport =
+    Boolean(sourceImage) &&
+    !exporting &&
+    unassignedPagesError(bookConfig) === null;
+
+  useShortcuts({
+    export: () => {
+      if (canExport) void exportAll();
+    },
+    "tab-file": () => setActiveStep(UPLOAD),
+    "tab-design": () => setActiveStep(CONVERT),
+    guides: () => setShowLines((value) => !value),
+    "prev-chapter": () => setChapterIndex((index) => Math.max(0, index - 1)),
+    "next-chapter": () =>
+      setChapterIndex((index) => Math.min(chapterCount - 1, index + 1)),
+    upload: () => {
+      setActiveStep(UPLOAD);
+      setPendingUpload(true);
+    },
+    "ai-image": () => {
+      if (canRunAi) void generateCover();
+    },
+    "ai-text": () => {
+      if (canRunAi) void extractText();
+    },
+    "ai-both": () => {
+      if (canRunAi) void generateBoth();
+    },
+  });
 
   const statuses = JOBS.map((_, i) => statusOf(i));
   const job = JOBS[activeStep];
@@ -484,17 +448,50 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   const isAiStep = AI_STEPS.includes(activeStep);
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col lg:h-[calc(100svh-var(--header-height))] lg:flex-row lg:overflow-hidden">
+    // `lg:flex-none` keeps the explicit height from acting as a flex basis
+    // inside the column layout, so tall tool content scrolls in the aside
+    // rather than growing the page.
+    <div className="flex min-h-0 w-full flex-1 flex-col lg:h-[calc(100svh-var(--header-height))] lg:flex-none lg:flex-row lg:overflow-hidden">
       <aside className="order-2 flex w-full shrink-0 flex-col lg:order-none lg:h-full lg:w-[26rem] lg:border-e">
-        <RunAllBar
-          enabledSteps={enabledAiSteps.map((i) => JOBS[i])}
-          hasFile={Boolean(preview)}
-          running={anyRunning}
-          allDone={enabledAiSteps.length > 0 && pendingAiSteps.length === 0}
-          onRun={() => {
-            void runAll();
-          }}
-        />
+        <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+          <Button
+            size="sm"
+            disabled={!canExport}
+            onClick={() => {
+              void exportAll();
+            }}
+            className="gap-1.5"
+            title={`يحفظ صورة الغلاف وملف PDF لكل فصل باسم الكتاب (${comboText("export")})`}
+          >
+            {exporting ? (
+              <Spinner />
+            ) : (
+              <HugeiconsIcon icon={Download01Icon} className="size-3.5" />
+            )}
+            تصدير
+            {chapterCount > 1 && (
+              <span className="opacity-70">({chapterCount})</span>
+            )}
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Toggle
+                size="sm"
+                variant="outline"
+                pressed={showLines}
+                onPressedChange={setShowLines}
+                aria-label="الأدلة"
+                className={ACTIVE_TOGGLE_CLASS}
+              >
+                <HugeiconsIcon icon={RulerIcon} className="size-4" />
+              </Toggle>
+            </TooltipTrigger>
+            <TooltipContent>
+              الأدلة (لا تُحفظ في التصدير) · {comboText("guides")}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
         <StepRail
           jobs={JOBS}
           statuses={statuses}
@@ -503,39 +500,37 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         />
 
         <div className="min-h-0 flex-1 p-4 lg:overflow-y-auto">
-          <StepSection
-            key={job.id}
-            job={job}
-            status={status}
-            involved={isInvolved}
-            mandatory={!isAiStep}
-            showRun={isAiStep}
-            lockContent={job.id === "describe" ? false : !isInvolved}
-            onToggleInvolved={toggleInvolved}
-            onRun={() => {
-              void runStep(activeStep);
-            }}
-            onRerun={() => rerunStep(activeStep)}
-          >
-            {job.id === "upload" && (
+          {job.id === "upload" && (
+            <div className="flex flex-col gap-4">
               <UploadFileStep
-                preview={preview}
-                pdfPage={state.pdfPage}
-                busy={busy}
-                onFile={handleFile}
-                onPageChange={handlePageChange}
+                file={{
+                  preview,
+                  pdfPage: state.pdfPage,
+                  busy,
+                  onFile: handleFile,
+                  onPageChange: handlePageChange,
+                  outputImage,
+                  generating,
+                  extracting,
+                  canRunAi,
+                  onGenerateImage: () => {
+                    void generateCover();
+                  },
+                  onGenerateText: () => {
+                    void extractText();
+                  },
+                  onGenerateBoth: () => {
+                    void generateBoth();
+                  },
+                  onRemoveOutput: removeOutput,
+                }}
                 bookConfig={bookConfig}
                 onBookConfigChange={handleBookConfigChange}
                 disabled={false}
               />
-            )}
-
-            {job.id === "describe" && (
-              <DescribeStep
-                ai={describeAi}
-                onAiChange={(id) => {
-                  update({ describeAi: id });
-                }}
+              <AiAccordion
+                describeAi={describeAi}
+                onDescribeAiChange={(id) => update({ describeAi: id })}
                 bookName={bookConfig.bookName}
                 description={bookConfig.bookDescription ?? ""}
                 onBookNameChange={(value) =>
@@ -547,37 +542,24 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                     bookDescription: value,
                   })
                 }
-                extractEnabled={isInvolved}
-                singlePage={bookConfig.coverKind === "page"}
-              />
-            )}
-
-            {job.id === "generate" && (
-              <GenerateStep
-                ai={ai}
-                onAiChange={(id) => {
-                  update({ ai: id });
-                }}
+                singlePage={singlePage}
+                imageAi={ai}
+                onImageAiChange={(id) => update({ ai: id })}
                 prompt={prompt}
-                onPromptChange={(value) => {
-                  update({ prompt: value });
-                }}
-                outputImage={outputImage}
-                bookName={bookConfig.bookName}
-                disabled={!isInvolved}
+                onPromptChange={(value) => update({ prompt: value })}
               />
-            )}
+            </div>
+          )}
 
-            {job.id === "convert" && (
-              <DesignStep
-                disabled={false}
-                image={coverImage}
-                palette={palette}
-                bookConfig={bookConfig}
-                onBookConfigChange={handleBookConfigChange}
-              />
-            )}
-          </StepSection>
+          {job.id === "convert" && (
+            <DesignStep
+              disabled={false}
+              image={coverImage}
+              palette={palette}
+              bookConfig={bookConfig}
+              onBookConfigChange={handleBookConfigChange}
+            />
+          )}
         </div>
       </aside>
 
@@ -589,15 +571,6 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           chapterIndex={chapterIndex}
           onChapterIndexChange={setChapterIndex}
           showLines={showLines}
-          onShowLinesChange={setShowLines}
-          onExport={() => {
-            void exportPdf();
-          }}
-          exporting={exporting}
-          awaitingGeneratedCover={
-            generateInvolved && Boolean(preview) && !outputImage
-          }
-          onBookConfigChange={handleBookConfigChange}
         />
       </div>
     </div>
