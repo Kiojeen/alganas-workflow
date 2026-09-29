@@ -405,8 +405,10 @@ function drawRotatedSpineLines(
   );
   lines.forEach((line, index) => {
     const width = font.widthOfTextAtSize(line, size);
+    // PDF y grows upward, so this sign is the opposite of the preview's
+    // canvas offset. Line 0 stays on the same side of the spine as the preview.
     const offset =
-      lines.length === 1 ? 0 : (index === 0 ? -1 : 1) * ((size + lineGap) / 2);
+      lines.length === 1 ? 0 : (index === 0 ? 1 : -1) * ((size + lineGap) / 2);
     page.drawText(line, {
       x: -width / 2,
       y: offset - midline,
