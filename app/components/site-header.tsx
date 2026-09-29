@@ -27,17 +27,20 @@ function SiteHeader({ title }: { title: string }) {
         scrolled ? "sticky top-0 z-50 shadow" : "shadow-none",
       )}
     >
-      <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="size-7 shrink-0">
           <HugeiconsIcon icon={SidebarLeftIcon} className="size-4" />
         </SidebarTrigger>
-        <Separator orientation="vertical" className="mx-2" />
-        <span className="text-sm font-semibold">
+        <Separator orientation="vertical" className="mx-2 shrink-0" />
+        <span
+          className="min-w-0 truncate text-sm font-semibold"
+          title={title || undefined}
+        >
           {title || "اختر مشروعًا"}
         </span>
       </div>
 
-      <div className="flex gap-1 px-4 lg:gap-2 lg:px-6">
+      <div className="flex shrink-0 gap-1 px-4 lg:gap-2 lg:px-6">
         <ModeToggle />
       </div>
     </header>
