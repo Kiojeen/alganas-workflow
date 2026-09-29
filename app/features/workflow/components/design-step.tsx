@@ -41,6 +41,7 @@ import {
   spineHiddenFor,
 } from "../lib/cover-layout";
 import type { BookConfig } from "../types";
+import { ChapterDivisionSection } from "./chapter-division-fields";
 import { ChapterLabelField } from "./chapter-label-field";
 import { CoverColorPicker } from "./cover-color-picker";
 
@@ -266,6 +267,17 @@ export function DesignStep({
           />
         </div>
       )}
+
+      <div className="flex flex-col gap-2">
+        <span className="text-muted-foreground text-xs font-medium">
+          الفصول
+        </span>
+        <ChapterDivisionSection
+          bookConfig={bookConfig}
+          disabled={disabled}
+          onBookConfigChange={onBookConfigChange}
+        />
+      </div>
     </div>
   );
 }

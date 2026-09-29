@@ -29,9 +29,13 @@ export type CoverKind = "wrap" | "page";
 
 export type ChapterDivision = "pages" | "chapters";
 
+/** How page-based division sizes chapters: fill each to the cap, or spread evenly. */
+export type PagesFill = "max" | "even";
+
 export type BookConfig = {
   numPages: number;
   division: ChapterDivision;
+  pagesFill: PagesFill;
   maxPagesPerChapter: number;
   chapterCount: number;
   chapterPages: number[];

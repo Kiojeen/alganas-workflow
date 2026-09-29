@@ -27,6 +27,7 @@ export type WorkflowState = {
 const defaultBookConfig: BookConfig = {
   numPages: 720,
   division: "pages",
+  pagesFill: "max",
   maxPagesPerChapter: 720,
   chapterCount: 1,
   chapterPages: [720],
