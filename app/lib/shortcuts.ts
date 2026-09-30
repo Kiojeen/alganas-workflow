@@ -19,6 +19,8 @@ export type ShortcutId =
   | "prev-chapter"
   | "next-chapter"
   | "upload"
+  | "paste"
+  | "paste-back"
   | "ai-image"
   | "ai-image-back"
   | "ai-text"
@@ -116,6 +118,23 @@ export const SHORTCUTS: Shortcut[] = [
     group: "الملف",
     label: "رفع صورة أو PDF",
     combo: { code: "KeyU", display: "U" },
+  },
+  {
+    id: "paste",
+    group: "الملف",
+    label: "لصق صورة الغلاف",
+    combo: { code: "KeyV", ctrl: true, display: "V" },
+    // Handled on the paste event so a file copied from the OS comes along.
+    builtIn: true,
+  },
+  {
+    id: "paste-back",
+    group: "الملف",
+    label: "لصق صورة الظهر",
+    combo: { code: "KeyV", ctrl: true, shift: true, display: "V" },
+    // The browser gives this combo an empty paste event, so the clipboard
+    // is read directly from the keydown instead.
+    builtIn: true,
   },
   {
     id: "ai-image",

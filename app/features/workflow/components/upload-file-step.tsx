@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AiImageIcon,
   AiMagicIcon,
   Cancel01Icon,
+  ClipboardPasteIcon,
   FileUploadIcon,
   RefreshIcon,
   TextCreationIcon,
@@ -10,7 +11,13 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
 
-import { comboText, type ShortcutId } from "@/lib/shortcuts";
+import {
+  comboText,
+  isEditableTarget,
+  matchesCombo,
+  shortcutFor,
+  type ShortcutId,
+} from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { ImageZoom } from "@/components/ui/image-zoom";
 import { Input } from "@/components/ui/input";
@@ -165,6 +172,16 @@ async function fileFromClipboardRead() {
   return null;
 }
 
+const NO_CLIPBOARD_IMAGE =
+  "لا توجد صورة في الحافظة. الملفات المنسوخة تُلصق بـ Ctrl+V أو بالسحب.";
+
+/** Reads a screenshot or copied image from the clipboard into a field. */
+async function pasteFromClipboard(onFile: (file: File) => void) {
+  const file = await fileFromClipboardRead();
+  if (file) onFile(file);
+  else toast.error(NO_CLIPBOARD_IMAGE);
+}
+
 export const COVER_BACK_FILE_INPUT_ID = "cover-back-file-input";
 
 export { ACTIVE_TOGGLE_CLASS };
@@ -205,6 +222,51 @@ export function UploadFileStep({
   const englishLabel = isEnglishChapterLabel(bookConfig.chapterLabel);
   const language: BookLanguage =
     bookConfig.language ?? (englishLabel ? "en" : "ar");
+
+  const backTarget = bookConfig.coverKind === "double" ? back : undefined;
+  const targets = useRef({ file, back: backTarget });
+  targets.current = { file, back: backTarget };
+
+  // Ctrl+V pastes the front cover from the paste event, which is the only
+  // place a file copied from the OS shows up. Ctrl+Shift+V never carries
+  // files, so it is caught on keydown and reads the clipboard for the back.
+  useEffect(() => {
+    if (disabled) return;
+
+    const onPaste = (event: ClipboardEvent) => {
+      if (event.defaultPrevented || isEditableTarget(event.target)) return;
+      const { file } = targets.current;
+      if (file.busy) return;
+      const raw = fileFromTransfer(event.clipboardData);
+      if (!raw) return;
+      event.preventDefault();
+      void asCoverFile(raw).then((cover) => {
+        if (cover) file.onFile(cover);
+        else toast.error("الملف يجب أن يكون صورة أو PDF.");
+      });
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return;
+      if (!matchesCombo(event, shortcutFor("paste-back").combo)) return;
+      if (isEditableTarget(event.target)) return;
+      event.preventDefault();
+      const { back } = targets.current;
+      if (!back) {
+        toast.error("لصق الظهر متاح في الغلاف المزدوج فقط.");
+        return;
+      }
+      if (back.busy) return;
+      void pasteFromClipboard(back.onFile);
+    };
+
+    document.addEventListener("paste", onPaste);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("paste", onPaste);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [disabled]);
 
   const setLanguage = (next: BookLanguage) => {
     const keepLabel = (next === "en") === englishLabel;
@@ -351,6 +413,7 @@ export function UploadFileStep({
           heading="الظهر"
           imageOnly
           inputId={COVER_BACK_FILE_INPUT_ID}
+          pasteShortcut="paste-back"
         />
       )}
       <Separator />
@@ -419,35 +482,21 @@ function IconAction({
   );
 }
 
-function CoverPasteField({
+function PasteButton({
+  shortcut,
   disabled,
   onFile,
 }: {
+  shortcut: ShortcutId;
   disabled: boolean;
   onFile: (file: File) => void;
 }) {
   return (
-    <Input
-      readOnly
-      dir="ltr"
+    <IconAction
+      label={`لصق من الحافظة · ${comboText(shortcut)}`}
+      icon={ClipboardPasteIcon}
       disabled={disabled}
-      placeholder="Ctrl+V"
-      aria-label="لصق صورة"
-      title="الصق صورة أو ملف PDF"
-      className="h-7 w-16 shrink-0 px-1.5 text-center text-[11px]"
-      onPaste={(event) => {
-        event.preventDefault();
-        const raw = fileFromTransfer(event.clipboardData);
-        const deliver = (file: File | null) => {
-          if (file) onFile(file);
-          else toast.error("الصق صورة أو ملف PDF.");
-        };
-        if (raw) {
-          void asCoverFile(raw).then(deliver);
-          return;
-        }
-        void fileFromClipboardRead().then(deliver);
-      }}
+      onClick={() => void pasteFromClipboard(onFile)}
     />
   );
 }
@@ -471,12 +520,15 @@ function FileField({
   imageOnly = false,
   imageShortcut = "ai-image",
   inputId = COVER_FILE_INPUT_ID,
+  pasteShortcut = "paste",
 }: FileFieldProps & {
   disabled: boolean;
   heading?: string;
   /** Hide title extraction; the back cover is only redrawn. */
   imageOnly?: boolean;
   inputId?: string;
+  /** Shown on the clipboard button and the empty-state hint. */
+  pasteShortcut?: ShortcutId;
 }) {
   const [dragging, setDragging] = useState(false);
 
@@ -542,11 +594,21 @@ function FileField({
                   ? "صورة الظهر أو ملف PDF"
                   : "صورة الغلاف أو ملف PDF"}
             </span>
-            <span className="text-[11px]">اسحب أو اضغط</span>
+            <span className="text-[11px]">
+              اسحب أو اضغط
+              <span className="hidden md:inline">
+                {" "}
+                أو الصق بـ {comboText(pasteShortcut)}
+              </span>
+            </span>
           </span>
           {input}
         </Label>
-        <CoverPasteField disabled={disabled} onFile={onFile} />
+        <PasteButton
+          shortcut={pasteShortcut}
+          disabled={disabled}
+          onFile={onFile}
+        />
       </div>,
     );
   }
@@ -624,7 +686,11 @@ function FileField({
       </div>
 
       <div className="ms-auto flex items-center gap-1">
-        <CoverPasteField disabled={disabled || busy} onFile={onFile} />
+        <PasteButton
+          shortcut={pasteShortcut}
+          disabled={disabled || busy}
+          onFile={onFile}
+        />
         {preview.kind === "pdf" && (
           <Input
             type="number"
