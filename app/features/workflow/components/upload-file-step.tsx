@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   AiImageIcon,
   AiMagicIcon,
@@ -51,28 +51,101 @@ import {
 /** Shared with the `U` shortcut in the workflow. */
 export const COVER_FILE_INPUT_ID = "cover-file-input";
 
-/**
- * Paste events do not report Shift or Ctrl, so Ctrl+Shift+V is remembered
- * here and the next paste is routed to the back cover.
- */
-let backPasteUntil = 0;
-let backPasteConsumed = false;
+const COVER_FILE_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  bmp: "image/bmp",
+  tif: "image/tiff",
+  tiff: "image/tiff",
+  pdf: "application/pdf",
+};
 
-function isTypingTarget(target: EventTarget | null) {
-  return (
-    target instanceof Element &&
-    Boolean(target.closest("input, textarea, [contenteditable=true]"))
+function isCoverType(type: string) {
+  return type.startsWith("image/") || type === "application/pdf";
+}
+
+/** Copied files often arrive without a MIME type; the name still has one. */
+function withCoverType(file: File) {
+  if (isCoverType(file.type)) return file;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const type = COVER_FILE_TYPES[ext];
+  if (!type) return file;
+  return new File([file], file.name, {
+    type,
+    lastModified: file.lastModified,
+  });
+}
+
+function sniffCoverType(bytes: Uint8Array) {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
+    return "image/png";
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    return "image/jpeg";
+  }
+  if (
+    bytes.length >= 6 &&
+    bytes[0] === 0x47 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46
+  ) {
+    return "image/gif";
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  if (
+    bytes.length >= 4 &&
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46
+  ) {
+    return "application/pdf";
+  }
+  return "";
+}
+
+async function asCoverFile(file: File) {
+  const named = withCoverType(file);
+  if (isCoverType(named.type)) return named;
+  const sniffed = sniffCoverType(
+    new Uint8Array(await file.slice(0, 16).arrayBuffer()),
   );
+  if (!sniffed) return null;
+  const ext = sniffed === "application/pdf" ? "pdf" : sniffed.slice(6);
+  return new File([file], file.name || `paste.${ext}`, { type: sniffed });
 }
 
 function fileFromTransfer(data: DataTransfer | null) {
   if (!data) return null;
-  const items = Array.from(data.items ?? []);
-  return (
-    items.find((item) => item.kind === "file")?.getAsFile() ??
-    data.files?.[0] ??
-    null
-  );
+  const files: File[] = [];
+  for (const item of Array.from(data.items ?? [])) {
+    if (item.kind !== "file") continue;
+    const file = item.getAsFile();
+    if (file) files.push(file);
+  }
+  if (files.length === 0) files.push(...Array.from(data.files ?? []));
+  return files[0] ?? null;
 }
 
 async function fileFromClipboardRead() {
@@ -80,13 +153,10 @@ async function fileFromClipboardRead() {
   try {
     const items = await navigator.clipboard.read();
     for (const item of items) {
-      const type = item.types.find(
-        (entry) => entry.startsWith("image/") || entry === "application/pdf",
-      );
+      const type = item.types.find((entry) => isCoverType(entry));
       if (!type) continue;
       const blob = await item.getType(type);
-      const ext =
-        type === "application/pdf" ? "pdf" : type.slice(type.indexOf("/") + 1);
+      const ext = type === "application/pdf" ? "pdf" : type.slice(6);
       return new File([blob], `paste.${ext}`, { type });
     }
   } catch {
@@ -94,6 +164,7 @@ async function fileFromClipboardRead() {
   }
   return null;
 }
+
 export const COVER_BACK_FILE_INPUT_ID = "cover-back-file-input";
 
 export { ACTIVE_TOGGLE_CLASS };
@@ -280,7 +351,6 @@ export function UploadFileStep({
           heading="الظهر"
           imageOnly
           inputId={COVER_BACK_FILE_INPUT_ID}
-          pasteMode="shift"
         />
       )}
       <Separator />
@@ -349,6 +419,39 @@ function IconAction({
   );
 }
 
+function CoverPasteField({
+  disabled,
+  onFile,
+}: {
+  disabled: boolean;
+  onFile: (file: File) => void;
+}) {
+  return (
+    <Input
+      readOnly
+      dir="ltr"
+      disabled={disabled}
+      placeholder="Ctrl+V"
+      aria-label="لصق صورة"
+      title="الصق صورة أو ملف PDF"
+      className="h-7 w-16 shrink-0 px-1.5 text-center text-[11px]"
+      onPaste={(event) => {
+        event.preventDefault();
+        const raw = fileFromTransfer(event.clipboardData);
+        const deliver = (file: File | null) => {
+          if (file) onFile(file);
+          else toast.error("الصق صورة أو ملف PDF.");
+        };
+        if (raw) {
+          void asCoverFile(raw).then(deliver);
+          return;
+        }
+        void fileFromClipboardRead().then(deliver);
+      }}
+    />
+  );
+}
+
 function FileField({
   preview,
   pdfPage,
@@ -368,80 +471,14 @@ function FileField({
   imageOnly = false,
   imageShortcut = "ai-image",
   inputId = COVER_FILE_INPUT_ID,
-  pasteMode = "plain",
 }: FileFieldProps & {
   disabled: boolean;
   heading?: string;
   /** Hide title extraction; the back cover is only redrawn. */
   imageOnly?: boolean;
   inputId?: string;
-  /** `plain` is Ctrl+V. `shift` is the back-cover shortcut. */
-  pasteMode?: "plain" | "shift";
 }) {
   const [dragging, setDragging] = useState(false);
-  const onFileRef = useRef(onFile);
-  onFileRef.current = onFile;
-
-  useEffect(() => {
-    if (disabled || !pasteMode) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat || event.code !== "KeyV") return;
-      if (!event.shiftKey || !(event.ctrlKey || event.metaKey) || event.altKey)
-        return;
-      if (isTypingTarget(event.target)) return;
-      backPasteConsumed = false;
-      const armedAt = performance.now() + 1000;
-      backPasteUntil = armedAt;
-      void fileFromClipboardRead().then((file) => {
-        if (backPasteUntil !== armedAt || backPasteConsumed) return;
-        if (file) {
-          backPasteConsumed = true;
-          backPasteUntil = 0;
-          window.setTimeout(() => {
-            backPasteConsumed = false;
-          }, 500);
-          onFileRef.current(file);
-          return;
-        }
-        window.setTimeout(() => {
-          if (backPasteUntil !== armedAt || backPasteConsumed) return;
-          backPasteUntil = 0;
-          toast.error("تعذّر لصق صورة الظهر.");
-        }, 300);
-      });
-    };
-
-    const onPaste = (event: ClipboardEvent) => {
-      const armed = performance.now() < backPasteUntil;
-      if (pasteMode === "plain") {
-        if (armed || backPasteConsumed) return;
-      } else if (!armed) {
-        return;
-      }
-      if (isTypingTarget(event.target)) return;
-      const file = fileFromTransfer(event.clipboardData);
-      if (!file) return;
-      if (armed) {
-        backPasteConsumed = true;
-        backPasteUntil = 0;
-        window.setTimeout(() => {
-          backPasteConsumed = false;
-        }, 500);
-      }
-      event.preventDefault();
-      onFileRef.current(file);
-    };
-
-    if (pasteMode === "shift") {
-      window.addEventListener("keydown", onKeyDown);
-    }
-    document.addEventListener("paste", onPaste);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("paste", onPaste);
-    };
-  }, [disabled, pasteMode]);
 
   const dragProps = {
     onDragOver: (event: React.DragEvent) => {
@@ -487,38 +524,30 @@ function FileField({
 
   if (!preview) {
     return frame(
-      <Label
-        {...dragProps}
-        className={cn(
-          "border-input bg-input/10 text-muted-foreground hover:bg-input/20 flex cursor-pointer items-center gap-2.5 rounded-md border border-dashed px-3 py-2.5 text-xs transition-colors",
-          dragging && "border-primary bg-primary/10 text-foreground",
-          disabled && "cursor-not-allowed",
-        )}
-      >
-        <HugeiconsIcon icon={FileUploadIcon} className="size-4 shrink-0" />
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-foreground font-medium">
-            {dragging
-              ? "أفلت الملف هنا"
-              : heading === "الظهر"
-                ? "صورة الظهر أو ملف PDF"
-                : "صورة الغلاف أو ملف PDF"}
+      <div className="flex items-center gap-1.5">
+        <Label
+          {...dragProps}
+          className={cn(
+            "border-input bg-input/10 text-muted-foreground hover:bg-input/20 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md border border-dashed px-3 py-2.5 text-xs transition-colors",
+            dragging && "border-primary bg-primary/10 text-foreground",
+            disabled && "cursor-not-allowed",
+          )}
+        >
+          <HugeiconsIcon icon={FileUploadIcon} className="size-4 shrink-0" />
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-foreground font-medium">
+              {dragging
+                ? "أفلت الملف هنا"
+                : heading === "الظهر"
+                  ? "صورة الظهر أو ملف PDF"
+                  : "صورة الغلاف أو ملف PDF"}
+            </span>
+            <span className="text-[11px]">اسحب أو اضغط</span>
           </span>
-          <span className="text-[11px]">
-            اسحب أو اضغط
-            {pasteMode === "plain" && (
-              <span className="hidden md:inline"> أو الصق بـ Ctrl+V</span>
-            )}
-            {pasteMode === "shift" && (
-              <span className="hidden md:inline">
-                {" "}
-                أو الصق بـ {comboText("paste-back")}
-              </span>
-            )}
-          </span>
-        </span>
-        {input}
-      </Label>,
+          {input}
+        </Label>
+        <CoverPasteField disabled={disabled} onFile={onFile} />
+      </div>,
     );
   }
 
@@ -595,6 +624,7 @@ function FileField({
       </div>
 
       <div className="ms-auto flex items-center gap-1">
+        <CoverPasteField disabled={disabled || busy} onFile={onFile} />
         {preview.kind === "pdf" && (
           <Input
             type="number"
