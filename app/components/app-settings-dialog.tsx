@@ -6,6 +6,10 @@ import {
   DEFAULT_STRIPE_LAYOUT_A5,
   PAGES_PER_SPINE_CM,
 } from "@/features/workflow/lib/cover-layout";
+import {
+  DEFAULT_DESCRIPTION_EXTRACTION_PROMPT,
+  DEFAULT_TITLE_EXTRACTION_PROMPT,
+} from "@/features/workflow/lib/extraction-prompts";
 import { PROVIDERS } from "@/features/workflow/lib/provider-models";
 import {
   Delete02Icon,
@@ -85,6 +89,10 @@ function AppSettingsDialog({
     addPrompt,
     updatePrompt,
     removePrompt,
+    titleExtractionPrompt,
+    setTitleExtractionPrompt,
+    descriptionExtractionPrompt,
+    setDescriptionExtractionPrompt,
     pagesPerSpineCm,
     setPagesPerSpineCm,
     defaultDescribeModel,
@@ -425,68 +433,97 @@ function AppSettingsDialog({
             )}
 
             {section === "prompts" && (
-              <Section
-                title="تعليمات التوليد"
-                description="احفظ أكثر من نص بالاسم. اختيار أحدها في خطوة التوليد ينسخه إلى الحقل دون تعديل النسخة المحفوظة."
-                action={
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1"
-                    onClick={addPrompt}
-                  >
-                    <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
-                    إضافة
-                  </Button>
-                }
-              >
-                <div className="space-y-3">
-                  {prompts.length === 0 && (
-                    <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-xs">
-                      لا تعليمات محفوظة بعد.
-                    </p>
-                  )}
-                  {prompts.map((prompt) => (
-                    <div
-                      key={prompt.id}
-                      className="bg-card flex flex-col gap-2 rounded-lg border p-3"
+              <div className="flex flex-col gap-6">
+                <Section
+                  title="تعليمات الاستخراج"
+                  description="نص العنوان يُرسل مع كل استخراج. نص الوصف يُضاف فقط عندما يُستخرج الوصف مع العنوان. إفراغ الحقل يعيد الصياغة الافتراضية عند الاستخراج."
+                >
+                  <div className="space-y-3">
+                    <ExtractionPromptField
+                      label="استخراج العنوان"
+                      value={titleExtractionPrompt}
+                      onChange={setTitleExtractionPrompt}
+                      onReset={() =>
+                        setTitleExtractionPrompt(
+                          DEFAULT_TITLE_EXTRACTION_PROMPT,
+                        )
+                      }
+                    />
+                    <ExtractionPromptField
+                      label="وصف الغلاف"
+                      value={descriptionExtractionPrompt}
+                      onChange={setDescriptionExtractionPrompt}
+                      onReset={() =>
+                        setDescriptionExtractionPrompt(
+                          DEFAULT_DESCRIPTION_EXTRACTION_PROMPT,
+                        )
+                      }
+                    />
+                  </div>
+                </Section>
+                <Section
+                  title="تعليمات التوليد"
+                  description="احفظ أكثر من نص بالاسم. اختيار أحدها في خطوة التوليد ينسخه إلى الحقل دون تعديل النسخة المحفوظة."
+                  action={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1"
+                      onClick={addPrompt}
                     >
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={prompt.name}
-                          onChange={(e) =>
-                            updatePrompt(prompt.id, { name: e.target.value })
-                          }
-                          placeholder="اسم التعليمات"
-                          className="h-8"
-                        />
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          className="text-muted-foreground hover:text-destructive shrink-0"
-                          onClick={() => removePrompt(prompt.id)}
-                          aria-label="حذف"
-                        >
-                          <HugeiconsIcon
-                            icon={Delete02Icon}
-                            className="size-3.5"
+                      <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
+                      إضافة
+                    </Button>
+                  }
+                >
+                  <div className="space-y-3">
+                    {prompts.length === 0 && (
+                      <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-xs">
+                        لا تعليمات محفوظة بعد.
+                      </p>
+                    )}
+                    {prompts.map((prompt) => (
+                      <div
+                        key={prompt.id}
+                        className="bg-card flex flex-col gap-2 rounded-lg border p-3"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={prompt.name}
+                            onChange={(e) =>
+                              updatePrompt(prompt.id, { name: e.target.value })
+                            }
+                            placeholder="اسم التعليمات"
+                            className="h-8"
                           />
-                        </Button>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            className="text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => removePrompt(prompt.id)}
+                            aria-label="حذف"
+                          >
+                            <HugeiconsIcon
+                              icon={Delete02Icon}
+                              className="size-3.5"
+                            />
+                          </Button>
+                        </div>
+                        <Textarea
+                          dir="ltr"
+                          value={prompt.text}
+                          onChange={(e) =>
+                            updatePrompt(prompt.id, { text: e.target.value })
+                          }
+                          placeholder="Describe how the AI should generate the image…"
+                          className="max-h-40 overflow-y-auto text-xs"
+                          rows={4}
+                        />
                       </div>
-                      <Textarea
-                        dir="ltr"
-                        value={prompt.text}
-                        onChange={(e) =>
-                          updatePrompt(prompt.id, { text: e.target.value })
-                        }
-                        placeholder="Describe how the AI should generate the image…"
-                        className="max-h-40 overflow-y-auto text-xs"
-                        rows={4}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </Section>
+                    ))}
+                  </div>
+                </Section>
+              </div>
             )}
           </div>
         </div>
@@ -507,8 +544,8 @@ function AppSettingsDialog({
                 <AlertDialogHeader>
                   <AlertDialogTitle>إعادة ضبط الإعدادات</AlertDialogTitle>
                   <AlertDialogDescription>
-                    تُمسح المفاتيح والتعليمات المحفوظة، وتعود النماذج والمقاييس
-                    إلى القيم الافتراضية.
+                    تُمسح المفاتيح وتعليمات التوليد، وتعود تعليمات الاستخراج
+                    والنماذج والمقاييس إلى القيم الافتراضية.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -553,6 +590,41 @@ function AppSettingsDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ExtractionPromptField({
+  label,
+  value,
+  onChange,
+  onReset,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="bg-card flex flex-col gap-2 rounded-lg border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium">{label}</span>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-muted-foreground h-7 px-2 text-[11px]"
+          onClick={onReset}
+        >
+          الافتراضي
+        </Button>
+      </div>
+      <Textarea
+        dir="ltr"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="max-h-64 overflow-y-auto text-xs"
+        rows={8}
+      />
+    </div>
   );
 }
 

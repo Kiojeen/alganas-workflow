@@ -15,6 +15,10 @@ import {
   type StripeLayoutCm,
 } from "../lib/cover-layout";
 import {
+  DEFAULT_DESCRIPTION_EXTRACTION_PROMPT,
+  DEFAULT_TITLE_EXTRACTION_PROMPT,
+} from "../lib/extraction-prompts";
+import {
   DEFAULT_CATALOG,
   DEFAULT_DESCRIBE_MODEL_ID,
   DEFAULT_IMAGE_MODEL_ID,
@@ -45,6 +49,10 @@ type ModelsContextValue = {
     patch: Partial<Pick<SavedPrompt, "name" | "text">>,
   ) => void;
   removePrompt: (id: string) => void;
+  titleExtractionPrompt: string;
+  setTitleExtractionPrompt: (value: string) => void;
+  descriptionExtractionPrompt: string;
+  setDescriptionExtractionPrompt: (value: string) => void;
   pagesPerSpineCm: number;
   setPagesPerSpineCm: (value: number) => void;
   stripeA4: StripeLayoutCm;
@@ -65,6 +73,8 @@ export type SettingsFile = {
   version: 1;
   keys: ProviderKeys;
   prompts: SavedPrompt[];
+  titleExtractionPrompt: string;
+  descriptionExtractionPrompt: string;
   pagesPerSpineCm: number;
   stripeA4: StripeLayoutCm;
   stripeA5: StripeLayoutCm;
@@ -179,8 +189,14 @@ function loadDescribeDefault(parsed: {
   return stored;
 }
 
+function loadPromptText(value: unknown, fallback: string) {
+  return typeof value === "string" ? value : fallback;
+}
+
 function loadPrefs(): {
   prompts: SavedPrompt[];
+  titleExtractionPrompt: string;
+  descriptionExtractionPrompt: string;
   pagesPerSpineCm: number;
   stripeA4: StripeLayoutCm;
   stripeA5: StripeLayoutCm;
@@ -189,6 +205,8 @@ function loadPrefs(): {
 } {
   const fallback = {
     prompts: DEFAULT_PROMPTS,
+    titleExtractionPrompt: DEFAULT_TITLE_EXTRACTION_PROMPT,
+    descriptionExtractionPrompt: DEFAULT_DESCRIPTION_EXTRACTION_PROMPT,
     pagesPerSpineCm: PAGES_PER_SPINE_CM,
     stripeA4: { ...DEFAULT_STRIPE_LAYOUT_A4 },
     stripeA5: { ...DEFAULT_STRIPE_LAYOUT_A5 },
@@ -201,6 +219,8 @@ function loadPrefs(): {
     if (saved) {
       const parsed = JSON.parse(saved) as {
         prompts?: SavedPrompt[];
+        titleExtractionPrompt?: string;
+        descriptionExtractionPrompt?: string;
         pagesPerSpineCm?: number;
         stripeWidthA4Cm?: number;
         stripeWidthA5Cm?: number;
@@ -227,6 +247,14 @@ function loadPrefs(): {
         : DEFAULT_PROMPTS;
       return {
         prompts: prompts.length > 0 ? prompts : DEFAULT_PROMPTS,
+        titleExtractionPrompt: loadPromptText(
+          parsed.titleExtractionPrompt,
+          fallback.titleExtractionPrompt,
+        ),
+        descriptionExtractionPrompt: loadPromptText(
+          parsed.descriptionExtractionPrompt,
+          fallback.descriptionExtractionPrompt,
+        ),
         pagesPerSpineCm: loadPagesPerSpineCm(parsed.pagesPerSpineCm),
         stripeA4: parseStripe(
           parsed.stripeA4,
@@ -276,6 +304,8 @@ function parseSettingsFile(raw: unknown): SettingsFile | null {
 function loadPrefsFromUnknown(parsed: Record<string, unknown>) {
   const fallback = {
     prompts: DEFAULT_PROMPTS,
+    titleExtractionPrompt: DEFAULT_TITLE_EXTRACTION_PROMPT,
+    descriptionExtractionPrompt: DEFAULT_DESCRIPTION_EXTRACTION_PROMPT,
     pagesPerSpineCm: PAGES_PER_SPINE_CM,
     stripeA4: { ...DEFAULT_STRIPE_LAYOUT_A4 },
     stripeA5: { ...DEFAULT_STRIPE_LAYOUT_A5 },
@@ -296,6 +326,14 @@ function loadPrefsFromUnknown(parsed: Record<string, unknown>) {
     : fallback.prompts;
   return {
     prompts: prompts.length > 0 ? prompts : fallback.prompts,
+    titleExtractionPrompt: loadPromptText(
+      parsed.titleExtractionPrompt,
+      fallback.titleExtractionPrompt,
+    ),
+    descriptionExtractionPrompt: loadPromptText(
+      parsed.descriptionExtractionPrompt,
+      fallback.descriptionExtractionPrompt,
+    ),
     pagesPerSpineCm: loadPagesPerSpineCm(parsed.pagesPerSpineCm),
     stripeA4: parseStripe(
       parsed.stripeA4 as Partial<StripeLayoutCm> | undefined,
@@ -326,6 +364,11 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const [prompts, setPrompts] = useState<SavedPrompt[]>(
     () => loadPrefs().prompts,
   );
+  const [titleExtractionPrompt, setTitleExtractionPrompt] = useState(
+    () => loadPrefs().titleExtractionPrompt,
+  );
+  const [descriptionExtractionPrompt, setDescriptionExtractionPrompt] =
+    useState(() => loadPrefs().descriptionExtractionPrompt);
   const [pagesPerSpineCm, setPagesPerSpineCmState] = useState(
     () => loadPrefs().pagesPerSpineCm,
   );
@@ -351,6 +394,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       PREFS_STORAGE_KEY,
       JSON.stringify({
         prompts,
+        titleExtractionPrompt,
+        descriptionExtractionPrompt,
         pagesPerSpineCm,
         stripeA4,
         stripeA5,
@@ -361,6 +406,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     );
   }, [
     prompts,
+    titleExtractionPrompt,
+    descriptionExtractionPrompt,
     pagesPerSpineCm,
     stripeA4,
     stripeA5,
@@ -432,6 +479,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       version: 1,
       keys,
       prompts,
+      titleExtractionPrompt,
+      descriptionExtractionPrompt,
       pagesPerSpineCm,
       stripeA4,
       stripeA5,
@@ -441,6 +490,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   }, [
     keys,
     prompts,
+    titleExtractionPrompt,
+    descriptionExtractionPrompt,
     pagesPerSpineCm,
     stripeA4,
     stripeA5,
@@ -451,6 +502,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const resetSettings = useCallback(() => {
     setKeys(EMPTY_KEYS);
     setPrompts(DEFAULT_PROMPTS.map((item) => ({ ...item })));
+    setTitleExtractionPrompt(DEFAULT_TITLE_EXTRACTION_PROMPT);
+    setDescriptionExtractionPrompt(DEFAULT_DESCRIPTION_EXTRACTION_PROMPT);
     setPagesPerSpineCmState(PAGES_PER_SPINE_CM);
     setStripeA4({ ...DEFAULT_STRIPE_LAYOUT_A4 });
     setStripeA5({ ...DEFAULT_STRIPE_LAYOUT_A5 });
@@ -463,6 +516,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     if (!parsed) return false;
     setKeys(parsed.keys);
     setPrompts(parsed.prompts);
+    setTitleExtractionPrompt(parsed.titleExtractionPrompt);
+    setDescriptionExtractionPrompt(parsed.descriptionExtractionPrompt);
     setPagesPerSpineCmState(parsed.pagesPerSpineCm);
     setStripeA4(parsed.stripeA4);
     setStripeA5(parsed.stripeA5);
@@ -481,6 +536,10 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         addPrompt,
         updatePrompt,
         removePrompt,
+        titleExtractionPrompt,
+        setTitleExtractionPrompt,
+        descriptionExtractionPrompt,
+        setDescriptionExtractionPrompt,
         pagesPerSpineCm,
         setPagesPerSpineCm,
         stripeA4,

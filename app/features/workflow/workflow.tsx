@@ -33,6 +33,11 @@ import { unassignedPagesError } from "./lib/chapter-division";
 import { COVER_FONT_PAIRS, getCoverFontPair } from "./lib/cover-fonts";
 import { resolveChapters } from "./lib/cover-layout";
 import { exportCoverPdf } from "./lib/export-cover-pdf";
+import {
+  DEFAULT_DESCRIPTION_EXTRACTION_PROMPT,
+  DEFAULT_TITLE_EXTRACTION_PROMPT,
+  promptOrDefault,
+} from "./lib/extraction-prompts";
 import { renderPdfPage } from "./lib/pdf";
 import { modelsByKind } from "./lib/provider-models";
 import { useCoverImage } from "./lib/use-cover-image";
@@ -42,7 +47,7 @@ import type { BookConfig, StepStatus } from "./types";
 const bookNameField = z
   .string()
   .describe(
-    "Main title only, in reading order. No subtitle, tagline, series name, author, or publisher. Right-to-left text in logical order, not left-to-right visual order. Multi-line titles joined from top to bottom.",
+    "The complete main title, following the instructions in the message.",
   );
 
 const describeSchema = z.object({
@@ -50,17 +55,13 @@ const describeSchema = z.object({
   description: z
     .string()
     .describe(
-      "Back-cover blurb of 100 to 110 words, one paragraph, in the title's language. Do not repeat the title.",
+      "The back-cover description, following the instructions in the message.",
     ),
 });
 
 const titleSchema = z.object({
   bookName: bookNameField,
 });
-
-const TITLE_RULES = `bookName is the main title only, in the cover's language.
-Use the largest, most prominent title wording. Leave out any subtitle, tagline, series name, author, translator, or publisher, even when that text sits on the line above or below the title or looks similar in size.
-Write bookName in reading order. For Arabic and other right-to-left scripts, use logical order (the first spoken word first), never the left-to-right order of the letters on the image. When the title wraps onto several lines, join those lines from top to bottom.`;
 
 const UPLOAD = JOBS.findIndex((job) => job.id === "upload");
 const CONVERT = JOBS.findIndex((job) => job.id === "convert");
@@ -95,6 +96,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     stripeA5,
     defaultDescribeModel,
     defaultImageModel,
+    titleExtractionPrompt,
+    descriptionExtractionPrompt,
   } = useModels();
   const fileRef = useRef<File | null>(workflow?.state.file ?? null);
   const backFileRef = useRef<File | null>(workflow?.state.backFile ?? null);
@@ -274,6 +277,14 @@ export function Workflow({ workflowId }: { workflowId: string }) {
         image: vision.bytes,
         mediaType: vision.mediaType,
       };
+      const titleRules = promptOrDefault(
+        titleExtractionPrompt,
+        DEFAULT_TITLE_EXTRACTION_PROMPT,
+      );
+      const descriptionRules = promptOrDefault(
+        descriptionExtractionPrompt,
+        DEFAULT_DESCRIPTION_EXTRACTION_PROMPT,
+      );
       const extracted = titleOnly
         ? await generateObject({
             model,
@@ -284,7 +295,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                 content: [
                   {
                     type: "text",
-                    text: `Look at this book cover image.\n${TITLE_RULES}\nReturn JSON with bookName only.`,
+                    text: `Look at this book cover image.\n${titleRules}\nReturn JSON with bookName only.`,
                   },
                   imagePart,
                 ],
@@ -303,7 +314,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                 content: [
                   {
                     type: "text",
-                    text: `Look at this book cover image.\n${TITLE_RULES}\ndescription is a back-cover blurb of 100 to 110 words, written as one paragraph in the same language as the title. Base it on the cover, and do not repeat the title.\nReturn JSON with bookName and description only.`,
+                    text: `Look at this book cover image.\n${titleRules}\n${descriptionRules}\nReturn JSON with bookName and description only.`,
                   },
                   imagePart,
                 ],
