@@ -115,7 +115,7 @@ export function allocatedPages(config: BookConfig): number[] {
   }
 
   const cap = pageCap(config);
-  if ((config.pagesFill ?? "max") === "even") {
+  if (config.pagesFill !== "max") {
     return evenChapterPages(total, pagesModeCount(config));
   }
   const pages: number[] = [];

@@ -128,7 +128,7 @@ export function ChapterDivisionSection({
       {!byChapters && (
         <ToggleGroup
           type="single"
-          value={bookConfig.pagesFill ?? "max"}
+          value={bookConfig.pagesFill ?? "even"}
           disabled={disabled}
           onValueChange={(value) => {
             if (value !== "max" && value !== "even") return;
@@ -141,15 +141,6 @@ export function ChapterDivisionSection({
           aria-label="طريقة التوزيع"
         >
           <ToggleGroupItem
-            value="max"
-            className={cn(
-              "flex-1 text-xs whitespace-normal",
-              ACTIVE_TOGGLE_CLASS,
-            )}
-          >
-            ملء الحد الأقصى
-          </ToggleGroupItem>
-          <ToggleGroupItem
             value="even"
             className={cn(
               "flex-1 text-xs whitespace-normal",
@@ -157,6 +148,15 @@ export function ChapterDivisionSection({
             )}
           >
             توزيع متساوٍ
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="max"
+            className={cn(
+              "flex-1 text-xs whitespace-normal",
+              ACTIVE_TOGGLE_CLASS,
+            )}
+          >
+            ملء الحد الأقصى
           </ToggleGroupItem>
         </ToggleGroup>
       )}
