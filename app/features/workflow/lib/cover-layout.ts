@@ -357,17 +357,54 @@ export function wrapWords(
   const lines: string[] = [];
   let current = "";
 
+  const flush = () => {
+    if (!current) return;
+    lines.push(current);
+    current = "";
+  };
+
   for (const word of words) {
     const next = current ? `${current} ${word}` : word;
     if (widthOf(next) <= maxWidth) {
       current = next;
-    } else {
-      if (current) lines.push(current);
-      current = word;
+      continue;
     }
+    flush();
+    if (widthOf(word) <= maxWidth) {
+      current = word;
+      continue;
+    }
+    lines.push(...breakLongWord(word, maxWidth, widthOf));
   }
-  if (current) lines.push(current);
+  flush();
   return lines;
+}
+
+/** Cuts a word that is wider than the line into pieces that each fit. */
+function breakLongWord(
+  word: string,
+  maxWidth: number,
+  widthOf: (value: string) => number,
+): string[] {
+  const parts: string[] = [];
+  let rest = word;
+  while (rest) {
+    if (widthOf(rest) <= maxWidth) {
+      parts.push(rest);
+      break;
+    }
+    let lo = 1;
+    let hi = rest.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (widthOf(rest.slice(0, mid)) <= maxWidth) lo = mid;
+      else hi = mid - 1;
+    }
+    const take = Math.max(1, lo);
+    parts.push(rest.slice(0, take));
+    rest = rest.slice(take);
+  }
+  return parts;
 }
 
 export function hexToRgb01(hex: string): { r: number; g: number; b: number } {
