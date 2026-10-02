@@ -1,6 +1,6 @@
 # أتمته الگناص
 
-Arabic, right-to-left desk for turning a book cover into print-ready PDFs. Upload a cover, split the book into chapters, and export a wrap (front, spine, and back stripe), a double cover (front and back images, no stripe), or a single A4/A5 page.
+Arabic, right-to-left desk for turning a book cover into print-ready PDFs. Upload a cover, split the book into chapters, and export a wrap (front, spine, and back stripe), a double cover (front and back images, no stripe), a premade artboard, or a spiral single page.
 
 The interface is in Arabic. Optional steps can read the cover with a vision model and redraw it with an image model. API keys stay in the browser. Projects themselves are kept in memory for the current session.
 
@@ -8,7 +8,7 @@ The interface is in Arabic. Optional steps can read the cover with a vision mode
 
 | Step          | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| الملف والكتاب | Upload a cover image or a PDF page; it shows on the artboard at once. Choose wrap or single page, the book language (English by default), A4 or A5, and how the book is split into chapters. An AI button on the file field redraws the cover with the chosen image model and prompt; the result can be removed to return to the upload. An accordion below holds the title and description (with one-click extraction by a vision model) and the image model and prompt. |
+| الملف والكتاب | Upload a cover image or a PDF page; it shows on the artboard at once. Choose the cover kind (wrap, double, or premade), the binding (standard by default, spiral, or hardcover later), the book language (English by default), A4 or A5, and how the book is split into chapters. An AI button on the file field redraws the cover with the chosen image model and prompt; the result can be removed to return to the upload. An accordion below holds the title and description (with one-click extraction by a vision model) and the image model and prompt. Premade covers skip AI and use a saved library image plus a typed title. |
 | التصميم       | Font, colors, and — when there is more than one chapter — the chapter word (Volume / الجزء by default), its size, and its position.                                                                                                                                                                                                                                                                                                                                       |
 
 The two tabs sit beside a live preview of the artboard. Above the tabs, «تصدير» saves the cover image and one PDF per chapter under the book's name, and the ruler toggle shows on-screen guides (trim, folds, stripe, and centre lines, never exported). The preview pane has a chapter dropdown. The file field accepts click, drag and drop, and paste, and carries three AI buttons: generate the image, extract the title and description, or both in sequence.
@@ -19,7 +19,9 @@ The two tabs sit beside a live preview of the artboard. Above the tabs, «تصد
 
 **غلاف مزدوج** uses the same artboard, but the back is a second uploaded image instead of a description stripe. The vision step reads only the book name, and each image can be redrawn on its own.
 
-**غلاف صفحة واحدة** is that same A4 or A5 page on its own: no stripe, spine, or spine marks, and no description. Page count and chapters are still used to decide how many covers to export.
+**غلاف جاهز** is a finished 47×29.7 cm artboard stored on this device. There is no AI, stripe, or description. The typed book name is drawn on the front and the spine. A5 shrinks that image on the same artboard; spine marks, spine text, and guides still follow the calculated spine. Font, size, and position of the front title are editable.
+
+**حلزوني** (under نوع التجليد) is a single A4 or A5 page: no stripe, spine, or spine marks, and no description. Page count and chapters are still used to decide how many covers to export. عادي keeps wrap and double covers as they were.
 
 Chapters can be split in two ways:
 

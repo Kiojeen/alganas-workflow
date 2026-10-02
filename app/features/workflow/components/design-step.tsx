@@ -7,6 +7,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -18,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import { useModels } from "../context";
 import {
@@ -28,11 +30,15 @@ import {
 } from "../lib/cover-fonts";
 import {
   clampChapterLabelSize,
+  clampFrontTitleSize,
   contrastHex,
   DEFAULT_COVER_COLOR,
+  isPremadeCover,
   isSinglePageCover,
   MAX_CHAPTER_LABEL_SIZE_CM,
+  MAX_FRONT_TITLE_SIZE_CM,
   MIN_CHAPTER_LABEL_SIZE_CM,
+  MIN_FRONT_TITLE_SIZE_CM,
   MIN_SPINE_CM,
   pageDimsCm,
   resolveChapters,
@@ -41,7 +47,10 @@ import {
   spineHiddenFor,
 } from "../lib/cover-layout";
 import type { BookConfig } from "../types";
-import { ChapterDivisionSection } from "./chapter-division-fields";
+import {
+  ACTIVE_TOGGLE_CLASS,
+  ChapterDivisionSection,
+} from "./chapter-division-fields";
 import { ChapterLabelField } from "./chapter-label-field";
 import { CoverColorPicker } from "./cover-color-picker";
 
@@ -76,11 +85,22 @@ export function DesignStep({
     : (fontOptions[0] ?? getCoverFontPair(bookConfig.fontPair));
   const pageDims = pageDimsCm(bookConfig.pageSize ?? "a4");
   const singlePage = isSinglePageCover(bookConfig);
+  const premade = isPremadeCover(bookConfig);
   const coverColor = bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeColor = bookConfig.stripeColor || shiftHex(coverColor, -18);
   const chapterLabelX = bookConfig.chapterLabelX ?? 50;
   const chapterLabelY = bookConfig.chapterLabelY ?? 88;
   const chapterLabelSize = clampChapterLabelSize(bookConfig.chapterLabelSizeCm);
+  const frontTitleX = bookConfig.frontTitleX ?? 50;
+  const frontTitleY = bookConfig.frontTitleY ?? 30;
+  const frontTitleSize = clampFrontTitleSize(bookConfig.frontTitleSizeCm);
+  const frontTitleBackdrop = sampleChapterBackdrop(
+    image,
+    pageDims.width,
+    pageDims.height,
+    frontTitleX,
+    frontTitleY,
+  );
   const chapterBackdrop = sampleChapterBackdrop(
     image,
     pageDims.width,
@@ -132,7 +152,7 @@ export function DesignStep({
           disabled={disabled}
           swatches={palette}
         />
-        {(bookConfig.coverKind ?? "wrap") === "wrap" && (
+        {(bookConfig.coverKind ?? "wrap") === "wrap" && !premade && (
           <>
             <CoverColorPicker
               label="لون الشريط"
@@ -195,6 +215,29 @@ export function DesignStep({
             onSelectSpecial={() => patch({ chapterLabelContrast: true })}
           />
         )}
+        {premade && (
+          <CoverColorPicker
+            label="لون عنوان الواجهة"
+            value={
+              bookConfig.frontTitleContrast !== false
+                ? ""
+                : bookConfig.frontTitleColor
+            }
+            fallback={contrastHex(frontTitleBackdrop)}
+            onChange={(hex) =>
+              patch({ frontTitleColor: hex, frontTitleContrast: false })
+            }
+            disabled={disabled}
+            swatches={palette}
+            special={{
+              hex: contrastHex(frontTitleBackdrop),
+              backdrop: frontTitleBackdrop,
+              label: "لون متباين مع ما تحت العنوان",
+              active: bookConfig.frontTitleContrast !== false,
+            }}
+            onSelectSpecial={() => patch({ frontTitleContrast: true })}
+          />
+        )}
       </div>
 
       {!singlePage && thinSpine && (
@@ -208,6 +251,109 @@ export function DesignStep({
           />
           <span>إظهار نص الكعب رغم أنه أقل من {MIN_SPINE_CM} سم</span>
         </label>
+      )}
+
+      {premade && (
+        <div className="flex flex-col gap-3 rounded-md border p-3">
+          <span className="text-xs font-medium">عنوان الواجهة</span>
+          <label className="flex items-center gap-2 text-xs">
+            <Checkbox
+              checked={bookConfig.frontTitleShadow !== false}
+              disabled={disabled}
+              onCheckedChange={(checked) =>
+                patch({ frontTitleShadow: checked === true })
+              }
+            />
+            <span>ظل تحت العنوان</span>
+          </label>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-muted-foreground text-xs">
+              محاذاة العنوان
+            </span>
+            <ToggleGroup
+              type="single"
+              value={bookConfig.frontTitleAlign ?? "center"}
+              disabled={disabled}
+              onValueChange={(value) => {
+                if (value !== "right" && value !== "center" && value !== "left")
+                  return;
+                patch({
+                  frontTitleAlign: value,
+                  frontTitleX:
+                    value === "left" ? 0 : value === "right" ? 100 : 50,
+                });
+              }}
+              variant="outline"
+              size="sm"
+              spacing={0}
+              className="w-full"
+              dir="ltr"
+            >
+              <ToggleGroupItem
+                value="left"
+                className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
+              >
+                يسار
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="center"
+                className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
+              >
+                وسط
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="right"
+                className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
+              >
+                يمين
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+          <IconSlider
+            icon={TextIcon}
+            label="حجم عنوان الواجهة"
+            value={frontTitleSize}
+            min={MIN_FRONT_TITLE_SIZE_CM}
+            max={MAX_FRONT_TITLE_SIZE_CM}
+            step={0.05}
+            display={`${frontTitleSize.toFixed(2)} cm`}
+            disabled={disabled}
+            onChange={(value) => patch({ frontTitleSizeCm: value })}
+          />
+          <IconSlider
+            icon={ArrowUpDownIcon}
+            label="المسافة بين الأسطر"
+            value={bookConfig.frontTitleLeading ?? 1.25}
+            min={0.8}
+            max={2.5}
+            step={0.05}
+            display={`${((bookConfig.frontTitleLeading ?? 1.25) * frontTitleSize).toFixed(2)} cm`}
+            disabled={disabled}
+            onChange={(value) => patch({ frontTitleLeading: value })}
+          />
+          <IconSlider
+            icon={ArrowLeftRightIcon}
+            label="موضع عنوان الواجهة أفقيًا"
+            value={frontTitleX}
+            min={0}
+            max={100}
+            step={1}
+            display={`${((frontTitleX / 100) * pageDims.width).toFixed(1)} cm`}
+            disabled={disabled}
+            onChange={(value) => patch({ frontTitleX: value })}
+          />
+          <IconSlider
+            icon={ArrowUpDownIcon}
+            label="موضع عنوان الواجهة عموديًا"
+            value={frontTitleY}
+            min={0}
+            max={100}
+            step={1}
+            display={`${((frontTitleY / 100) * pageDims.height).toFixed(1)} cm`}
+            disabled={disabled}
+            onChange={(value) => patch({ frontTitleY: value })}
+          />
+        </div>
       )}
 
       {hasChapters && (

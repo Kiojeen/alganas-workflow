@@ -28,12 +28,14 @@ import {
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
   clampChapterLabelSize,
+  clampFrontTitleSize,
   cmToPt,
   contrastHex,
   DEFAULT_COVER_COLOR,
   fileSafeName,
   fitSpineTitle,
   hexToRgb01,
+  isPremadeCover,
   isRtlText,
   isSinglePageCover,
   layoutCoverCm,
@@ -159,7 +161,11 @@ function topY(pageHeight: number, yCm: number) {
   return pageHeight - cmToPt(yCm);
 }
 
-async function embedCoverImage(pdf: PDFDocument, sourceUrl: string) {
+async function embedCoverImage(
+  pdf: PDFDocument,
+  sourceUrl: string,
+  mirror = false,
+) {
   const response = await fetch(sourceUrl);
   const bytes = new Uint8Array(await response.arrayBuffer());
   const header = sourceUrl.slice(0, 32);
@@ -168,11 +174,13 @@ async function embedCoverImage(pdf: PDFDocument, sourceUrl: string) {
       ? true
       : /image\/jpe?g/i.test(header);
   const png = bytes[0] === 0x89 && bytes[1] === 0x50;
-  try {
-    if (jpeg) return await pdf.embedJpg(bytes);
-    if (png) return await pdf.embedPng(bytes);
-  } catch {
-    // fall through and re-encode
+  if (!mirror) {
+    try {
+      if (jpeg) return await pdf.embedJpg(bytes);
+      if (png) return await pdf.embedPng(bytes);
+    } catch {
+      // fall through and re-encode
+    }
   }
   const image = await loadCoverImage(sourceUrl);
   const canvas = document.createElement("canvas");
@@ -180,6 +188,10 @@ async function embedCoverImage(pdf: PDFDocument, sourceUrl: string) {
   canvas.height = image.naturalHeight;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("تعذّر تجهيز صورة الغلاف.");
+  if (mirror) {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
   ctx.drawImage(image, 0, 0);
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => {
@@ -188,6 +200,43 @@ async function embedCoverImage(pdf: PDFDocument, sourceUrl: string) {
     }, "image/png");
   });
   return pdf.embedPng(await blob.arrayBuffer());
+}
+
+/** Fits the image height and pins it to one side, clipping whatever hangs off. */
+function drawCoverImageEdge(
+  page: PDFPage,
+  image: PDFImage,
+  box: { x: number; y: number; width: number; height: number },
+  side: "left" | "right",
+) {
+  const scale = box.height / image.height;
+  const drawW = image.width * scale;
+  const drawH = box.height;
+  const x = side === "right" ? box.x + box.width - drawW : box.x;
+  page.pushOperators(
+    pushGraphicsState(),
+    rectangle(box.x, box.y, box.width, box.height),
+    clip(),
+    endPath(),
+  );
+  page.drawImage(image, { x, y: box.y, width: drawW, height: drawH });
+  page.pushOperators(popGraphicsState());
+}
+
+function drawCoverImageContain(
+  page: PDFPage,
+  image: PDFImage,
+  box: { x: number; y: number; width: number; height: number },
+) {
+  const scale = Math.min(box.width / image.width, box.height / image.height);
+  const drawW = image.width * scale;
+  const drawH = image.height * scale;
+  page.drawImage(image, {
+    x: box.x + (box.width - drawW) / 2,
+    y: box.y + (box.height - drawH) / 2,
+    width: drawW,
+    height: drawH,
+  });
 }
 
 function drawCoverImage(
@@ -333,18 +382,72 @@ async function drawChapterLabel(
     xPercent: number;
     yPercent: number;
     sizeCm?: number;
+    sizeClamp?: (value: number | undefined) => number;
     fill: RGB;
     shadow?: boolean;
+    /** Keep the chosen size and wrap overflow onto the next lines. */
+    wrap?: boolean;
+    align?: "left" | "center" | "right";
+    /** Baseline distance as a multiple of the font size. */
+    leading?: number;
   },
 ) {
   const { label, font, box } = args;
-  const pad = cmToPt(1.2);
+  const pad = cmToPt(args.wrap ? 0.3 : 1.2);
   const xRatio = Math.min(1, Math.max(0, args.xPercent / 100));
   const yRatio = Math.min(1, Math.max(0, args.yPercent / 100));
   const maxWidth = box.width - pad * 2;
   const centerX = box.x + pad + maxWidth * xRatio;
   const centerY = box.y + box.height - pad - (box.height - pad * 2) * yRatio;
-  let size = cmToPt(clampChapterLabelSize(args.sizeCm));
+  let size = cmToPt((args.sizeClamp ?? clampChapterLabelSize)(args.sizeCm));
+  if (args.wrap) {
+    const lines = wrapWords(label, Math.max(1, maxWidth), (value) =>
+      font.widthOfTextAtSize(value, size),
+    );
+    const rendered = lines.length > 0 ? lines : [label];
+    const align = args.align ?? "center";
+    const lineHeight = size * Math.max(0.8, args.leading ?? 1.25);
+    for (const [index, line] of rendered.entries()) {
+      const width = font.widthOfTextAtSize(line, size);
+      const ascent = font.heightAtSize(size, { descender: false });
+      const descent = font.heightAtSize(size, { descender: true }) - ascent;
+      const textY = centerY - (ascent - descent) / 2 - index * lineHeight;
+      const textX =
+        align === "left"
+          ? centerX
+          : align === "right"
+            ? centerX - width
+            : centerX - width / 2;
+      if (args.shadow !== false) {
+        const shadow = await renderLabelShadow({
+          label: line,
+          family: args.face.family,
+          weight: args.face.weight,
+          sizePt: size,
+          ascentPt: ascent,
+          descentPt: descent,
+          widthPt: width,
+        });
+        if (shadow) {
+          const image = await pdf.embedPng(shadow.png);
+          page.drawImage(image, {
+            x: textX + width / 2 - shadow.widthPt / 2,
+            y: textY - descent - shadow.marginPt,
+            width: shadow.widthPt,
+            height: shadow.heightPt,
+          });
+        }
+      }
+      page.drawText(line, {
+        x: textX,
+        y: textY,
+        size,
+        font,
+        color: args.fill,
+      });
+    }
+    return;
+  }
   const natural = font.widthOfTextAtSize(label, size);
   if (natural > maxWidth) size *= maxWidth / natural;
   const width = font.widthOfTextAtSize(label, size);
@@ -465,8 +568,12 @@ async function drawVectorCover(args: {
       arabic = null;
     }
   }
-  const coverImage = await embedCoverImage(pdf, args.sourceUrl);
+  const mirrorPremade =
+    isPremadeCover(args.bookConfig) &&
+    (args.bookConfig.coverSide ?? "rtl") === "rtl";
+  const coverImage = await embedCoverImage(pdf, args.sourceUrl, mirrorPremade);
   const double = args.bookConfig.coverKind === "double";
+  const premade = isPremadeCover(args.bookConfig);
   const backImage =
     double && args.backSourceUrl
       ? await embedCoverImage(pdf, args.backSourceUrl).catch(() => null)
@@ -516,6 +623,18 @@ async function drawVectorCover(args: {
     args.bookConfig.spineMarkColor?.trim() || contrastHex(fillHex);
   const stripeText = args.bookConfig.bookDescription?.trim() || STRIPE_TEXT;
   const bookName = args.bookConfig.bookName ?? "";
+  const frontTitleBackdrop = sampleChapterBackdrop(
+    args.coverImageElement ?? null,
+    panel.width,
+    panel.height,
+    args.bookConfig.frontTitleX ?? 50,
+    args.bookConfig.frontTitleY ?? 30,
+  );
+  const frontTitleHex =
+    args.bookConfig.frontTitleContrast !== false
+      ? contrastHex(frontTitleBackdrop)
+      : args.bookConfig.frontTitleColor?.trim() ||
+        contrastHex(frontTitleBackdrop);
 
   page.drawRectangle({
     x: 0,
@@ -527,7 +646,33 @@ async function drawVectorCover(args: {
 
   if (singlePage) {
     const front = topRect(pageHeight, 0, 0, dims.width, dims.height);
-    drawCoverImage(page, coverImage, front);
+    if (premade) {
+      drawCoverImageEdge(
+        page,
+        coverImage,
+        front,
+        mirrorPremade ? "left" : "right",
+      );
+    } else {
+      drawCoverImage(page, coverImage, front);
+    }
+    if (premade && bookName.trim()) {
+      await drawChapterLabel(pdf, page, {
+        label: bookName.trim(),
+        font: fontForText(bookName, titleFont, arabic, pair),
+        face: { family: pair.titleFamily, weight: pair.titleWeight },
+        box: front,
+        xPercent: args.bookConfig.frontTitleX ?? 50,
+        yPercent: args.bookConfig.frontTitleY ?? 30,
+        sizeCm: args.bookConfig.frontTitleSizeCm,
+        sizeClamp: clampFrontTitleSize,
+        fill: color(frontTitleHex),
+        shadow: args.bookConfig.frontTitleShadow !== false,
+        wrap: true,
+        align: args.bookConfig.frontTitleAlign,
+        leading: args.bookConfig.frontTitleLeading,
+      });
+    }
     if (args.label) {
       await drawChapterLabel(pdf, page, {
         label: args.label,
@@ -573,10 +718,24 @@ async function drawVectorCover(args: {
     layout.height,
   );
 
-  page.drawRectangle({ ...back, color: color(fillHex) });
-  page.drawRectangle({ ...spine, color: color(fillHex) });
-  if (backImage) drawCoverImage(page, backImage, back);
-  if (!double) page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
+  if (premade) {
+    const imageBox =
+      pageSize === "a5"
+        ? topRect(
+            pageHeight,
+            layout.originX,
+            layout.originY,
+            layout.wrapW,
+            layout.height,
+          )
+        : { x: 0, y: 0, width: pageWidth, height: pageHeight };
+    drawCoverImageContain(page, coverImage, imageBox);
+  } else {
+    page.drawRectangle({ ...back, color: color(fillHex) });
+    page.drawRectangle({ ...spine, color: color(fillHex) });
+    if (backImage) drawCoverImage(page, backImage, back);
+    if (!double) page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
+  }
 
   const padX = cmToPt(args.stripeInsetCm ?? STRIPE_INSET_CM);
   const padY = cmToPt(args.stripeInsetCm ?? STRIPE_INSET_CM);
@@ -584,11 +743,12 @@ async function drawVectorCover(args: {
   const fontSize = cmToPt(STRIPE_TEXT_SIZE_CM * (pair.descriptionScale ?? 1));
   const lineHeight = fontSize * 1.45;
   const stripeFont = fontForText(stripeText, descriptionFont, arabic, pair);
-  const lines = double
-    ? []
-    : wrapWords(stripeText, maxWidth, (value) =>
-        stripeFont.widthOfTextAtSize(value, fontSize),
-      );
+  const lines =
+    double || premade
+      ? []
+      : wrapWords(stripeText, maxWidth, (value) =>
+          stripeFont.widthOfTextAtSize(value, fontSize),
+        );
   const blockHeight = (lines.length - 1) * lineHeight;
   const startY =
     stripe.y + stripe.height / 2 + blockHeight / 2 - fontSize * 0.35;
@@ -722,8 +882,28 @@ async function drawVectorCover(args: {
     });
   }
 
-  page.drawRectangle({ ...front, color: color("#e7e1d4") });
-  drawCoverImage(page, coverImage, front);
+  if (!premade) {
+    page.drawRectangle({ ...front, color: color("#e7e1d4") });
+    drawCoverImage(page, coverImage, front);
+  }
+
+  if (premade && title) {
+    await drawChapterLabel(pdf, page, {
+      label: title,
+      font: fontForText(title, titleFont, arabic, pair),
+      face: { family: pair.titleFamily, weight: pair.titleWeight },
+      box: front,
+      xPercent: args.bookConfig.frontTitleX ?? 50,
+      yPercent: args.bookConfig.frontTitleY ?? 30,
+      sizeCm: args.bookConfig.frontTitleSizeCm,
+      sizeClamp: clampFrontTitleSize,
+      fill: color(frontTitleHex),
+      shadow: args.bookConfig.frontTitleShadow !== false,
+      wrap: true,
+      align: args.bookConfig.frontTitleAlign,
+      leading: args.bookConfig.frontTitleLeading,
+    });
+  }
 
   if (args.label) {
     await drawChapterLabel(pdf, page, {
@@ -764,12 +944,14 @@ export async function exportCoverPdf(args: {
     () => null,
   );
 
-  await downloadCoverImage(args.sourceUrl, bookTitle);
-  if (args.bookConfig.coverKind === "double" && args.backSourceUrl) {
+  if (!isPremadeCover(args.bookConfig)) {
+    await downloadCoverImage(args.sourceUrl, bookTitle);
+    if (args.bookConfig.coverKind === "double" && args.backSourceUrl) {
+      await delay(350);
+      await downloadCoverImage(args.backSourceUrl, `${bookTitle}-back`);
+    }
     await delay(350);
-    await downloadCoverImage(args.backSourceUrl, `${bookTitle}-back`);
   }
-  await delay(350);
 
   for (const [index, chapter] of chapters.entries()) {
     const bytes = await drawVectorCover({

@@ -25,7 +25,18 @@ export type BookLanguage = "ar" | "en";
 
 export type CoverPageSize = "a4" | "a5";
 
-export type CoverKind = "wrap" | "page" | "double";
+/**
+ * `wrap` is front, spine, and description stripe. `double` swaps the stripe
+ * for a second image. `premade` is a finished artboard image from the
+ * library; only the spine marks, spine text, and front title are added.
+ */
+export type CoverKind = "wrap" | "double" | "premade";
+
+/**
+ * `spiral` prints one page per chapter with no spine. `hardcover` is listed
+ * but not available yet.
+ */
+export type CoverBinding = "standard" | "spiral" | "hardcover";
 
 export type ChapterDivision = "pages" | "chapters";
 
@@ -46,6 +57,9 @@ export type BookConfig = {
   bookName: string;
   bookDescription: string;
   coverKind: CoverKind;
+  binding: CoverBinding;
+  /** Library id of the chosen premade cover; empty when none is picked. */
+  premadeCoverId: string;
   coverSide: CoverSide;
   pageSize: CoverPageSize;
   fontPair: CoverFontPair;
@@ -66,4 +80,17 @@ export type BookConfig = {
   chapterLabelY: number;
   /** Chapter label cap height in centimetres. */
   chapterLabelSizeCm: number;
+  /** Book title on the front of a premade cover, as a percentage of the panel. */
+  frontTitleX: number;
+  frontTitleY: number;
+  /** Front title cap height in centimetres. */
+  frontTitleSizeCm: number;
+  /** How wrapped front-title lines sit against the horizontal position. */
+  frontTitleAlign: "left" | "center" | "right";
+  /** Distance from one front-title baseline to the next, as a multiple of the size. */
+  frontTitleLeading: number;
+  frontTitleColor: string;
+  /** Follow the contrast of whatever sits under the front title. */
+  frontTitleContrast: boolean;
+  frontTitleShadow: boolean;
 };

@@ -22,16 +22,16 @@ import {
   ARTBOARD_HEIGHT_CM,
   ARTBOARD_WIDTH_CM,
   clampChapterLabelSize,
-  cmToPx,
+  clampFrontTitleSize,
   contrastHex,
   coverGuidesCm,
   DEFAULT_COVER_COLOR,
   drawCoverOnCanvas,
   isDoubleCover,
+  isPremadeCover,
   isSinglePageCover,
   layoutCoverCm,
   pageDimsCm,
-  PREVIEW_DPI,
   resolveChapters,
   sampleChapterBackdrop,
   shiftHex,
@@ -119,6 +119,7 @@ export function CoverPreview({
   const pageDims = pageDimsCm(pageSize);
   const singlePage = isSinglePageCover(bookConfig);
   const double = isDoubleCover(bookConfig);
+  const premade = isPremadeCover(bookConfig);
   const boardWidth = singlePage ? pageDims.width : ARTBOARD_WIDTH_CM;
   const boardHeight = singlePage ? pageDims.height : ARTBOARD_HEIGHT_CM;
   const stripeLayout = pageSize === "a5" ? stripeA5 : stripeA4;
@@ -150,6 +151,21 @@ export function CoverPreview({
     ? contrastHex(chapterBackdrop)
     : bookConfig.chapterLabelColor.trim() || contrastHex(chapterBackdrop);
   const chapterLabelShadow = bookConfig.chapterLabelShadow !== false;
+  const frontTitleX = bookConfig.frontTitleX ?? 50;
+  const frontTitleY = bookConfig.frontTitleY ?? 30;
+  const frontTitleSizeCm = clampFrontTitleSize(bookConfig.frontTitleSizeCm);
+  const frontTitleBackdrop = sampleChapterBackdrop(
+    image,
+    pageDims.width,
+    pageDims.height,
+    frontTitleX,
+    frontTitleY,
+  );
+  const frontTitleColor =
+    bookConfig.frontTitleContrast !== false
+      ? contrastHex(frontTitleBackdrop)
+      : bookConfig.frontTitleColor.trim() || contrastHex(frontTitleBackdrop);
+  const frontTitleShadow = bookConfig.frontTitleShadow !== false;
   const spineMarkColor =
     bookConfig.spineMarkColor.trim() || contrastHex(coverColor);
   const spineTextColor =
@@ -192,30 +208,26 @@ export function CoverPreview({
                 },
               ),
             )
-    ).filter((guide) => !double || guide.kind !== "stripe");
+    ).filter((guide) => !(double || premade) || guide.kind !== "stripe");
 
-    const fitCanvas = () => {
-      const widthPx = Math.round(cmToPx(boardWidth, PREVIEW_DPI));
-      const heightPx = Math.round(cmToPx(boardHeight, PREVIEW_DPI));
+    const paint = () => {
       const { width, height } = container.getBoundingClientRect();
       if (width <= 0 || height <= 0) return;
-      const scale = Math.min(width / widthPx, height / heightPx);
-      const cssWidth = `${widthPx * scale}px`;
-      const cssHeight = `${heightPx * scale}px`;
-      canvas.style.width = cssWidth;
-      canvas.style.height = cssHeight;
-      overlay.style.width = cssWidth;
-      overlay.style.height = cssHeight;
-      if (guides.length > 0) {
-        drawGuides(overlay, guides, boardWidth, boardHeight);
-      } else {
-        overlay
-          .getContext("2d")
-          ?.clearRect(0, 0, overlay.width, overlay.height);
+      const aspect = boardWidth / boardHeight;
+      let cssWidth = width;
+      let cssHeight = width / aspect;
+      if (cssHeight > height) {
+        cssHeight = height;
+        cssWidth = height * aspect;
       }
-    };
-
-    const frame = requestAnimationFrame(() => {
+      cssWidth = Math.max(1, cssWidth);
+      cssHeight = Math.max(1, cssHeight);
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const bitmapWidth = Math.max(1, Math.round(cssWidth * dpr));
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+      overlay.style.width = `${cssWidth}px`;
+      overlay.style.height = `${cssHeight}px`;
       drawCoverOnCanvas(canvas, {
         sourceImage: image,
         backImage,
@@ -224,7 +236,8 @@ export function CoverPreview({
         bookName: bookConfig.bookName ?? "",
         coverSide,
         coverKind: bookConfig.coverKind ?? "wrap",
-        dpi: PREVIEW_DPI,
+        binding: bookConfig.binding ?? "standard",
+        dpi: (bitmapWidth / boardWidth) * 2.54,
         coverColor,
         stripeColor,
         stripeForeground,
@@ -253,11 +266,25 @@ export function CoverPreview({
         stripeWidthCm: stripeLayout.widthCm,
         stripeInsetCm: stripeLayout.insetCm,
         stripeEdgeGapCm: stripeLayout.edgeGapCm,
+        frontTitleX,
+        frontTitleY,
+        frontTitleSizeCm,
+        frontTitleAlign: bookConfig.frontTitleAlign ?? "center",
+        frontTitleLeading: bookConfig.frontTitleLeading ?? 1.25,
+        frontTitleColor,
+        frontTitleShadow,
       });
-      fitCanvas();
-    });
+      if (guides.length > 0) {
+        drawGuides(overlay, guides, boardWidth, boardHeight);
+      } else {
+        overlay
+          .getContext("2d")
+          ?.clearRect(0, 0, overlay.width, overlay.height);
+      }
+    };
 
-    const resizeObserver = new ResizeObserver(fitCanvas);
+    const frame = requestAnimationFrame(paint);
+    const resizeObserver = new ResizeObserver(paint);
     resizeObserver.observe(container);
 
     return () => {
@@ -273,6 +300,7 @@ export function CoverPreview({
     hasChapters,
     coverSide,
     bookConfig.coverKind,
+    bookConfig.binding,
     bookConfig.chapterLabel,
     singlePage,
     boardWidth,
@@ -304,6 +332,14 @@ export function CoverPreview({
     stripeLayout.widthCm,
     stripeLayout.insetCm,
     stripeLayout.edgeGapCm,
+    premade,
+    frontTitleX,
+    frontTitleY,
+    frontTitleSizeCm,
+    frontTitleColor,
+    frontTitleShadow,
+    bookConfig.frontTitleAlign,
+    bookConfig.frontTitleLeading,
   ]);
 
   const spineNote = hideSpineText
@@ -376,7 +412,9 @@ export function CoverPreview({
         {!sourceImage && (
           <div className="bg-background/80 text-muted-foreground pointer-events-none absolute inset-x-6 top-1/2 mx-auto flex max-w-xs -translate-y-1/2 flex-col items-center gap-2 rounded-md border px-4 py-3 text-center text-xs backdrop-blur">
             <HugeiconsIcon icon={ImageUploadIcon} className="size-5" />
-            ارفع صورة الغلاف أو ملف PDF لتظهر المعاينة هنا.
+            {premade
+              ? "اختر غلافًا جاهزًا من المكتبة لتظهر المعاينة هنا."
+              : "ارفع صورة الغلاف أو ملف PDF لتظهر المعاينة هنا."}
           </div>
         )}
       </div>
@@ -388,8 +426,8 @@ export function CoverPreview({
       ) : (
         <p className="text-muted-foreground text-[11px] leading-relaxed">
           {singlePage
-            ? `صفحة ${pageSize.toUpperCase()} واحدة (${pageDims.width}×${pageDims.height} سم). ملف PDF لكل فصل: ${chapters.length}.`
-            : `اللوحة ${ARTBOARD_WIDTH_CM}×${ARTBOARD_HEIGHT_CM} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote}${double ? " · غلافان بلا شريط" : ` · الشريط ${stripeLayout.widthCm} سم`} · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
+            ? `غلاف حلزوني · صفحة ${pageSize.toUpperCase()} واحدة (${pageDims.width}×${pageDims.height} سم). ملف PDF لكل فصل: ${chapters.length}.`
+            : `اللوحة ${ARTBOARD_WIDTH_CM}×${ARTBOARD_HEIGHT_CM} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote}${double || premade ? " · بلا شريط" : ` · الشريط ${stripeLayout.widthCm} سم`} · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
         </p>
       )}
     </section>

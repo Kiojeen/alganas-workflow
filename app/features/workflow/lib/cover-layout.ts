@@ -1,4 +1,10 @@
-import type { BookConfig, CoverKind, CoverPageSize, CoverSide } from "../types";
+import type {
+  BookConfig,
+  CoverBinding,
+  CoverKind,
+  CoverPageSize,
+  CoverSide,
+} from "../types";
 import { allocatedPages, chapterDisplayName } from "./chapter-division";
 
 export const A4_WIDTH_CM = 21;
@@ -51,6 +57,9 @@ export const DEFAULT_CHAPTER_LABEL_COLOR = "#ffffff";
 export const DEFAULT_CHAPTER_LABEL_SIZE_CM = 0.9;
 export const MIN_CHAPTER_LABEL_SIZE_CM = 0.3;
 export const MAX_CHAPTER_LABEL_SIZE_CM = 4;
+export const DEFAULT_FRONT_TITLE_SIZE_CM = 1.2;
+export const MIN_FRONT_TITLE_SIZE_CM = 0.4;
+export const MAX_FRONT_TITLE_SIZE_CM = 6;
 
 /** Hebrew, Arabic, Syriac, Thaana, N'Ko and the Arabic presentation forms. */
 export function isRtlText(value: string) {
@@ -64,6 +73,16 @@ export function clampChapterLabelSize(value: number | undefined) {
   return Math.min(
     MAX_CHAPTER_LABEL_SIZE_CM,
     Math.max(MIN_CHAPTER_LABEL_SIZE_CM, value),
+  );
+}
+
+export function clampFrontTitleSize(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_FRONT_TITLE_SIZE_CM;
+  }
+  return Math.min(
+    MAX_FRONT_TITLE_SIZE_CM,
+    Math.max(MIN_FRONT_TITLE_SIZE_CM, value),
   );
 }
 /** Spines thinner than this keep their width, but lose their text unless forced. */
@@ -99,6 +118,7 @@ export type DrawCoverOptions = {
   bookName: string;
   coverSide: CoverSide;
   coverKind?: CoverKind;
+  binding?: CoverBinding;
   dpi: number;
   coverColor: string;
   stripeColor?: string;
@@ -128,6 +148,13 @@ export type DrawCoverOptions = {
   stripeWidthCm?: number;
   stripeInsetCm?: number;
   stripeEdgeGapCm?: number;
+  frontTitleX?: number;
+  frontTitleY?: number;
+  frontTitleSizeCm?: number;
+  frontTitleAlign?: "left" | "center" | "right";
+  frontTitleLeading?: number;
+  frontTitleColor?: string;
+  frontTitleShadow?: boolean;
 };
 
 export function spineWidthCm(
@@ -162,8 +189,22 @@ export function spineNumberLines(chapterNumber: string): string[] {
   return isRtlText(text) ? text.split(/\s+/).filter(Boolean) : [text];
 }
 
-export function isSinglePageCover(config: { coverKind?: CoverKind }) {
-  return config.coverKind === "page";
+export function isSpiralBinding(config: {
+  binding?: CoverBinding;
+  coverKind?: CoverKind | "page";
+}) {
+  return config.binding === "spiral" || config.coverKind === "page";
+}
+
+export function isSinglePageCover(config: {
+  binding?: CoverBinding;
+  coverKind?: CoverKind | "page";
+}) {
+  return isSpiralBinding(config);
+}
+
+export function isPremadeCover(config: { coverKind?: CoverKind }) {
+  return config.coverKind === "premade";
 }
 
 /** Front and back are both full cover images; there is no description stripe. */
@@ -179,6 +220,13 @@ export function pageDimsCm(pageSize: CoverPageSize = "a4") {
 
 export function cmToPx(cm: number, dpi: number): number {
   return (cm / 2.54) * dpi;
+}
+
+/** Opaque backing store so the preview is not composited against the page. */
+function drawingContext(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext("2d", { alpha: false });
+  if (ctx) ctx.imageSmoothingQuality = "high";
+  return ctx;
 }
 
 export function cmToPt(cm: number): number {
@@ -453,8 +501,12 @@ export function drawCoverOnCanvas(
     stripeInsetCm,
     stripeEdgeGapCm,
   } = options;
-  if ((options.coverKind ?? "wrap") === "page") {
+  if (isSpiralBinding(options)) {
     drawSinglePageCanvas(canvas, options);
+    return;
+  }
+  if (isPremadeCover(options)) {
+    drawPremadeCanvas(canvas, options);
     return;
   }
 
@@ -487,7 +539,7 @@ export function drawCoverOnCanvas(
   canvas.width = widthPx;
   canvas.height = heightPx;
 
-  const ctx = canvas.getContext("2d");
+  const ctx = drawingContext(canvas);
   if (!ctx) return;
 
   ctx.fillStyle = fill;
@@ -585,6 +637,161 @@ export function drawCoverOnCanvas(
   }
 }
 
+function drawPremadeCanvas(
+  canvas: HTMLCanvasElement,
+  options: DrawCoverOptions,
+) {
+  const {
+    sourceImage,
+    pages,
+    label,
+    bookName,
+    coverSide,
+    dpi,
+    coverColor,
+    chapterLabelColor,
+    chapterLabelX,
+    chapterLabelY,
+    chapterLabelSizeCm,
+    spineMarkColor,
+    spineTextColor,
+    hideSpineText = false,
+    titleFont,
+    labelFont,
+    titleWeight,
+    labelWeight,
+    chapterNumber,
+    pagesPerSpineCm,
+    pageSize,
+  } = options;
+  const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, dpi));
+  const heightPx = Math.round(cmToPx(ARTBOARD_HEIGHT_CM, dpi));
+  const fill = coverColor || DEFAULT_COVER_COLOR;
+  const titleFamily = titleFont || "CoverMontserratTitle";
+  const chapterFamily = labelFont || titleFamily;
+  const spineWeight = titleWeight ?? 600;
+  const chapterWeight = labelWeight ?? 700;
+  const layout = layoutCoverCm(
+    pages,
+    coverSide,
+    pagesPerSpineCm,
+    pageSize,
+    undefined,
+    false,
+  );
+  const p = (cm: number) => cmToPx(cm, dpi);
+  const ctx = drawingContext(canvas);
+  if (!ctx) return;
+
+  canvas.width = widthPx;
+  canvas.height = heightPx;
+  ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, widthPx, heightPx);
+
+  if (sourceImage && sourceImage.naturalWidth > 0) {
+    const mirror = coverSide === "rtl";
+    if ((pageSize ?? "a4") === "a5") {
+      drawPremadeImage(
+        ctx,
+        sourceImage,
+        p(layout.originX),
+        p(layout.originY),
+        p(layout.wrapW),
+        p(layout.height),
+        "contain",
+        mirror,
+      );
+    } else {
+      drawPremadeImage(
+        ctx,
+        sourceImage,
+        0,
+        0,
+        widthPx,
+        heightPx,
+        "contain",
+        mirror,
+      );
+    }
+  }
+
+  const originY = p(layout.originY);
+  const spineW = p(layout.spineW);
+  const frontX = p(layout.frontX);
+  const spineX = p(layout.spineX);
+  const a4W = p(layout.a4W);
+  const coverH = p(layout.height);
+  const frontOnLeft = layout.frontOnLeft;
+
+  if (!hideSpineText) {
+    drawSpineTitle(ctx, {
+      x: spineX,
+      y: originY,
+      width: spineW,
+      height: coverH,
+      title: bookName,
+      chapterNumber,
+      ink: spineTextColor?.trim() || contrastHex(fill),
+      rtl: frontOnLeft,
+      fontFamily: titleFamily,
+      fontWeight: spineWeight,
+      dpi,
+      pageSize,
+    });
+  }
+
+  drawSpineMarks(ctx, {
+    x: spineX,
+    y: originY,
+    width: spineW,
+    height: coverH,
+    dpi,
+    color: spineMarkColor?.trim() || contrastHex(fill),
+  });
+
+  const title = bookName.trim();
+  if (title) {
+    drawCoverTitle(ctx, {
+      x: frontX,
+      y: originY,
+      width: a4W,
+      height: coverH,
+      label: title,
+      color: options.frontTitleColor?.trim() || contrastHex(fill),
+      dpi,
+      xRatio: options.frontTitleX ?? 50,
+      yRatio: options.frontTitleY ?? 30,
+      sizeCm: options.frontTitleSizeCm,
+      sizeClamp: clampFrontTitleSize,
+      fontFamily: titleFamily,
+      fontWeight: spineWeight,
+      shadow: options.frontTitleShadow,
+      wrap: true,
+      align: options.frontTitleAlign,
+      leading: options.frontTitleLeading,
+    });
+  }
+
+  if (label) {
+    drawCoverTitle(ctx, {
+      x: frontX,
+      y: originY,
+      width: a4W,
+      height: coverH,
+      label,
+      color: chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR,
+      dpi,
+      xRatio: chapterLabelX,
+      yRatio: chapterLabelY,
+      sizeCm: chapterLabelSizeCm,
+      fontFamily: chapterFamily,
+      fontWeight: chapterWeight,
+      shadow: options.chapterLabelShadow,
+    });
+  }
+}
+
 function drawSinglePageCanvas(
   canvas: HTMLCanvasElement,
   options: DrawCoverOptions,
@@ -592,6 +799,7 @@ function drawSinglePageCanvas(
   const {
     sourceImage,
     label,
+    coverSide,
     dpi,
     coverColor,
     chapterLabelColor,
@@ -610,15 +818,29 @@ function drawSinglePageCanvas(
   const labelColor = chapterLabelColor || DEFAULT_CHAPTER_LABEL_COLOR;
   const chapterFamily = labelFont || titleFont || "CoverMontserratTitle";
   const chapterWeight = labelWeight ?? 700;
-  const ctx = canvas.getContext("2d");
+  const ctx = drawingContext(canvas);
   if (!ctx) return;
 
   canvas.width = widthPx;
   canvas.height = heightPx;
+  ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = fill;
   ctx.fillRect(0, 0, widthPx, heightPx);
   if (sourceImage && sourceImage.naturalWidth > 0) {
-    drawImageCovering(ctx, sourceImage, 0, 0, widthPx, heightPx);
+    if (isPremadeCover(options)) {
+      drawPremadeImage(
+        ctx,
+        sourceImage,
+        0,
+        0,
+        widthPx,
+        heightPx,
+        "edge",
+        coverSide === "rtl",
+      );
+    } else {
+      drawImageCovering(ctx, sourceImage, 0, 0, widthPx, heightPx);
+    }
   }
   if (label) {
     drawCoverTitle(ctx, {
@@ -637,6 +859,75 @@ function drawSinglePageCanvas(
       shadow: options.chapterLabelShadow,
     });
   }
+  if (isPremadeCover(options) && options.bookName.trim()) {
+    const titleFamily = options.titleFont || "CoverMontserratTitle";
+    drawCoverTitle(ctx, {
+      x: 0,
+      y: 0,
+      width: widthPx,
+      height: heightPx,
+      label: options.bookName.trim(),
+      color:
+        options.frontTitleColor?.trim() ||
+        contrastHex(coverColor || DEFAULT_COVER_COLOR),
+      dpi,
+      xRatio: options.frontTitleX ?? 50,
+      yRatio: options.frontTitleY ?? 30,
+      sizeCm: options.frontTitleSizeCm,
+      sizeClamp: clampFrontTitleSize,
+      fontFamily: titleFamily,
+      fontWeight: options.titleWeight ?? 600,
+      shadow: options.frontTitleShadow,
+      wrap: true,
+      align: options.frontTitleAlign,
+      leading: options.frontTitleLeading,
+    });
+  }
+}
+
+/**
+ * Premade art: `contain` letterboxes a smaller page inside its box.
+ * `edge` fits the height and pins the artwork to the right, or to the left
+ * after an Arabic mirror, instead of showing the middle of the artboard.
+ */
+function drawPremadeImage(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  placement: "contain" | "edge",
+  mirror: boolean,
+) {
+  const scale =
+    placement === "edge"
+      ? height / image.naturalHeight
+      : Math.min(width / image.naturalWidth, height / image.naturalHeight);
+  const drawW = image.naturalWidth * scale;
+  const drawH = image.naturalHeight * scale;
+  const dx =
+    placement === "edge"
+      ? mirror
+        ? x
+        : x + width - drawW
+      : x + (width - drawW) / 2;
+  const dy = placement === "edge" ? y : y + (height - drawH) / 2;
+
+  ctx.save();
+  if (placement === "edge") {
+    ctx.beginPath();
+    ctx.rect(x, y, width, height);
+    ctx.clip();
+  }
+  if (mirror) {
+    ctx.translate(dx + drawW, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(image, 0, 0, drawW, drawH);
+  } else {
+    ctx.drawImage(image, dx, dy, drawW, drawH);
+  }
+  ctx.restore();
 }
 
 function drawImageCovering(
@@ -677,29 +968,54 @@ function drawCoverTitle(
     xRatio: number;
     yRatio: number;
     sizeCm?: number;
+    sizeClamp?: (value: number | undefined) => number;
     fontFamily: string;
     fontWeight: number;
     shadow?: boolean;
+    /** Keep the chosen size and wrap overflow onto the next lines. */
+    wrap?: boolean;
+    align?: "left" | "center" | "right";
+    /** Baseline distance as a multiple of the font size. */
+    leading?: number;
   },
 ) {
-  const pad = cmToPx(1.2, args.dpi);
+  const pad = cmToPx(args.wrap ? 0.3 : 1.2, args.dpi);
   const xRatio = Math.min(1, Math.max(0, (args.xRatio ?? 50) / 100));
   const yRatio = Math.min(1, Math.max(0, (args.yRatio ?? 88) / 100));
+  const align = args.align ?? "center";
   const textX = args.x + pad + (args.width - pad * 2) * xRatio;
   const textY = args.y + pad + (args.height - pad * 2) * yRatio;
 
   ctx.save();
   ctx.fillStyle = args.color;
-  ctx.textAlign = "center";
+  ctx.textAlign = align;
   ctx.textBaseline = "middle";
   ctx.direction = isRtlText(args.label) ? "rtl" : "ltr";
   if (args.shadow !== false) {
     ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
     ctx.shadowBlur = Math.max(4, args.dpi * 0.04);
   }
-  const fontSize = cmToPx(clampChapterLabelSize(args.sizeCm), args.dpi);
+  const fontSize = cmToPx(
+    (args.sizeClamp ?? clampChapterLabelSize)(args.sizeCm),
+    args.dpi,
+  );
   ctx.font = `${args.fontWeight} ${fontSize}px "${args.fontFamily}", sans-serif`;
-  ctx.fillText(args.label, textX, textY, args.width - pad * 2);
+  const maxWidth = Math.max(1, args.width - pad * 2);
+  if (args.wrap) {
+    const lines = wrapWords(
+      args.label,
+      maxWidth,
+      (value) => ctx.measureText(value).width,
+    );
+    const rendered = lines.length > 0 ? lines : [args.label];
+    const leading = args.leading ?? 1.25;
+    const lineHeight = fontSize * Math.max(0.8, leading);
+    rendered.forEach((line, index) => {
+      ctx.fillText(line, textX, textY + index * lineHeight);
+    });
+  } else {
+    ctx.fillText(args.label, textX, textY, maxWidth);
+  }
   ctx.restore();
 }
 

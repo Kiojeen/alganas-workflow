@@ -1,9 +1,12 @@
-import { DEFAULT_CHAPTER_LABEL_SIZE_CM } from "./lib/cover-layout";
+import {
+  DEFAULT_CHAPTER_LABEL_SIZE_CM,
+  DEFAULT_FRONT_TITLE_SIZE_CM,
+} from "./lib/cover-layout";
 import {
   DEFAULT_DESCRIBE_MODEL_ID,
   DEFAULT_IMAGE_MODEL_ID,
 } from "./lib/provider-models";
-import type { BookConfig, Preview } from "./types";
+import type { BookConfig, CoverKind, Preview } from "./types";
 
 export const DEFAULT_GENERATE_PROMPT =
   "Extend the book cover seamlessly to fit an A4 portrait canvas. Preserve the original cover exactly as it is, including all text, typography, logos, illustrations, and layout. Only generate new content in the empty areas outside the original image by naturally extending the existing background, colors, textures, patterns, and design elements. Match the original artistic style, lighting, and composition. Do not crop, redraw, modify, or replace any part of the original cover.";
@@ -46,6 +49,8 @@ const defaultBookConfig: BookConfig = {
   bookName: "",
   bookDescription: "",
   coverKind: "wrap",
+  binding: "standard",
+  premadeCoverId: "",
   coverSide: "ltr",
   pageSize: "a4",
   fontPair: "montserrat",
@@ -61,6 +66,14 @@ const defaultBookConfig: BookConfig = {
   chapterLabelX: 50,
   chapterLabelY: 88,
   chapterLabelSizeCm: DEFAULT_CHAPTER_LABEL_SIZE_CM,
+  frontTitleX: 50,
+  frontTitleY: 30,
+  frontTitleSizeCm: DEFAULT_FRONT_TITLE_SIZE_CM,
+  frontTitleAlign: "center",
+  frontTitleLeading: 1.25,
+  frontTitleColor: "",
+  frontTitleContrast: true,
+  frontTitleShadow: true,
 };
 
 export function createDefaultWorkflowState(
@@ -84,5 +97,42 @@ export function createDefaultWorkflowState(
     backBusy: false,
     backOutputImage: null,
     bookConfig: { ...defaultBookConfig },
+  };
+}
+
+/** Fills new fields and turns the old single-page cover into spiral binding. */
+export function normalizeBookConfig(config: BookConfig): BookConfig {
+  const legacyPage = (config.coverKind as CoverKind | "page") === "page";
+  const kind = legacyPage
+    ? "wrap"
+    : config.coverKind === "double" || config.coverKind === "premade"
+      ? config.coverKind
+      : "wrap";
+  return {
+    ...defaultBookConfig,
+    ...config,
+    coverKind: kind,
+    binding: legacyPage
+      ? "spiral"
+      : config.binding === "spiral"
+        ? "spiral"
+        : "standard",
+    premadeCoverId: config.premadeCoverId ?? "",
+    frontTitleX: config.frontTitleX ?? defaultBookConfig.frontTitleX,
+    frontTitleY: config.frontTitleY ?? defaultBookConfig.frontTitleY,
+    frontTitleSizeCm:
+      config.frontTitleSizeCm ?? defaultBookConfig.frontTitleSizeCm,
+    frontTitleAlign:
+      config.frontTitleAlign === "left" || config.frontTitleAlign === "right"
+        ? config.frontTitleAlign
+        : "center",
+    frontTitleLeading:
+      typeof config.frontTitleLeading === "number" &&
+      Number.isFinite(config.frontTitleLeading)
+        ? config.frontTitleLeading
+        : defaultBookConfig.frontTitleLeading,
+    frontTitleColor: config.frontTitleColor ?? "",
+    frontTitleContrast: config.frontTitleContrast !== false,
+    frontTitleShadow: config.frontTitleShadow !== false,
   };
 }

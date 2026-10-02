@@ -46,6 +46,7 @@ import {
 import type {
   BookConfig,
   BookLanguage,
+  CoverBinding,
   CoverKind,
   CoverPageSize,
   Preview,
@@ -54,6 +55,7 @@ import {
   ACTIVE_TOGGLE_CLASS,
   BookPagesFields,
 } from "./chapter-division-fields";
+import { PremadeCoverField } from "./premade-cover-field";
 
 /** Shared with the `U` shortcut in the workflow. */
 export const COVER_FILE_INPUT_ID = "cover-file-input";
@@ -224,8 +226,9 @@ export function UploadFileStep({
     bookConfig.language ?? (englishLabel ? "en" : "ar");
 
   const backTarget = bookConfig.coverKind === "double" ? back : undefined;
-  const targets = useRef({ file, back: backTarget });
-  targets.current = { file, back: backTarget };
+  const premade = bookConfig.coverKind === "premade";
+  const targets = useRef({ file, back: backTarget, premade });
+  targets.current = { file, back: backTarget, premade };
 
   // Ctrl+V pastes the front cover from the paste event, which is the only
   // place a file copied from the OS shows up. Ctrl+Shift+V never carries
@@ -235,6 +238,7 @@ export function UploadFileStep({
 
     const onPaste = (event: ClipboardEvent) => {
       if (event.defaultPrevented || isEditableTarget(event.target)) return;
+      if (targets.current.premade) return;
       const { file } = targets.current;
       if (file.busy) return;
       const raw = fileFromTransfer(event.clipboardData);
@@ -288,7 +292,11 @@ export function UploadFileStep({
             value={bookConfig.coverKind ?? "wrap"}
             disabled={disabled}
             onValueChange={(value) => {
-              if (value !== "wrap" && value !== "page" && value !== "double") {
+              if (
+                value !== "wrap" &&
+                value !== "double" &&
+                value !== "premade"
+              ) {
                 return;
               }
               onBookConfigChange({
@@ -303,7 +311,32 @@ export function UploadFileStep({
             <SelectContent>
               <SelectItem value="wrap">غلاف وشريط</SelectItem>
               <SelectItem value="double">غلاف مزدوج</SelectItem>
-              <SelectItem value="page">غلاف صفحة واحدة</SelectItem>
+              <SelectItem value="premade">غلاف جاهز</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="نوع التجليد">
+          <Select
+            value={bookConfig.binding ?? "standard"}
+            disabled={disabled}
+            onValueChange={(value) => {
+              if (value !== "standard" && value !== "spiral") return;
+              onBookConfigChange({
+                ...bookConfig,
+                binding: value as CoverBinding,
+              });
+            }}
+          >
+            <SelectTrigger className="w-full" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="standard">عادي</SelectItem>
+              <SelectItem value="spiral">حلزوني</SelectItem>
+              <SelectItem value="hardcover" disabled>
+                غلاف مقوى (قريبًا)
+              </SelectItem>
             </SelectContent>
           </Select>
         </Field>
@@ -401,11 +434,42 @@ export function UploadFileStep({
         onBookConfigChange={onBookConfigChange}
       />
 
-      <FileField
-        {...file}
-        disabled={disabled}
-        heading={bookConfig.coverKind === "double" ? "الغلاف" : undefined}
-      />
+      {bookConfig.coverKind === "premade" ? (
+        <>
+          <PremadeCoverField
+            selectedId={bookConfig.premadeCoverId}
+            disabled={disabled}
+            onSelect={(cover, nextFile) => {
+              onBookConfigChange({
+                ...bookConfig,
+                premadeCoverId: cover.id,
+              });
+              file.onFile(nextFile);
+            }}
+            onRemoveSelected={() => {
+              onBookConfigChange({ ...bookConfig, premadeCoverId: "" });
+              file.onFile(null);
+            }}
+          />
+          <Field label="اسم الكتاب">
+            <Input
+              value={bookConfig.bookName}
+              disabled={disabled}
+              onChange={(e) =>
+                onBookConfigChange({ ...bookConfig, bookName: e.target.value })
+              }
+              placeholder="يظهر على الواجهة والكعب"
+              aria-label="اسم الكتاب"
+            />
+          </Field>
+        </>
+      ) : (
+        <FileField
+          {...file}
+          disabled={disabled}
+          heading={bookConfig.coverKind === "double" ? "الغلاف" : undefined}
+        />
+      )}
       {bookConfig.coverKind === "double" && back && (
         <FileField
           {...back}

@@ -42,6 +42,7 @@ import { renderPdfPage } from "./lib/pdf";
 import { modelsByKind } from "./lib/provider-models";
 import { useCoverImage } from "./lib/use-cover-image";
 import { compressForVision } from "./lib/vision-image";
+import { normalizeBookConfig } from "./state";
 import type { BookConfig, StepStatus } from "./types";
 
 const bookNameField = z
@@ -187,7 +188,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
 
   const handleBookConfigChange = useCallback(
     (config: BookConfig) => {
-      update?.({ bookConfig: config });
+      update?.({ bookConfig: normalizeBookConfig(config) });
     },
     [update],
   );
@@ -202,8 +203,8 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     generating,
     generatingSide,
     extracting,
-    bookConfig,
   } = state;
+  const bookConfig = normalizeBookConfig(state.bookConfig);
 
   const textModels = modelsByKind(models, "text");
   const imageModels = modelsByKind(models, "image");
@@ -266,7 +267,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
       // Vision only needs a legible image; a small JPEG costs far fewer tokens.
       const vision = await compressForVision(preview.url);
       const titleOnly =
-        bookConfig.coverKind === "page" || bookConfig.coverKind === "double";
+        bookConfig.coverKind === "double" || bookConfig.binding === "spiral";
       const model = languageModel(
         selectedDescribeModel.provider,
         apiKey,
@@ -500,9 +501,11 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     return "pending";
   });
   const job = JOBS[activeStep];
-  const canRunAi = Boolean(preview) && !busy && !generating && !extracting;
+  const premade = bookConfig.coverKind === "premade";
+  const canRunAi =
+    Boolean(preview) && !busy && !generating && !extracting && !premade;
   const chapterCount = resolveChapters(bookConfig).length;
-  const singlePage = bookConfig.coverKind === "page";
+  const singlePage = bookConfig.binding === "spiral";
   const canExport =
     Boolean(sourceImage) &&
     !exporting &&
@@ -655,26 +658,28 @@ export function Workflow({ workflowId }: { workflowId: string }) {
                 onBookConfigChange={handleBookConfigChange}
                 disabled={false}
               />
-              <AiAccordion
-                describeAi={describeAi}
-                onDescribeAiChange={(id) => update({ describeAi: id })}
-                bookName={bookConfig.bookName}
-                description={bookConfig.bookDescription ?? ""}
-                onBookNameChange={(value) =>
-                  handleBookConfigChange({ ...bookConfig, bookName: value })
-                }
-                onDescriptionChange={(value) =>
-                  handleBookConfigChange({
-                    ...bookConfig,
-                    bookDescription: value,
-                  })
-                }
-                singlePage={singlePage || bookConfig.coverKind === "double"}
-                imageAi={ai}
-                onImageAiChange={(id) => update({ ai: id })}
-                prompt={prompt}
-                onPromptChange={(value) => update({ prompt: value })}
-              />
+              {!premade && (
+                <AiAccordion
+                  describeAi={describeAi}
+                  onDescribeAiChange={(id) => update({ describeAi: id })}
+                  bookName={bookConfig.bookName}
+                  description={bookConfig.bookDescription ?? ""}
+                  onBookNameChange={(value) =>
+                    handleBookConfigChange({ ...bookConfig, bookName: value })
+                  }
+                  onDescriptionChange={(value) =>
+                    handleBookConfigChange({
+                      ...bookConfig,
+                      bookDescription: value,
+                    })
+                  }
+                  singlePage={singlePage || bookConfig.coverKind === "double"}
+                  imageAi={ai}
+                  onImageAiChange={(id) => update({ ai: id })}
+                  prompt={prompt}
+                  onPromptChange={(value) => update({ prompt: value })}
+                />
+              )}
             </div>
           )}
 
