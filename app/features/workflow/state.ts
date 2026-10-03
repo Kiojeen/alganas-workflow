@@ -51,6 +51,8 @@ const defaultBookConfig: BookConfig = {
   coverKind: "wrap",
   binding: "standard",
   premadeCoverId: "",
+  imageFromSpine: false,
+  spineGapFill: "color",
   coverSide: "ltr",
   pageSize: "a4",
   fontPair: "montserrat",
@@ -108,16 +110,29 @@ export function normalizeBookConfig(config: BookConfig): BookConfig {
     : config.coverKind === "double" || config.coverKind === "premade"
       ? config.coverKind
       : "wrap";
+  const binding = legacyPage
+    ? "spiral"
+    : config.binding === "spiral" || config.binding === "hardcover"
+      ? config.binding
+      : "standard";
+  const pageSize = config.pageSize ?? "a4";
+  const nextPageSize =
+    binding === "hardcover"
+      ? pageSize === "b5"
+        ? "b5"
+        : "a4"
+      : pageSize === "b5"
+        ? "a4"
+        : pageSize;
   return {
     ...defaultBookConfig,
     ...config,
     coverKind: kind,
-    binding: legacyPage
-      ? "spiral"
-      : config.binding === "spiral"
-        ? "spiral"
-        : "standard",
+    binding,
+    pageSize: nextPageSize,
     premadeCoverId: config.premadeCoverId ?? "",
+    imageFromSpine: config.imageFromSpine === true,
+    spineGapFill: config.spineGapFill === "blur" ? "blur" : "color",
     frontTitleX: config.frontTitleX ?? defaultBookConfig.frontTitleX,
     frontTitleY: config.frontTitleY ?? defaultBookConfig.frontTitleY,
     frontTitleSizeCm:

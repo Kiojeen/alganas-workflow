@@ -19,14 +19,15 @@ import {
 import { formatSpineNumber } from "../lib/chapter-labels";
 import { ensureCoverFonts, getCoverFontPair } from "../lib/cover-fonts";
 import {
-  ARTBOARD_HEIGHT_CM,
-  ARTBOARD_WIDTH_CM,
+  artboardCm,
   clampChapterLabelSize,
   clampFrontTitleSize,
   contrastHex,
   coverGuidesCm,
   DEFAULT_COVER_COLOR,
   drawCoverOnCanvas,
+  hardcoverGuideFrameCm,
+  hardcoverImageGuideFrames,
   isDoubleCover,
   isPremadeCover,
   isSinglePageCover,
@@ -37,7 +38,9 @@ import {
   shiftHex,
   singlePageGuidesCm,
   spineHiddenFor,
+  spineImageGapCm,
   spineWidthCm,
+  stripeForPage,
   wrapWidthCm,
   type GuideLine,
 } from "../lib/cover-layout";
@@ -46,11 +49,18 @@ import type { BookConfig } from "../types";
 /** Illustrator-style guides: hairlines in cyan, drawn at screen resolution. */
 const GUIDE_COLOR = "#2bc9ff";
 
+function formatGuideCm(cm: number) {
+  const rounded = Math.round(cm * 10) / 10;
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return `${text} سم`;
+}
+
 function drawGuides(
   overlay: HTMLCanvasElement,
   guides: GuideLine[],
   boardWidthCm: number,
   boardHeightCm: number,
+  showNumbers: boolean,
 ) {
   const cssWidth = overlay.clientWidth;
   const cssHeight = overlay.clientHeight;
@@ -67,9 +77,60 @@ function drawGuides(
 
   for (const guide of guides) {
     ctx.beginPath();
-    ctx.setLineDash(guide.kind === "center" ? [4 * dpr, 4 * dpr] : []);
+    ctx.setLineDash(
+      guide.kind === "center" || guide.kind === "image"
+        ? [4 * dpr, 4 * dpr]
+        : [],
+    );
     ctx.strokeStyle = GUIDE_COLOR;
     ctx.globalAlpha = guide.kind === "center" ? 0.7 : 1;
+    if (guide.axis === "rect") {
+      const x = px(guide.x, boardWidthCm, overlay.width);
+      const y = px(guide.y, boardHeightCm, overlay.height);
+      const w = (guide.w / boardWidthCm) * overlay.width;
+      const h = (guide.h / boardHeightCm) * overlay.height;
+      ctx.strokeRect(x, y, w, h);
+      if (!showNumbers) continue;
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = GUIDE_COLOR;
+      ctx.font = `${Math.round(11 * dpr)}px sans-serif`;
+      ctx.textAlign = "center";
+      const widthAtBottom = guide.widthLabel === "bottom";
+      ctx.textBaseline = widthAtBottom ? "bottom" : "top";
+      ctx.fillText(
+        formatGuideCm(guide.w),
+        x + w / 2,
+        widthAtBottom ? y + h - 4 * dpr : y + 4 * dpr,
+      );
+      if (guide.showHeight !== false) {
+        const onRight = guide.heightSide === "right";
+        ctx.translate(onRight ? x + w - 4 * dpr : x + 4 * dpr, y + h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textBaseline = onRight ? "top" : "bottom";
+        ctx.fillText(formatGuideCm(guide.h), 0, 0);
+      }
+      ctx.restore();
+      continue;
+    }
+    if (guide.axis === "label") {
+      if (!showNumbers) continue;
+      const x = (guide.x / boardWidthCm) * overlay.width;
+      const y = (guide.y / boardHeightCm) * overlay.height;
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = GUIDE_COLOR;
+      ctx.font = `${Math.round(11 * dpr)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.translate(x, y);
+      if (guide.rotate) ctx.rotate(-Math.PI / 2);
+      ctx.fillText(formatGuideCm(guide.cm), 0, 0);
+      ctx.restore();
+      continue;
+    }
     if (guide.axis === "x") {
       const x = px(guide.cm, boardWidthCm, overlay.width);
       ctx.moveTo(x, 0);
@@ -92,6 +153,7 @@ export function CoverPreview({
   chapterIndex,
   onChapterIndexChange,
   showLines,
+  showNumbers,
 }: {
   sourceImage: string | null;
   image: HTMLImageElement | null;
@@ -100,6 +162,7 @@ export function CoverPreview({
   chapterIndex: number;
   onChapterIndexChange: (index: number) => void;
   showLines: boolean;
+  showNumbers: boolean;
 }) {
   const { pagesPerSpineCm, stripeA4, stripeA5 } = useModels();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -120,9 +183,10 @@ export function CoverPreview({
   const singlePage = isSinglePageCover(bookConfig);
   const double = isDoubleCover(bookConfig);
   const premade = isPremadeCover(bookConfig);
-  const boardWidth = singlePage ? pageDims.width : ARTBOARD_WIDTH_CM;
-  const boardHeight = singlePage ? pageDims.height : ARTBOARD_HEIGHT_CM;
-  const stripeLayout = pageSize === "a5" ? stripeA5 : stripeA4;
+  const board = artboardCm(bookConfig.binding);
+  const boardWidth = singlePage ? pageDims.width : board.width;
+  const boardHeight = singlePage ? pageDims.height : board.height;
+  const stripeLayout = stripeForPage(pageSize, stripeA4, stripeA5);
   const hideSpineText = spineHiddenFor(
     chapter.pages,
     pagesPerSpineCm,
@@ -206,7 +270,21 @@ export function CoverPreview({
                   insetCm: stripeLayout.insetCm,
                   edgeGapCm: stripeLayout.edgeGapCm,
                 },
+                false,
+                boardWidth,
+                spineImageGapCm(bookConfig),
+                boardHeight,
               ),
+              double,
+              bookConfig.binding === "hardcover" && !premade
+                ? hardcoverGuideFrameCm(pageSize)
+                : null,
+              bookConfig.binding === "hardcover" && !premade
+                ? hardcoverImageGuideFrames(
+                    pageSize,
+                    bookConfig.imageFromSpine === true,
+                  )
+                : [],
             )
     ).filter((guide) => !(double || premade) || guide.kind !== "stripe");
 
@@ -273,9 +351,11 @@ export function CoverPreview({
         frontTitleLeading: bookConfig.frontTitleLeading ?? 1.25,
         frontTitleColor,
         frontTitleShadow,
+        imageFromSpine: bookConfig.imageFromSpine,
+        spineGapFill: bookConfig.spineGapFill,
       });
       if (guides.length > 0) {
-        drawGuides(overlay, guides, boardWidth, boardHeight);
+        drawGuides(overlay, guides, boardWidth, boardHeight, showNumbers);
       } else {
         overlay
           .getContext("2d")
@@ -340,6 +420,9 @@ export function CoverPreview({
     frontTitleShadow,
     bookConfig.frontTitleAlign,
     bookConfig.frontTitleLeading,
+    bookConfig.imageFromSpine,
+    showNumbers,
+    bookConfig.spineGapFill,
   ]);
 
   const spineNote = hideSpineText
@@ -427,7 +510,7 @@ export function CoverPreview({
         <p className="text-muted-foreground text-[11px] leading-relaxed">
           {singlePage
             ? `غلاف حلزوني · صفحة ${pageSize.toUpperCase()} واحدة (${pageDims.width}×${pageDims.height} سم). ملف PDF لكل فصل: ${chapters.length}.`
-            : `اللوحة ${ARTBOARD_WIDTH_CM}×${ARTBOARD_HEIGHT_CM} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote}${double || premade ? " · بلا شريط" : ` · الشريط ${stripeLayout.widthCm} سم`} · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
+            : `اللوحة ${boardWidth}×${boardHeight} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote}${double || premade ? " · بلا شريط" : ` · الشريط ${stripeLayout.widthCm} سم`} · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
         </p>
       )}
     </section>

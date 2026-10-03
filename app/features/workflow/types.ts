@@ -23,7 +23,7 @@ export type CoverSide = "ltr" | "rtl";
 
 export type BookLanguage = "ar" | "en";
 
-export type CoverPageSize = "a4" | "a5";
+export type CoverPageSize = "a4" | "a5" | "b5";
 
 /**
  * `wrap` is front, spine, and description stripe. `double` swaps the stripe
@@ -33,10 +33,13 @@ export type CoverPageSize = "a4" | "a5";
 export type CoverKind = "wrap" | "double" | "premade";
 
 /**
- * `spiral` prints one page per chapter with no spine. `hardcover` is listed
- * but not available yet.
+ * `spiral` prints one page per chapter with no spine. `hardcover` uses the
+ * larger artboard and A4 or B5 panels, with a gap between each image and the spine.
  */
 export type CoverBinding = "standard" | "spiral" | "hardcover";
+
+/** What fills the strip between a hardcover image and the spine. */
+export type SpineGapFill = "color" | "blur";
 
 export type ChapterDivision = "pages" | "chapters";
 
@@ -60,6 +63,13 @@ export type BookConfig = {
   binding: CoverBinding;
   /** Library id of the chosen premade cover; empty when none is picked. */
   premadeCoverId: string;
+  /**
+   * Hardcover only. When set, uploaded images sit against the spine.
+   * Otherwise they start 1 cm away from it.
+   */
+  imageFromSpine: boolean;
+  /** Hardcover gap fill. `color` uses the cover color; `blur` smears the image. */
+  spineGapFill: SpineGapFill;
   coverSide: CoverSide;
   pageSize: CoverPageSize;
   fontPair: CoverFontPair;

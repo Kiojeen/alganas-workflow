@@ -25,8 +25,8 @@ import {
   type CoverFontSpec,
 } from "./cover-fonts";
 import {
-  ARTBOARD_HEIGHT_CM,
-  ARTBOARD_WIDTH_CM,
+  artboardCm,
+  blurredEdgeCanvas,
   clampChapterLabelSize,
   clampFrontTitleSize,
   cmToPt,
@@ -34,6 +34,7 @@ import {
   DEFAULT_COVER_COLOR,
   fileSafeName,
   fitSpineTitle,
+  hardcoverImageFrameCm,
   hexToRgb01,
   isPremadeCover,
   isRtlText,
@@ -48,6 +49,7 @@ import {
   SPINE_MARK_WIDTH_CM,
   SPINE_TITLE_MIN_GAP_CM,
   spineHiddenFor,
+  spineImageGapCm,
   spineNumberFontSize,
   spineNumberFromTopCm,
   spineNumberLines,
@@ -243,20 +245,108 @@ function drawCoverImage(
   page: PDFPage,
   image: PDFImage,
   box: { x: number; y: number; width: number; height: number },
+  clipBox = box,
+  cropEnd = false,
+  spineOnLeft = true,
 ) {
   const scale = Math.max(box.width / image.width, box.height / image.height);
   const drawW = image.width * scale;
   const drawH = image.height * scale;
-  const x = box.x + (box.width - drawW) / 2;
+  const x = cropEnd
+    ? spineOnLeft
+      ? box.x
+      : box.x + box.width - drawW
+    : box.x + (box.width - drawW) / 2;
   const y = box.y + (box.height - drawH) / 2;
   page.pushOperators(
     pushGraphicsState(),
-    rectangle(box.x, box.y, box.width, box.height),
+    rectangle(clipBox.x, clipBox.y, clipBox.width, clipBox.height),
     clip(),
     endPath(),
   );
   page.drawImage(image, { x, y, width: drawW, height: drawH });
   page.pushOperators(popGraphicsState());
+}
+
+function insetFromSpine(
+  box: { x: number; y: number; width: number; height: number },
+  gap: number,
+  spineOnLeft: boolean,
+) {
+  if (gap <= 0) return box;
+  return spineOnLeft
+    ? { ...box, x: box.x + gap, width: Math.max(0, box.width - gap) }
+    : { ...box, width: Math.max(0, box.width - gap) };
+}
+
+function spineGapBox(
+  panel: { x: number; y: number; width: number; height: number },
+  gap: number,
+  spineOnLeft: boolean,
+) {
+  return {
+    x: spineOnLeft ? panel.x : panel.x + panel.width - gap,
+    y: panel.y,
+    width: gap,
+    height: panel.height,
+  };
+}
+
+function anchoredContentBox(
+  panel: { x: number; y: number; width: number; height: number },
+  frame: { width: number; height: number },
+  fitScale: number,
+  gap: number,
+  spineOnLeft: boolean,
+) {
+  const width = cmToPt(frame.width * fitScale);
+  const height = cmToPt(frame.height * fitScale);
+  return {
+    x: spineOnLeft ? panel.x + gap : panel.x + panel.width - gap - width,
+    y: panel.y + (panel.height - height) / 2,
+    width,
+    height,
+  };
+}
+
+async function drawBlurredSpineGap(
+  pdf: PDFDocument,
+  page: PDFPage,
+  image: HTMLImageElement | null | undefined,
+  panel: { x: number; y: number; width: number; height: number },
+  gap: number,
+  spineOnLeft: boolean,
+  source?: { y?: number; width: number; height: number },
+  cropEnd = false,
+) {
+  if (!image || gap < 0.5) return;
+  const canvas = blurredEdgeCanvas(
+    image,
+    (source?.width ?? panel.width) * 3,
+    (source?.height ?? panel.height) * 3,
+    gap * 3,
+    spineOnLeft ? "left" : "right",
+    cropEnd,
+  );
+  if (!canvas) return;
+  const bytes = await new Promise<Uint8Array>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("تعذر تجهيز تمويه الفراغ"));
+        return;
+      }
+      blob
+        .arrayBuffer()
+        .then((buffer) => resolve(new Uint8Array(buffer)), reject);
+    }, "image/png");
+  });
+  const embedded = await pdf.embedPng(bytes);
+  page.drawImage(embedded, {
+    x: spineOnLeft ? panel.x : panel.x + panel.width - gap,
+    y: source?.y ?? panel.y,
+    width: gap,
+    height: source?.height ?? panel.height,
+  });
 }
 
 function drawJustifiedLine(
@@ -581,8 +671,9 @@ async function drawVectorCover(args: {
 
   const singlePage = isSinglePageCover(args.bookConfig);
   const dims = pageDimsCm(args.bookConfig.pageSize ?? "a4");
-  const pageWidth = cmToPt(singlePage ? dims.width : ARTBOARD_WIDTH_CM);
-  const pageHeight = cmToPt(singlePage ? dims.height : ARTBOARD_HEIGHT_CM);
+  const board = artboardCm(args.bookConfig.binding);
+  const pageWidth = cmToPt(singlePage ? dims.width : board.width);
+  const pageHeight = cmToPt(singlePage ? dims.height : board.height);
   const page = pdf.addPage([pageWidth, pageHeight]);
   const hideSpineText = spineHiddenFor(
     args.pages,
@@ -599,6 +690,10 @@ async function drawVectorCover(args: {
       insetCm: args.stripeInsetCm,
       edgeGapCm: args.stripeEdgeGapCm,
     },
+    false,
+    board.width,
+    spineImageGapCm(args.bookConfig),
+    board.height,
   );
   const fillHex = args.bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeFillHex =
@@ -720,7 +815,7 @@ async function drawVectorCover(args: {
 
   if (premade) {
     const imageBox =
-      pageSize === "a5"
+      pageSize === "a5" || pageSize === "b5"
         ? topRect(
             pageHeight,
             layout.originX,
@@ -733,7 +828,54 @@ async function drawVectorCover(args: {
   } else {
     page.drawRectangle({ ...back, color: color(fillHex) });
     page.drawRectangle({ ...spine, color: color(fillHex) });
-    if (backImage) drawCoverImage(page, backImage, back);
+    const gapPt = cmToPt(layout.imageGap);
+    const blurGap = args.bookConfig.spineGapFill === "blur";
+    const contentFrame =
+      args.bookConfig.binding === "hardcover"
+        ? hardcoverImageFrameCm(pageSize)
+        : null;
+    const cropEnd = contentFrame != null;
+    const backFrame = contentFrame
+      ? anchoredContentBox(
+          back,
+          contentFrame,
+          layout.fitScale,
+          gapPt,
+          layout.frontOnLeft,
+        )
+      : null;
+    const backElement =
+      double && blurGap && args.backSourceUrl
+        ? await loadCoverImage(args.backSourceUrl).catch(() => null)
+        : null;
+    if (backImage) {
+      drawCoverImage(
+        page,
+        backImage,
+        backFrame ?? back,
+        backFrame ?? insetFromSpine(back, gapPt, layout.frontOnLeft),
+        cropEnd,
+        layout.frontOnLeft,
+      );
+      if (backFrame && gapPt > 0 && !blurGap) {
+        page.drawRectangle({
+          ...spineGapBox(back, gapPt, layout.frontOnLeft),
+          color: color(fillHex),
+        });
+      }
+      if (blurGap) {
+        await drawBlurredSpineGap(
+          pdf,
+          page,
+          backElement,
+          back,
+          gapPt,
+          layout.frontOnLeft,
+          backFrame ?? undefined,
+          cropEnd,
+        );
+      }
+    }
     if (!double) page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
   }
 
@@ -883,8 +1025,52 @@ async function drawVectorCover(args: {
   }
 
   if (!premade) {
-    page.drawRectangle({ ...front, color: color("#e7e1d4") });
-    drawCoverImage(page, coverImage, front);
+    const gapPt = cmToPt(layout.imageGap);
+    const frontSpineOnLeft = !layout.frontOnLeft;
+    const contentFrame =
+      args.bookConfig.binding === "hardcover"
+        ? hardcoverImageFrameCm(pageSize)
+        : null;
+    const cropEnd = contentFrame != null;
+    const frontFrame = contentFrame
+      ? anchoredContentBox(
+          front,
+          contentFrame,
+          layout.fitScale,
+          gapPt,
+          frontSpineOnLeft,
+        )
+      : null;
+    page.drawRectangle({
+      ...front,
+      color: color(fillHex),
+    });
+    drawCoverImage(
+      page,
+      coverImage,
+      frontFrame ?? front,
+      frontFrame ?? insetFromSpine(front, gapPt, frontSpineOnLeft),
+      cropEnd,
+      frontSpineOnLeft,
+    );
+    if (frontFrame && gapPt > 0 && args.bookConfig.spineGapFill !== "blur") {
+      page.drawRectangle({
+        ...spineGapBox(front, gapPt, frontSpineOnLeft),
+        color: color(fillHex),
+      });
+    }
+    if (args.bookConfig.spineGapFill === "blur") {
+      await drawBlurredSpineGap(
+        pdf,
+        page,
+        args.coverImageElement,
+        front,
+        gapPt,
+        frontSpineOnLeft,
+        frontFrame ?? undefined,
+        cropEnd,
+      );
+    }
   }
 
   if (premade && title) {

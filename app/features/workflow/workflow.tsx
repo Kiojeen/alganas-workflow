@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { Download01Icon, RulerIcon } from "@hugeicons/core-free-icons";
+import {
+  Download01Icon,
+  RulerIcon,
+  TextNumberSignIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { generateImage, generateObject } from "ai";
 import { toast } from "sonner";
@@ -31,7 +35,7 @@ import { useModels } from "./context/models-context";
 import { JOBS } from "./jobs";
 import { unassignedPagesError } from "./lib/chapter-division";
 import { COVER_FONT_PAIRS, getCoverFontPair } from "./lib/cover-fonts";
-import { resolveChapters } from "./lib/cover-layout";
+import { resolveChapters, stripeForPage } from "./lib/cover-layout";
 import { exportCoverPdf } from "./lib/export-cover-pdf";
 import {
   DEFAULT_DESCRIPTION_EXTRACTION_PROMPT,
@@ -105,6 +109,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   const generatingRef = useRef(false);
   const extractingRef = useRef(false);
   const [showLines, setShowLines] = useState(true);
+  const [showGuideNumbers, setShowGuideNumbers] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [chapterIndex, setChapterIndex] = useState(0);
@@ -224,8 +229,11 @@ export function Workflow({ workflowId }: { workflowId: string }) {
     }
     setExporting(true);
     try {
-      const stripe =
-        (bookConfig.pageSize ?? "a4") === "a5" ? stripeA5 : stripeA4;
+      const stripe = stripeForPage(
+        bookConfig.pageSize ?? "a4",
+        stripeA4,
+        stripeA5,
+      );
       await exportCoverPdf({
         sourceUrl: sourceImage,
         backSourceUrl: bookConfig.coverKind === "double" ? backSource : null,
@@ -573,23 +581,40 @@ export function Workflow({ workflowId }: { workflowId: string }) {
               <span className="opacity-70">({chapterCount})</span>
             )}
           </Button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Toggle
-                size="sm"
-                variant="outline"
-                pressed={showLines}
-                onPressedChange={setShowLines}
-                aria-label="الأدلة"
-                className={ACTIVE_TOGGLE_CLASS}
-              >
-                <HugeiconsIcon icon={RulerIcon} className="size-4" />
-              </Toggle>
-            </TooltipTrigger>
-            <TooltipContent>
-              الأدلة (لا تُحفظ في التصدير) · {comboText("guides")}
-            </TooltipContent>
-          </Tooltip>
+          <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Toggle
+                  size="sm"
+                  variant="outline"
+                  pressed={showGuideNumbers}
+                  onPressedChange={setShowGuideNumbers}
+                  aria-label="أرقام الأدلة"
+                  className={ACTIVE_TOGGLE_CLASS}
+                >
+                  <HugeiconsIcon icon={TextNumberSignIcon} className="size-4" />
+                </Toggle>
+              </TooltipTrigger>
+              <TooltipContent>أرقام المقاسات</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Toggle
+                  size="sm"
+                  variant="outline"
+                  pressed={showLines}
+                  onPressedChange={setShowLines}
+                  aria-label="الأدلة"
+                  className={ACTIVE_TOGGLE_CLASS}
+                >
+                  <HugeiconsIcon icon={RulerIcon} className="size-4" />
+                </Toggle>
+              </TooltipTrigger>
+              <TooltipContent>
+                الأدلة (لا تُحفظ في التصدير) · {comboText("guides")}
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
 
         <StepRail
@@ -704,6 +729,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
           chapterIndex={chapterIndex}
           onChapterIndexChange={setChapterIndex}
           showLines={showLines}
+          showNumbers={showGuideNumbers}
         />
       </div>
     </div>

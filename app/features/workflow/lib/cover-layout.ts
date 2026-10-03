@@ -4,6 +4,7 @@ import type {
   CoverKind,
   CoverPageSize,
   CoverSide,
+  SpineGapFill,
 } from "../types";
 import { allocatedPages, chapterDisplayName } from "./chapter-division";
 
@@ -11,8 +12,14 @@ export const A4_WIDTH_CM = 21;
 export const A4_HEIGHT_CM = 29.7;
 export const A5_WIDTH_CM = 14.8;
 export const A5_HEIGHT_CM = 21;
+export const B5_WIDTH_CM = 17;
+export const B5_HEIGHT_CM = 25;
 export const ARTBOARD_WIDTH_CM = 47;
 export const ARTBOARD_HEIGHT_CM = 29.7;
+export const HARDCOVER_ARTBOARD_WIDTH_CM = 48.7;
+export const HARDCOVER_ARTBOARD_HEIGHT_CM = 30;
+/** Space between a hardcover image and the spine, unless the image starts on the spine. */
+export const HARDCOVER_SPINE_GAP_CM = 1;
 export const PAGES_PER_SPINE_CM = 167;
 /** Earlier builds shipped this default; stored prefs still carrying it are migrated. */
 export const LEGACY_PAGES_PER_SPINE_CM = 200;
@@ -44,9 +51,34 @@ export type StripeLayoutCm = {
 export function defaultStripeLayout(
   pageSize: CoverPageSize = "a4",
 ): StripeLayoutCm {
-  const source =
-    pageSize === "a5" ? DEFAULT_STRIPE_LAYOUT_A5 : DEFAULT_STRIPE_LAYOUT_A4;
-  return { ...source };
+  if (pageSize === "a5") return { ...DEFAULT_STRIPE_LAYOUT_A5 };
+  if (pageSize === "b5") {
+    const scale = B5_WIDTH_CM / A4_WIDTH_CM;
+    return {
+      widthCm: DEFAULT_STRIPE_LAYOUT_A4.widthCm * scale,
+      insetCm: DEFAULT_STRIPE_LAYOUT_A4.insetCm * scale,
+      edgeGapCm: DEFAULT_STRIPE_LAYOUT_A4.edgeGapCm * scale,
+    };
+  }
+  return { ...DEFAULT_STRIPE_LAYOUT_A4 };
+}
+
+/** Saved stripe for this page size. B5 follows the A4 stripe, scaled to its width. */
+export function stripeForPage(
+  pageSize: CoverPageSize,
+  stripeA4: StripeLayoutCm,
+  stripeA5: StripeLayoutCm,
+): StripeLayoutCm {
+  if (pageSize === "a5") return stripeA5;
+  if (pageSize === "b5") {
+    const scale = B5_WIDTH_CM / A4_WIDTH_CM;
+    return {
+      widthCm: stripeA4.widthCm * scale,
+      insetCm: stripeA4.insetCm * scale,
+      edgeGapCm: stripeA4.edgeGapCm * scale,
+    };
+  }
+  return stripeA4;
 }
 export const PREVIEW_DPI = 150;
 export const EXPORT_DPI = 200;
@@ -92,7 +124,7 @@ export const SPINE_MARK_HEIGHT_CM = 0.7;
 export const SPINE_TITLE_MIN_GAP_CM = 1;
 
 export function spineNumberFromTopCm(pageSize: CoverPageSize = "a4") {
-  return pageSize === "a5" ? 1.5 : 3;
+  return pageSize === "a4" ? 3 : 1.5;
 }
 
 /** Arabic ordinals read larger than digits at the same size. */
@@ -155,6 +187,8 @@ export type DrawCoverOptions = {
   frontTitleLeading?: number;
   frontTitleColor?: string;
   frontTitleShadow?: boolean;
+  imageFromSpine?: boolean;
+  spineGapFill?: SpineGapFill;
 };
 
 export function spineWidthCm(
@@ -203,6 +237,27 @@ export function isSinglePageCover(config: {
   return isSpiralBinding(config);
 }
 
+export function artboardCm(binding?: CoverBinding) {
+  return binding === "hardcover"
+    ? {
+        width: HARDCOVER_ARTBOARD_WIDTH_CM,
+        height: HARDCOVER_ARTBOARD_HEIGHT_CM,
+      }
+    : { width: ARTBOARD_WIDTH_CM, height: ARTBOARD_HEIGHT_CM };
+}
+
+/** Gap before a hardcover panel image. Premade artboards already include their own edges. */
+export function spineImageGapCm(config: {
+  binding?: CoverBinding;
+  coverKind?: CoverKind;
+  imageFromSpine?: boolean;
+}) {
+  if (config.binding !== "hardcover" || config.coverKind === "premade")
+    return 0;
+  if (config.imageFromSpine) return 0;
+  return HARDCOVER_SPINE_GAP_CM;
+}
+
 export function isPremadeCover(config: { coverKind?: CoverKind }) {
   return config.coverKind === "premade";
 }
@@ -213,9 +268,9 @@ export function isDoubleCover(config: { coverKind?: CoverKind }) {
 }
 
 export function pageDimsCm(pageSize: CoverPageSize = "a4") {
-  return pageSize === "a5"
-    ? { width: A5_WIDTH_CM, height: A5_HEIGHT_CM }
-    : { width: A4_WIDTH_CM, height: A4_HEIGHT_CM };
+  if (pageSize === "a5") return { width: A5_WIDTH_CM, height: A5_HEIGHT_CM };
+  if (pageSize === "b5") return { width: B5_WIDTH_CM, height: B5_HEIGHT_CM };
+  return { width: A4_WIDTH_CM, height: A4_HEIGHT_CM };
 }
 
 export function cmToPx(cm: number, dpi: number): number {
@@ -247,6 +302,8 @@ export type CoverLayoutCm = {
   stripeX: number;
   stripeW: number;
   frontOnLeft: boolean;
+  /** Scaled centimetres between a panel image and the spine. */
+  imageGap: number;
 };
 
 export function layoutCoverCm(
@@ -256,6 +313,9 @@ export function layoutCoverCm(
   pageSize: CoverPageSize = "a4",
   stripe?: Partial<StripeLayoutCm>,
   hideSpine = false,
+  boardWidthCm = ARTBOARD_WIDTH_CM,
+  imageGapCm = 0,
+  boardHeightCm = ARTBOARD_HEIGHT_CM,
 ): CoverLayoutCm {
   const dims = pageDimsCm(pageSize);
   const metrics = {
@@ -267,13 +327,18 @@ export function layoutCoverCm(
     ),
   } as StripeLayoutCm;
   const wrapCm = wrapWidthCm(pages, pagesPerCm, dims.width, hideSpine);
-  const fitScale = wrapCm > ARTBOARD_WIDTH_CM ? ARTBOARD_WIDTH_CM / wrapCm : 1;
+  const fitScale = wrapCm > boardWidthCm ? boardWidthCm / wrapCm : 1;
   const a4W = dims.width * fitScale;
   const spineW = hideSpine ? 0 : spineWidthCm(pages, pagesPerCm) * fitScale;
   const wrapW = a4W * 2 + spineW;
-  const originX = (ARTBOARD_WIDTH_CM - wrapW) / 2;
-  const originY = 0;
+  const originX = (boardWidthCm - wrapW) / 2;
   const height = dims.height * fitScale;
+  // Hardcover's sheet is taller than the page. Keep the page its own height
+  // and center it, instead of stretching the image to the sheet.
+  const originY =
+    boardHeightCm > ARTBOARD_HEIGHT_CM
+      ? Math.max(0, (boardHeightCm - height) / 2)
+      : 0;
   const frontOnLeft = coverSide === "rtl";
   const frontX = frontOnLeft ? originX : originX + a4W + spineW;
   const spineX = originX + a4W;
@@ -299,18 +364,90 @@ export function layoutCoverCm(
     stripeX,
     stripeW,
     frontOnLeft,
+    imageGap: imageGapCm * fitScale,
+  };
+}
+
+/** Guide rectangle on a hardcover page. It starts at the spine or the gap. */
+export function hardcoverGuideFrameCm(pageSize: CoverPageSize) {
+  if (pageSize === "b5") return { width: 17, height: 25 };
+  return { width: 19.5, height: 27 };
+}
+
+/**
+ * The picture fills this window. Starting after the gap uses the same window
+ * shifted 1 cm away from the spine, and the far edge is clipped.
+ */
+export function hardcoverImageFrameCm(pageSize: CoverPageSize) {
+  if (pageSize === "b5") return { width: 18, height: 26 };
+  return { width: 20.5, height: 28 };
+}
+
+/** The image window for the current spine/gap choice. */
+export function hardcoverImageGuideFrames(
+  pageSize: CoverPageSize,
+  fromSpine: boolean,
+) {
+  return [{ ...hardcoverImageFrameCm(pageSize), gap: fromSpine ? 0 : 1 }];
+}
+
+/**
+ * The box starts at the spine, or one gap past it, and runs away from the
+ * spine. Vertically it is centered on the page.
+ */
+export function frameFromSpineCm(
+  panelX: number,
+  panelY: number,
+  panelW: number,
+  panelH: number,
+  frameW: number,
+  frameH: number,
+  gap: number,
+  spineOnLeft: boolean,
+) {
+  return {
+    x: spineOnLeft ? panelX + gap : panelX + panelW - gap - frameW,
+    y: panelY + (panelH - frameH) / 2,
+    w: frameW,
+    h: frameH,
   };
 }
 
 export type GuideLine =
   | { axis: "x"; cm: number; kind: "trim" | "fold" | "stripe" | "center" }
-  | { axis: "y"; cm: number; kind: "trim" | "fold" | "stripe" | "center" };
+  | { axis: "y"; cm: number; kind: "trim" | "fold" | "stripe" | "center" }
+  | {
+      axis: "rect";
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      kind: "safe" | "image";
+      /** Width number sits on this edge. */
+      widthLabel?: "top" | "bottom";
+      showHeight?: boolean;
+      /** Which side of the box gets the height number. */
+      heightSide?: "left" | "right";
+    }
+  | {
+      axis: "label";
+      x: number;
+      y: number;
+      cm: number;
+      rotate?: boolean;
+      kind?: "stripe";
+    };
 
 /**
  * Guide positions on the artboard, in centimetres. Trim edges, spine folds,
  * the stripe box, and the centre lines of each panel.
  */
-export function coverGuidesCm(layout: CoverLayoutCm): GuideLine[] {
+export function coverGuidesCm(
+  layout: CoverLayoutCm,
+  gapOnBack = false,
+  contentFrame?: { width: number; height: number } | null,
+  imageFrames: { width: number; height: number; gap: number }[] = [],
+): GuideLine[] {
   const top = layout.originY;
   const bottom = layout.originY + layout.height;
   const guides: GuideLine[] = [
@@ -333,6 +470,124 @@ export function coverGuidesCm(layout: CoverLayoutCm): GuideLine[] {
       kind: "center",
     });
   }
+  if (layout.imageGap > 0.05) {
+    const gap = layout.imageGap;
+    const frontGap = layout.frontOnLeft
+      ? layout.frontX + layout.a4W - gap
+      : layout.frontX + gap;
+    guides.push({ axis: "x", cm: frontGap, kind: "fold" });
+    if (gapOnBack) {
+      const backGap = layout.frontOnLeft
+        ? layout.backX + gap
+        : layout.backX + layout.a4W - gap;
+      guides.push({ axis: "x", cm: backGap, kind: "fold" });
+    }
+  }
+  if (contentFrame) {
+    const frameW = contentFrame.width * layout.fitScale;
+    const frameH = contentFrame.height * layout.fitScale;
+    const place = (panelX: number, spineOnLeft: boolean) => {
+      const frame = frameFromSpineCm(
+        panelX,
+        layout.originY,
+        layout.a4W,
+        layout.height,
+        frameW,
+        frameH,
+        layout.imageGap,
+        spineOnLeft,
+      );
+      guides.push({
+        axis: "rect",
+        x: frame.x,
+        y: frame.y,
+        w: frame.w,
+        h: frame.h,
+        kind: "safe",
+      });
+    };
+    place(layout.frontX, !layout.frontOnLeft);
+    if (gapOnBack) place(layout.backX, layout.frontOnLeft);
+  }
+  for (const [index, imageFrame] of imageFrames.entries()) {
+    const frameW = imageFrame.width * layout.fitScale;
+    const frameH = imageFrame.height * layout.fitScale;
+    const frameGap = imageFrame.gap * layout.fitScale;
+    const placeImage = (panelX: number, spineOnLeft: boolean) => {
+      const frame = frameFromSpineCm(
+        panelX,
+        layout.originY,
+        layout.a4W,
+        layout.height,
+        frameW,
+        frameH,
+        frameGap,
+        spineOnLeft,
+      );
+      guides.push({
+        axis: "rect",
+        x: frame.x,
+        y: frame.y,
+        w: frame.w,
+        h: frame.h,
+        kind: "image",
+        widthLabel: index === 0 ? "top" : "bottom",
+        showHeight: index === 0,
+        heightSide: spineOnLeft ? "right" : "left",
+      });
+    };
+    placeImage(layout.frontX, !layout.frontOnLeft);
+    if (gapOnBack) placeImage(layout.backX, layout.frontOnLeft);
+  }
+  const topLabel = top + Math.min(0.7, layout.height * 0.04);
+  guides.push(
+    {
+      axis: "label",
+      x: layout.frontX + layout.a4W / 2,
+      y: topLabel,
+      cm: layout.a4W,
+    },
+    {
+      axis: "label",
+      x: layout.backX + layout.a4W / 2,
+      y: topLabel,
+      cm: layout.a4W,
+    },
+    {
+      axis: "label",
+      x: layout.originX + 0.35,
+      y: top + layout.height / 2,
+      cm: layout.height,
+      rotate: true,
+    },
+  );
+  if (layout.spineW > 0.05) {
+    guides.push({
+      axis: "label",
+      x: layout.spineX + layout.spineW / 2,
+      y: bottom - 0.7,
+      cm: layout.spineW,
+    });
+  }
+  if (layout.stripeW > 0.05) {
+    guides.push({
+      axis: "label",
+      x: layout.stripeX + layout.stripeW / 2,
+      y: top + layout.height * 0.62,
+      cm: layout.stripeW,
+      kind: "stripe",
+    });
+  }
+  if (layout.imageGap > 0.05) {
+    guides.push({
+      axis: "label",
+      x: layout.frontOnLeft
+        ? layout.frontX + layout.a4W - layout.imageGap / 2
+        : layout.frontX + layout.imageGap / 2,
+      y: top + 1.8,
+      cm: layout.imageGap,
+    });
+  }
   return guides;
 }
 
@@ -345,6 +600,14 @@ export function singlePageGuidesCm(width: number, height: number): GuideLine[] {
     { axis: "y", cm: height, kind: "trim" },
     { axis: "x", cm: width / 2, kind: "center" },
     { axis: "y", cm: height / 2, kind: "center" },
+    { axis: "label", x: width / 2, y: 0.45, cm: width },
+    {
+      axis: "label",
+      x: 0.4,
+      y: height / 2,
+      cm: height,
+      rotate: true,
+    },
   ];
 }
 
@@ -547,8 +810,9 @@ export function drawCoverOnCanvas(
     return;
   }
 
-  const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, dpi));
-  const heightPx = Math.round(cmToPx(ARTBOARD_HEIGHT_CM, dpi));
+  const board = artboardCm(options.binding);
+  const widthPx = Math.round(cmToPx(board.width, dpi));
+  const heightPx = Math.round(cmToPx(board.height, dpi));
   const fill = coverColor || DEFAULT_COVER_COLOR;
   const stripeFill = stripeColor?.trim() || shiftHex(fill, -18);
   const textFill = stripeForeground || DEFAULT_STRIPE_FOREGROUND;
@@ -570,6 +834,9 @@ export function drawCoverOnCanvas(
       edgeGapCm: stripeEdgeGapCm,
     },
     hideSpine,
+    board.width,
+    spineImageGapCm(options),
+    board.height,
   );
   const p = (cm: number) => cmToPx(cm, dpi);
 
@@ -594,11 +861,46 @@ export function drawCoverOnCanvas(
   const coverH = p(layout.height);
 
   const double = options.coverKind === "double";
+  const gap = p(layout.imageGap);
+  const frontSpineOnLeft = !frontOnLeft;
+  const backSpineOnLeft = frontOnLeft;
+  const contentFrame =
+    options.binding === "hardcover"
+      ? hardcoverImageFrameCm(pageSize ?? "a4")
+      : null;
+  const cropEnd = contentFrame != null;
+  const contentBox = (panelX: number, spineOnLeft: boolean) => {
+    if (!contentFrame) return null;
+    const frame = frameFromSpineCm(
+      panelX,
+      originY,
+      a4W,
+      coverH,
+      p(contentFrame.width * layout.fitScale),
+      p(contentFrame.height * layout.fitScale),
+      gap,
+      spineOnLeft,
+    );
+    return { x: frame.x, y: frame.y, w: frame.w, h: frame.h };
+  };
   ctx.fillStyle = fill;
   ctx.fillRect(backX, originY, a4W, coverH);
   if (!hideSpine) ctx.fillRect(spineX, originY, Math.max(1, spineW), coverH);
   if (double && options.backImage && options.backImage.naturalWidth > 0) {
-    drawImageCovering(ctx, options.backImage, backX, originY, a4W, coverH);
+    drawPanelImage(
+      ctx,
+      options.backImage,
+      backX,
+      originY,
+      a4W,
+      coverH,
+      gap,
+      backSpineOnLeft,
+      options.spineGapFill ?? "color",
+      contentBox(backX, backSpineOnLeft),
+      fill,
+      cropEnd,
+    );
   }
   if (!double) {
     ctx.fillStyle = stripeFill;
@@ -648,11 +950,24 @@ export function drawCoverOnCanvas(
     });
   }
 
-  ctx.fillStyle = "#e7e1d4";
+  ctx.fillStyle = fill;
   ctx.fillRect(frontX, originY, a4W, coverH);
 
   if (sourceImage && sourceImage.naturalWidth > 0) {
-    drawImageCovering(ctx, sourceImage, frontX, originY, a4W, coverH);
+    drawPanelImage(
+      ctx,
+      sourceImage,
+      frontX,
+      originY,
+      a4W,
+      coverH,
+      gap,
+      frontSpineOnLeft,
+      options.spineGapFill ?? "color",
+      contentBox(frontX, frontSpineOnLeft),
+      fill,
+      cropEnd,
+    );
   }
 
   if (label) {
@@ -701,8 +1016,9 @@ function drawPremadeCanvas(
     pagesPerSpineCm,
     pageSize,
   } = options;
-  const widthPx = Math.round(cmToPx(ARTBOARD_WIDTH_CM, dpi));
-  const heightPx = Math.round(cmToPx(ARTBOARD_HEIGHT_CM, dpi));
+  const board = artboardCm(options.binding);
+  const widthPx = Math.round(cmToPx(board.width, dpi));
+  const heightPx = Math.round(cmToPx(board.height, dpi));
   const fill = coverColor || DEFAULT_COVER_COLOR;
   const titleFamily = titleFont || "CoverMontserratTitle";
   const chapterFamily = labelFont || titleFamily;
@@ -715,6 +1031,7 @@ function drawPremadeCanvas(
     pageSize,
     undefined,
     false,
+    board.width,
   );
   const p = (cm: number) => cmToPx(cm, dpi);
   const ctx = drawingContext(canvas);
@@ -728,7 +1045,7 @@ function drawPremadeCanvas(
 
   if (sourceImage && sourceImage.naturalWidth > 0) {
     const mirror = coverSide === "rtl";
-    if ((pageSize ?? "a4") === "a5") {
+    if ((pageSize ?? "a4") === "a5" || (pageSize ?? "a4") === "b5") {
       drawPremadeImage(
         ctx,
         sourceImage,
@@ -974,14 +1291,21 @@ function drawImageCovering(
   y: number,
   width: number,
   height: number,
+  cropEnd = false,
+  spineOnLeft = true,
 ) {
+  // Fill the frame. The spine edge stays, and anything past the far edge is cut.
   const scale = Math.max(
     width / image.naturalWidth,
     height / image.naturalHeight,
   );
   const drawW = image.naturalWidth * scale;
   const drawH = image.naturalHeight * scale;
-  const dx = x + (width - drawW) / 2;
+  const dx = cropEnd
+    ? spineOnLeft
+      ? x
+      : x + width - drawW
+    : x + (width - drawW) / 2;
   const dy = y + (height - drawH) / 2;
 
   ctx.save();
@@ -990,6 +1314,129 @@ function drawImageCovering(
   ctx.clip();
   ctx.drawImage(image, dx, dy, drawW, drawH);
   ctx.restore();
+}
+
+/**
+ * A strip of the page-cropped image's spine edge, stretched and blurred so it
+ * can fill the centimetre between the sharp image and the spine.
+ */
+export function blurredEdgeCanvas(
+  image: HTMLImageElement,
+  imageWidth: number,
+  imageHeight: number,
+  gapWidth: number,
+  edge: "left" | "right",
+  cropEnd = false,
+): HTMLCanvasElement | null {
+  if (
+    image.naturalWidth < 1 ||
+    imageWidth < 1 ||
+    imageHeight < 1 ||
+    gapWidth < 1 ||
+    typeof document === "undefined"
+  )
+    return null;
+  const covered = document.createElement("canvas");
+  covered.width = Math.max(1, Math.round(imageWidth));
+  covered.height = Math.max(1, Math.round(imageHeight));
+  const coveredCtx = covered.getContext("2d");
+  if (!coveredCtx) return null;
+  const scale = Math.max(
+    covered.width / image.naturalWidth,
+    covered.height / image.naturalHeight,
+  );
+  const drawW = image.naturalWidth * scale;
+  const drawH = image.naturalHeight * scale;
+  coveredCtx.drawImage(
+    image,
+    cropEnd
+      ? edge === "left"
+        ? 0
+        : covered.width - drawW
+      : (covered.width - drawW) / 2,
+    (covered.height - drawH) / 2,
+    drawW,
+    drawH,
+  );
+
+  const slice = Math.max(1, Math.round(Math.min(covered.width * 0.08, 48)));
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.round(gapWidth));
+  out.height = covered.height;
+  const outCtx = out.getContext("2d");
+  if (!outCtx) return null;
+  outCtx.filter = `blur(${Math.max(8, Math.round(out.width * 0.35))}px)`;
+  outCtx.drawImage(
+    covered,
+    edge === "left" ? 0 : covered.width - slice,
+    0,
+    slice,
+    covered.height,
+    -slice,
+    0,
+    out.width + slice * 2,
+    out.height,
+  );
+  return out;
+}
+
+function drawPanelImage(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  panelX: number,
+  panelY: number,
+  panelW: number,
+  panelH: number,
+  gap: number,
+  spineOnLeft: boolean,
+  fill: SpineGapFill,
+  frame: { x: number; y: number; w: number; h: number } | null,
+  gapColor: string,
+  cropEnd = false,
+) {
+  const box = frame ?? { x: panelX, y: panelY, w: panelW, h: panelH };
+  const visibleX = spineOnLeft ? panelX + gap : panelX;
+  const visibleW = panelW - gap;
+  ctx.save();
+  ctx.beginPath();
+  if (frame) ctx.rect(box.x, box.y, box.w, box.h);
+  else if (gap > 0 && visibleW > 1)
+    ctx.rect(visibleX, panelY, visibleW, panelH);
+  else ctx.rect(panelX, panelY, panelW, panelH);
+  ctx.clip();
+  drawImageCovering(
+    ctx,
+    image,
+    box.x,
+    box.y,
+    box.w,
+    box.h,
+    cropEnd,
+    spineOnLeft,
+  );
+  ctx.restore();
+  if (gap < 1) return;
+  const gapX = spineOnLeft ? panelX : panelX + panelW - gap;
+  if (fill === "blur") {
+    const blurred = blurredEdgeCanvas(
+      image,
+      box.w,
+      box.h,
+      gap,
+      spineOnLeft ? "left" : "right",
+      cropEnd,
+    );
+    if (blurred) {
+      const blurY = frame ? box.y : panelY;
+      const blurH = frame ? box.h : panelH;
+      ctx.drawImage(blurred, gapX, blurY, gap, blurH);
+    }
+    return;
+  }
+  if (frame) {
+    ctx.fillStyle = gapColor;
+    ctx.fillRect(gapX, panelY, gap, panelH);
+  }
 }
 
 function drawCoverTitle(

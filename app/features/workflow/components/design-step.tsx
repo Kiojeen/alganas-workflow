@@ -253,6 +253,52 @@ export function DesignStep({
         </label>
       )}
 
+      {bookConfig.binding === "hardcover" && !singlePage && !premade && (
+        <div className="flex flex-col gap-3 rounded-md border p-3">
+          <label className="flex items-center gap-2 text-xs">
+            <Checkbox
+              checked={bookConfig.imageFromSpine === true}
+              disabled={disabled}
+              onCheckedChange={(checked) =>
+                patch({ imageFromSpine: checked === true })
+              }
+            />
+            <span>تبدأ الصورة من الكعب</span>
+          </label>
+          {bookConfig.imageFromSpine !== true && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-muted-foreground text-xs">فراغ الكعب</span>
+              <ToggleGroup
+                type="single"
+                value={bookConfig.spineGapFill ?? "color"}
+                disabled={disabled}
+                onValueChange={(value) => {
+                  if (value !== "color" && value !== "blur") return;
+                  patch({ spineGapFill: value });
+                }}
+                variant="outline"
+                size="sm"
+                spacing={0}
+                className="w-full"
+              >
+                <ToggleGroupItem
+                  value="color"
+                  className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
+                >
+                  اللون التلقائي
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="blur"
+                  className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
+                >
+                  تمويه الصورة
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          )}
+        </div>
+      )}
+
       {premade && (
         <div className="flex flex-col gap-3 rounded-md border p-3">
           <span className="text-xs font-medium">عنوان الواجهة</span>

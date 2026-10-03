@@ -10,6 +10,7 @@ import {
   loadPremadeCoverFile,
   removePremadeCover,
   usePremadeCovers,
+  type PremadeBoard,
   type PremadeCover,
 } from "../lib/premade-covers";
 
@@ -17,21 +18,24 @@ const LIBRARY_INPUT_ID = "premade-library-input";
 
 export function PremadeCoverField({
   selectedId,
+  board,
   disabled,
   onSelect,
   onRemoveSelected,
 }: {
   selectedId: string;
+  board: PremadeBoard;
   disabled: boolean;
   onSelect: (cover: PremadeCover, file: File) => void;
   onRemoveSelected: () => void;
 }) {
-  const covers = usePremadeCovers();
+  const covers = usePremadeCovers().filter((cover) => cover.board === board);
+  const sizeLabel = board === "hardcover" ? "48.7×30" : "47×29.7";
 
   const upload = async (file: File | null) => {
     if (!file) return;
     try {
-      const cover = await addPremadeCover(file);
+      const cover = await addPremadeCover(file, board);
       onSelect(cover, file);
     } catch (error) {
       toast.error(
@@ -70,7 +74,7 @@ export function PremadeCoverField({
       </div>
       {covers.length === 0 ? (
         <p className="text-muted-foreground rounded-md border border-dashed px-3 py-4 text-center text-xs">
-          ارفع صورة بنسبة اللوحة 47×29.7 سم. تُحفظ على هذا الجهاز.
+          ارفع صورة بنسبة اللوحة {sizeLabel} سم. تُحفظ على هذا الجهاز.
         </p>
       ) : (
         <ul className="grid grid-cols-3 gap-2">

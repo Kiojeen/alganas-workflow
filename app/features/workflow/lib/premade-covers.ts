@@ -1,12 +1,18 @@
 import { useSyncExternalStore } from "react";
 
-import { ARTBOARD_HEIGHT_CM, ARTBOARD_WIDTH_CM } from "./cover-layout";
+import {
+  ARTBOARD_HEIGHT_CM,
+  ARTBOARD_WIDTH_CM,
+  artboardCm,
+} from "./cover-layout";
 
 /**
  * Finished cover artboards saved on this device. Images are large, so they
  * live in IndexedDB rather than localStorage. A small in-memory snapshot is
  * kept so React can read the list synchronously.
  */
+
+export type PremadeBoard = "standard" | "hardcover";
 
 export type PremadeCover = {
   id: string;
@@ -15,13 +21,18 @@ export type PremadeCover = {
   width: number;
   height: number;
   createdAt: number;
+  /** Which artboard this image was saved for. Missing records are standard. */
+  board: PremadeBoard;
   /** Small preview, empty until a thumbnail exists. */
   thumbUrl: string;
 };
 
-type CoverMeta = Omit<PremadeCover, "thumbUrl"> & { thumb?: Blob };
+type CoverMeta = Omit<PremadeCover, "thumbUrl" | "board"> & {
+  thumb?: Blob;
+  board?: PremadeBoard;
+};
 type CoverFile = { id: string; blob: Blob };
-type LegacyCover = Omit<PremadeCover, "thumbUrl"> & { blob: Blob };
+type LegacyCover = Omit<PremadeCover, "thumbUrl" | "board"> & { blob: Blob };
 
 const DB_NAME = "alganas-premade-covers";
 const META = "meta";
@@ -36,11 +47,17 @@ const ASPECT_TOLERANCE = 0.02;
 
 export const PREMADE_ASPECT = ARTBOARD_WIDTH_CM / ARTBOARD_HEIGHT_CM;
 
-export function premadeAspectError(width: number, height: number) {
+export function premadeAspectError(
+  width: number,
+  height: number,
+  board: PremadeBoard = "standard",
+) {
   if (width <= 0 || height <= 0) return "تعذّر قراءة أبعاد الصورة.";
+  const size = artboardCm(board === "hardcover" ? "hardcover" : "standard");
+  const aspect = size.width / size.height;
   const ratio = width / height;
-  if (Math.abs(ratio - PREMADE_ASPECT) / PREMADE_ASPECT > ASPECT_TOLERANCE) {
-    return `الصورة ${width}×${height} لا تطابق نسبة اللوحة ${ARTBOARD_WIDTH_CM}×${ARTBOARD_HEIGHT_CM} سم.`;
+  if (Math.abs(ratio - aspect) / aspect > ASPECT_TOLERANCE) {
+    return `الصورة ${width}×${height} لا تطابق نسبة اللوحة ${size.width}×${size.height} سم.`;
   }
   return null;
 }
@@ -106,6 +123,7 @@ function toCover(meta: CoverMeta, thumbUrl = ""): PremadeCover {
     width: meta.width,
     height: meta.height,
     createdAt: meta.createdAt,
+    board: meta.board === "hardcover" ? "hardcover" : "standard",
     thumbUrl,
   };
 }
@@ -244,7 +262,10 @@ function defaultName(file: File) {
 }
 
 /** Validates the artboard ratio, then stores the image. */
-export async function addPremadeCover(file: File): Promise<PremadeCover> {
+export async function addPremadeCover(
+  file: File,
+  board: PremadeBoard = "standard",
+): Promise<PremadeCover> {
   if (!file.type.startsWith("image/")) {
     throw new Error("الغلاف الجاهز يجب أن يكون صورة.");
   }
@@ -252,6 +273,7 @@ export async function addPremadeCover(file: File): Promise<PremadeCover> {
   const aspectError = premadeAspectError(
     image.naturalWidth,
     image.naturalHeight,
+    board,
   );
   if (aspectError) throw new Error(aspectError);
   const id =
@@ -265,6 +287,7 @@ export async function addPremadeCover(file: File): Promise<PremadeCover> {
     width: image.naturalWidth,
     height: image.naturalHeight,
     createdAt: Date.now(),
+    board,
     thumb: await thumbFromImage(image),
   };
   await withStore(FILES, "readwrite", (store) =>

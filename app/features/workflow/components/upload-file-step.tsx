@@ -321,11 +321,34 @@ export function UploadFileStep({
             value={bookConfig.binding ?? "standard"}
             disabled={disabled}
             onValueChange={(value) => {
-              if (value !== "standard" && value !== "spiral") return;
+              if (
+                value !== "standard" &&
+                value !== "spiral" &&
+                value !== "hardcover"
+              )
+                return;
+              const binding = value as CoverBinding;
+              const leavingPremadeBoard =
+                bookConfig.coverKind === "premade" &&
+                (bookConfig.binding === "hardcover") !==
+                  (binding === "hardcover");
+              const pageSize =
+                binding === "hardcover"
+                  ? bookConfig.pageSize === "b5"
+                    ? "b5"
+                    : "a4"
+                  : bookConfig.pageSize === "a5"
+                    ? "a5"
+                    : "a4";
               onBookConfigChange({
                 ...bookConfig,
-                binding: value as CoverBinding,
+                binding,
+                pageSize,
+                premadeCoverId: leavingPremadeBoard
+                  ? ""
+                  : bookConfig.premadeCoverId,
               });
+              if (leavingPremadeBoard) file.onFile(null);
             }}
           >
             <SelectTrigger className="w-full" size="sm">
@@ -334,9 +357,7 @@ export function UploadFileStep({
             <SelectContent>
               <SelectItem value="standard">عادي</SelectItem>
               <SelectItem value="spiral">حلزوني</SelectItem>
-              <SelectItem value="hardcover" disabled>
-                غلاف مقوى (قريبًا)
-              </SelectItem>
+              <SelectItem value="hardcover">غلاف مقوى</SelectItem>
             </SelectContent>
           </Select>
         </Field>
@@ -346,7 +367,10 @@ export function UploadFileStep({
             value={bookConfig.pageSize ?? "a4"}
             disabled={disabled}
             onValueChange={(value) => {
-              if (value !== "a4" && value !== "a5") return;
+              const hardcover = bookConfig.binding === "hardcover";
+              if (hardcover) {
+                if (value !== "a4" && value !== "b5") return;
+              } else if (value !== "a4" && value !== "a5") return;
               onBookConfigChange({
                 ...bookConfig,
                 pageSize: value as CoverPageSize,
@@ -358,7 +382,11 @@ export function UploadFileStep({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="a4">A4 — 21×29.7 سم</SelectItem>
-              <SelectItem value="a5">A5 — 14.8×21 سم</SelectItem>
+              {bookConfig.binding === "hardcover" ? (
+                <SelectItem value="b5">B5 — 17×25 سم</SelectItem>
+              ) : (
+                <SelectItem value="a5">A5 — 14.8×21 سم</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </Field>
@@ -438,6 +466,9 @@ export function UploadFileStep({
         <>
           <PremadeCoverField
             selectedId={bookConfig.premadeCoverId}
+            board={
+              bookConfig.binding === "hardcover" ? "hardcover" : "standard"
+            }
             disabled={disabled}
             onSelect={(cover, nextFile) => {
               onBookConfigChange({
