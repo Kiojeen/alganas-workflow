@@ -55,6 +55,46 @@ function formatGuideCm(cm: number) {
   return `${text} سم`;
 }
 
+function drawGuideChip(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  dpr: number,
+  rotate: boolean,
+  bounds: { width: number; height: number },
+) {
+  ctx.save();
+  ctx.font = `${Math.round(11 * dpr)}px sans-serif`;
+  const textWidth = ctx.measureText(text).width;
+  const chipW = textWidth + 8 * dpr;
+  const chipH = 16 * dpr;
+  const halfW = rotate ? chipH / 2 : chipW / 2;
+  const halfH = rotate ? chipW / 2 : chipH / 2;
+  const px = Math.min(
+    Math.max(x, halfW),
+    Math.max(halfW, bounds.width - halfW),
+  );
+  const py = Math.min(
+    Math.max(y, halfH),
+    Math.max(halfH, bounds.height - halfH),
+  );
+  ctx.translate(px, py);
+  if (rotate) ctx.rotate(-Math.PI / 2);
+  ctx.beginPath();
+  ctx.roundRect(-chipW / 2, -chipH / 2, chipW, chipH, 3 * dpr);
+  ctx.fillStyle = "#06141c";
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = GUIDE_COLOR;
+  ctx.stroke();
+  ctx.fillStyle = GUIDE_COLOR;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
 function drawGuides(
   overlay: HTMLCanvasElement,
   guides: GuideLine[],
@@ -75,6 +115,7 @@ function drawGuides(
   const px = (cm: number, total: number, size: number) =>
     Math.round((cm / total) * size) + 0.5;
 
+  const bounds = { width: overlay.width, height: overlay.height };
   for (const guide of guides) {
     ctx.beginPath();
     ctx.setLineDash(
@@ -90,47 +131,9 @@ function drawGuides(
       const w = (guide.w / boardWidthCm) * overlay.width;
       const h = (guide.h / boardHeightCm) * overlay.height;
       ctx.strokeRect(x, y, w, h);
-      if (!showNumbers) continue;
-      ctx.save();
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = GUIDE_COLOR;
-      ctx.font = `${Math.round(11 * dpr)}px sans-serif`;
-      ctx.textAlign = "center";
-      const widthAtBottom = guide.widthLabel === "bottom";
-      ctx.textBaseline = widthAtBottom ? "bottom" : "top";
-      ctx.fillText(
-        formatGuideCm(guide.w),
-        x + w / 2,
-        widthAtBottom ? y + h - 4 * dpr : y + 4 * dpr,
-      );
-      if (guide.showHeight !== false) {
-        const onRight = guide.heightSide === "right";
-        ctx.translate(onRight ? x + w - 4 * dpr : x + 4 * dpr, y + h / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.textBaseline = onRight ? "top" : "bottom";
-        ctx.fillText(formatGuideCm(guide.h), 0, 0);
-      }
-      ctx.restore();
       continue;
     }
-    if (guide.axis === "label") {
-      if (!showNumbers) continue;
-      const x = (guide.x / boardWidthCm) * overlay.width;
-      const y = (guide.y / boardHeightCm) * overlay.height;
-      ctx.save();
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = GUIDE_COLOR;
-      ctx.font = `${Math.round(11 * dpr)}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.translate(x, y);
-      if (guide.rotate) ctx.rotate(-Math.PI / 2);
-      ctx.fillText(formatGuideCm(guide.cm), 0, 0);
-      ctx.restore();
-      continue;
-    }
+    if (guide.axis === "label") continue;
     if (guide.axis === "x") {
       const x = px(guide.cm, boardWidthCm, overlay.width);
       ctx.moveTo(x, 0);
@@ -143,6 +146,49 @@ function drawGuides(
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  ctx.setLineDash([]);
+  if (!showNumbers) return;
+
+  for (const guide of guides) {
+    if (guide.axis === "rect") {
+      const x = px(guide.x, boardWidthCm, overlay.width);
+      const y = px(guide.y, boardHeightCm, overlay.height);
+      const w = (guide.w / boardWidthCm) * overlay.width;
+      const h = (guide.h / boardHeightCm) * overlay.height;
+      drawGuideChip(
+        ctx,
+        formatGuideCm(guide.w),
+        x + w / 2,
+        guide.widthEdge === "bottom" ? y + h : y,
+        dpr,
+        false,
+        bounds,
+      );
+      if (guide.showHeight !== false) {
+        const onRight = guide.heightSide === "right";
+        drawGuideChip(
+          ctx,
+          formatGuideCm(guide.h),
+          onRight ? x + w : x,
+          y + h * (guide.heightAlong ?? 0.5),
+          dpr,
+          true,
+          bounds,
+        );
+      }
+      continue;
+    }
+    if (guide.axis !== "label") continue;
+    drawGuideChip(
+      ctx,
+      formatGuideCm(guide.cm),
+      (guide.x / boardWidthCm) * overlay.width,
+      (guide.y / boardHeightCm) * overlay.height,
+      dpr,
+      guide.rotate === true,
+      bounds,
+    );
+  }
 }
 
 export function CoverPreview({

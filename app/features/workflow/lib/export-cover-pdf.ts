@@ -248,8 +248,12 @@ function drawCoverImage(
   clipBox = box,
   cropEnd = false,
   spineOnLeft = true,
+  fitWidth = box.width,
+  fitHeight = box.height,
 ) {
-  const scale = Math.max(box.width / image.width, box.height / image.height);
+  const scale = cropEnd
+    ? Math.max(fitWidth / image.width, fitHeight / image.height)
+    : Math.max(box.width / image.width, box.height / image.height);
   const drawW = image.width * scale;
   const drawH = image.height * scale;
   const x = cropEnd
@@ -258,9 +262,10 @@ function drawCoverImage(
       : box.x + box.width - drawW
     : box.x + (box.width - drawW) / 2;
   const y = box.y + (box.height - drawH) / 2;
+  const clipRect = cropEnd ? box : clipBox;
   page.pushOperators(
     pushGraphicsState(),
-    rectangle(clipBox.x, clipBox.y, clipBox.width, clipBox.height),
+    rectangle(clipRect.x, clipRect.y, clipRect.width, clipRect.height),
     clip(),
     endPath(),
   );
@@ -830,11 +835,22 @@ async function drawVectorCover(args: {
     page.drawRectangle({ ...spine, color: color(fillHex) });
     const gapPt = cmToPt(layout.imageGap);
     const blurGap = args.bookConfig.spineGapFill === "blur";
+    const fromSpine = args.bookConfig.imageFromSpine === true;
     const contentFrame =
       args.bookConfig.binding === "hardcover"
-        ? hardcoverImageFrameCm(pageSize)
+        ? hardcoverImageFrameCm(pageSize, fromSpine)
+        : null;
+    const fittedFrame =
+      args.bookConfig.binding === "hardcover"
+        ? hardcoverImageFrameCm(pageSize, true)
         : null;
     const cropEnd = contentFrame != null;
+    const fitWidth = fittedFrame
+      ? cmToPt(fittedFrame.width * layout.fitScale)
+      : 0;
+    const fitHeight = fittedFrame
+      ? cmToPt(fittedFrame.height * layout.fitScale)
+      : 0;
     const backFrame = contentFrame
       ? anchoredContentBox(
           back,
@@ -856,6 +872,8 @@ async function drawVectorCover(args: {
         backFrame ?? insetFromSpine(back, gapPt, layout.frontOnLeft),
         cropEnd,
         layout.frontOnLeft,
+        fitWidth,
+        fitHeight,
       );
       if (backFrame && gapPt > 0 && !blurGap) {
         page.drawRectangle({
@@ -1027,11 +1045,22 @@ async function drawVectorCover(args: {
   if (!premade) {
     const gapPt = cmToPt(layout.imageGap);
     const frontSpineOnLeft = !layout.frontOnLeft;
+    const fromSpine = args.bookConfig.imageFromSpine === true;
     const contentFrame =
       args.bookConfig.binding === "hardcover"
-        ? hardcoverImageFrameCm(pageSize)
+        ? hardcoverImageFrameCm(pageSize, fromSpine)
+        : null;
+    const fittedFrame =
+      args.bookConfig.binding === "hardcover"
+        ? hardcoverImageFrameCm(pageSize, true)
         : null;
     const cropEnd = contentFrame != null;
+    const fitWidth = fittedFrame
+      ? cmToPt(fittedFrame.width * layout.fitScale)
+      : 0;
+    const fitHeight = fittedFrame
+      ? cmToPt(fittedFrame.height * layout.fitScale)
+      : 0;
     const frontFrame = contentFrame
       ? anchoredContentBox(
           front,
@@ -1052,6 +1081,8 @@ async function drawVectorCover(args: {
       frontFrame ?? insetFromSpine(front, gapPt, frontSpineOnLeft),
       cropEnd,
       frontSpineOnLeft,
+      fitWidth,
+      fitHeight,
     );
     if (frontFrame && gapPt > 0 && args.bookConfig.spineGapFill !== "blur") {
       page.drawRectangle({

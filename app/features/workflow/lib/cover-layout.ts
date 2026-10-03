@@ -375,12 +375,17 @@ export function hardcoverGuideFrameCm(pageSize: CoverPageSize) {
 }
 
 /**
- * The picture fills this window. Starting after the gap uses the same window
- * shifted 1 cm away from the spine, and the far edge is clipped.
+ * Spine mode covers this window. Gap mode uses that same picture and removes
+ * 1 cm from the far end, so the window is 1 cm narrower and starts 1 cm out.
  */
-export function hardcoverImageFrameCm(pageSize: CoverPageSize) {
-  if (pageSize === "b5") return { width: 18, height: 26 };
-  return { width: 20.5, height: 28 };
+export function hardcoverImageFrameCm(
+  pageSize: CoverPageSize,
+  fromSpine: boolean,
+) {
+  if (pageSize === "b5") {
+    return fromSpine ? { width: 19, height: 26 } : { width: 18, height: 26 };
+  }
+  return fromSpine ? { width: 21.5, height: 28 } : { width: 20.5, height: 28 };
 }
 
 /** The image window for the current spine/gap choice. */
@@ -388,7 +393,9 @@ export function hardcoverImageGuideFrames(
   pageSize: CoverPageSize,
   fromSpine: boolean,
 ) {
-  return [{ ...hardcoverImageFrameCm(pageSize), gap: fromSpine ? 0 : 1 }];
+  return [
+    { ...hardcoverImageFrameCm(pageSize, fromSpine), gap: fromSpine ? 0 : 1 },
+  ];
 }
 
 /**
@@ -423,11 +430,13 @@ export type GuideLine =
       w: number;
       h: number;
       kind: "safe" | "image";
-      /** Width number sits on this edge. */
-      widthLabel?: "top" | "bottom";
+      /** Which horizontal edge of the box carries the width. */
+      widthEdge?: "top" | "bottom";
       showHeight?: boolean;
       /** Which side of the box gets the height number. */
       heightSide?: "left" | "right";
+      /** 0–1 down the box. Keeps two height numbers off the same spot. */
+      heightAlong?: number;
     }
   | {
       axis: "label";
@@ -504,12 +513,15 @@ export function coverGuidesCm(
         w: frame.w,
         h: frame.h,
         kind: "safe",
+        widthEdge: frameH > layout.height - 0.2 ? "top" : "bottom",
+        heightSide: spineOnLeft ? "left" : "right",
+        heightAlong: 0.5,
       });
     };
     place(layout.frontX, !layout.frontOnLeft);
     if (gapOnBack) place(layout.backX, layout.frontOnLeft);
   }
-  for (const [index, imageFrame] of imageFrames.entries()) {
+  for (const imageFrame of imageFrames) {
     const frameW = imageFrame.width * layout.fitScale;
     const frameH = imageFrame.height * layout.fitScale;
     const frameGap = imageFrame.gap * layout.fitScale;
@@ -531,31 +543,31 @@ export function coverGuidesCm(
         w: frame.w,
         h: frame.h,
         kind: "image",
-        widthLabel: index === 0 ? "top" : "bottom",
-        showHeight: index === 0,
+        widthEdge: "top",
+        showHeight: true,
         heightSide: spineOnLeft ? "right" : "left",
+        heightAlong: 0.5,
       });
     };
     placeImage(layout.frontX, !layout.frontOnLeft);
     if (gapOnBack) placeImage(layout.backX, layout.frontOnLeft);
   }
-  const topLabel = top + Math.min(0.7, layout.height * 0.04);
   guides.push(
     {
       axis: "label",
       x: layout.frontX + layout.a4W / 2,
-      y: topLabel,
+      y: bottom,
       cm: layout.a4W,
     },
     {
       axis: "label",
       x: layout.backX + layout.a4W / 2,
-      y: topLabel,
+      y: bottom,
       cm: layout.a4W,
     },
     {
       axis: "label",
-      x: layout.originX + 0.35,
+      x: layout.originX,
       y: top + layout.height / 2,
       cm: layout.height,
       rotate: true,
@@ -565,7 +577,7 @@ export function coverGuidesCm(
     guides.push({
       axis: "label",
       x: layout.spineX + layout.spineW / 2,
-      y: bottom - 0.7,
+      y: bottom,
       cm: layout.spineW,
     });
   }
@@ -573,7 +585,7 @@ export function coverGuidesCm(
     guides.push({
       axis: "label",
       x: layout.stripeX + layout.stripeW / 2,
-      y: top + layout.height * 0.62,
+      y: top,
       cm: layout.stripeW,
       kind: "stripe",
     });
@@ -584,8 +596,9 @@ export function coverGuidesCm(
       x: layout.frontOnLeft
         ? layout.frontX + layout.a4W - layout.imageGap / 2
         : layout.frontX + layout.imageGap / 2,
-      y: top + 1.8,
+      y: top + layout.height / 2,
       cm: layout.imageGap,
+      rotate: true,
     });
   }
   return guides;
@@ -600,10 +613,10 @@ export function singlePageGuidesCm(width: number, height: number): GuideLine[] {
     { axis: "y", cm: height, kind: "trim" },
     { axis: "x", cm: width / 2, kind: "center" },
     { axis: "y", cm: height / 2, kind: "center" },
-    { axis: "label", x: width / 2, y: 0.45, cm: width },
+    { axis: "label", x: width / 2, y: height, cm: width },
     {
       axis: "label",
-      x: 0.4,
+      x: 0,
       y: height / 2,
       cm: height,
       rotate: true,
@@ -866,8 +879,18 @@ export function drawCoverOnCanvas(
   const backSpineOnLeft = frontOnLeft;
   const contentFrame =
     options.binding === "hardcover"
-      ? hardcoverImageFrameCm(pageSize ?? "a4")
+      ? hardcoverImageFrameCm(pageSize ?? "a4", options.imageFromSpine === true)
       : null;
+  const fittedFrame =
+    options.binding === "hardcover"
+      ? hardcoverImageFrameCm(pageSize ?? "a4", true)
+      : null;
+  const fittedPx = fittedFrame
+    ? {
+        w: p(fittedFrame.width * layout.fitScale),
+        h: p(fittedFrame.height * layout.fitScale),
+      }
+    : null;
   const cropEnd = contentFrame != null;
   const contentBox = (panelX: number, spineOnLeft: boolean) => {
     if (!contentFrame) return null;
@@ -900,6 +923,7 @@ export function drawCoverOnCanvas(
       contentBox(backX, backSpineOnLeft),
       fill,
       cropEnd,
+      fittedPx,
     );
   }
   if (!double) {
@@ -967,6 +991,7 @@ export function drawCoverOnCanvas(
       contentBox(frontX, frontSpineOnLeft),
       fill,
       cropEnd,
+      fittedPx,
     );
   }
 
@@ -1293,12 +1318,14 @@ function drawImageCovering(
   height: number,
   cropEnd = false,
   spineOnLeft = true,
+  fitWidth = width,
+  fitHeight = height,
 ) {
-  // Fill the frame. The spine edge stays, and anything past the far edge is cut.
-  const scale = Math.max(
-    width / image.naturalWidth,
-    height / image.naturalHeight,
-  );
+  // Cover the spine window. Gap mode keeps that same scale and clips 1 cm
+  // off the far end.
+  const scale = cropEnd
+    ? Math.max(fitWidth / image.naturalWidth, fitHeight / image.naturalHeight)
+    : Math.max(width / image.naturalWidth, height / image.naturalHeight);
   const drawW = image.naturalWidth * scale;
   const drawH = image.naturalHeight * scale;
   const dx = cropEnd
@@ -1393,6 +1420,7 @@ function drawPanelImage(
   frame: { x: number; y: number; w: number; h: number } | null,
   gapColor: string,
   cropEnd = false,
+  fit: { w: number; h: number } | null = null,
 ) {
   const box = frame ?? { x: panelX, y: panelY, w: panelW, h: panelH };
   const visibleX = spineOnLeft ? panelX + gap : panelX;
@@ -1413,6 +1441,8 @@ function drawPanelImage(
     box.h,
     cropEnd,
     spineOnLeft,
+    fit?.w ?? box.w,
+    fit?.h ?? box.h,
   );
   ctx.restore();
   if (gap < 1) return;
@@ -1420,8 +1450,8 @@ function drawPanelImage(
   if (fill === "blur") {
     const blurred = blurredEdgeCanvas(
       image,
-      box.w,
-      box.h,
+      fit?.w ?? box.w,
+      fit?.h ?? box.h,
       gap,
       spineOnLeft ? "left" : "right",
       cropEnd,
