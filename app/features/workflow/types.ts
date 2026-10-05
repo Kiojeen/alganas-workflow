@@ -71,6 +71,11 @@ export type BookConfig = {
    * Otherwise they start 1 cm away from it.
    */
   imageFromSpine: boolean;
+  /**
+   * Hardcover fitted-image pan, from -100 (left) to 100 (right).
+   * 0 crops the extra width equally on both sides.
+   */
+  imagePanX: number;
   /** Hardcover gap fill. The gap uses the cover color. */
   spineGapFill: SpineGapFill;
   /** Wrap covers only. The description stripe is drawn unless this is set. */

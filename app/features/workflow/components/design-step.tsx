@@ -285,6 +285,17 @@ export function DesignStep({
             />
             <span>تبدأ الصورة من الكعب</span>
           </label>
+          <IconSlider
+            icon={ArrowLeftRightIcon}
+            label="تحريك الصورة يمينًا ويسارًا"
+            value={bookConfig.imagePanX ?? 0}
+            min={-100}
+            max={100}
+            step={1}
+            display={formatImagePan(bookConfig.imagePanX ?? 0)}
+            disabled={disabled}
+            onChange={(value) => patch({ imagePanX: value })}
+          />
         </div>
       )}
 
@@ -456,6 +467,11 @@ export function DesignStep({
       </div>
     </div>
   );
+}
+
+function formatImagePan(value: number) {
+  if (value > 0) return `+${value}`;
+  return String(value);
 }
 
 function IconSlider({

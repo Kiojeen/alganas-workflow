@@ -408,6 +408,7 @@ export function CoverPreview({
         frontTitleColor,
         frontTitleShadow,
         imageFromSpine: bookConfig.imageFromSpine,
+        imagePanX: bookConfig.imagePanX,
         spineGapFill: "color",
         hideStripe: bookConfig.hideStripe === true,
       });
@@ -479,6 +480,7 @@ export function CoverPreview({
     bookConfig.frontTitleAlign,
     bookConfig.frontTitleLeading,
     bookConfig.imageFromSpine,
+    bookConfig.imagePanX,
     showNumbers,
     bookConfig.spineGapFill,
     bookConfig.hideStripe,

@@ -1,4 +1,5 @@
 import {
+  clampCoverImagePan,
   DEFAULT_CHAPTER_LABEL_SIZE_CM,
   DEFAULT_FRONT_TITLE_SIZE_CM,
 } from "./lib/cover-layout";
@@ -52,6 +53,7 @@ const defaultBookConfig: BookConfig = {
   binding: "standard",
   premadeCoverId: "",
   imageFromSpine: true,
+  imagePanX: 0,
   spineGapFill: "color",
   hideStripe: false,
   coverSide: "ltr",
@@ -140,6 +142,7 @@ export function normalizeBookConfig(config: BookConfig): BookConfig {
       config.pageOrientation === "horizontal" ? "horizontal" : "vertical",
     premadeCoverId: config.premadeCoverId ?? "",
     imageFromSpine: config.imageFromSpine !== false,
+    imagePanX: clampCoverImagePan(config.imagePanX),
     spineGapFill: "color",
     hideStripe: config.hideStripe === true,
     frontTitleX: config.frontTitleX ?? defaultBookConfig.frontTitleX,

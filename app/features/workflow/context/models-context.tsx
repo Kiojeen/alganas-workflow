@@ -17,6 +17,7 @@ import {
 import {
   DEFAULT_DESCRIPTION_EXTRACTION_PROMPT,
   DEFAULT_TITLE_EXTRACTION_PROMPT,
+  migrateTitleExtractionPrompt,
 } from "../lib/extraction-prompts";
 import {
   DEFAULT_CATALOG,
@@ -247,9 +248,11 @@ function loadPrefs(): {
         : DEFAULT_PROMPTS;
       return {
         prompts: prompts.length > 0 ? prompts : DEFAULT_PROMPTS,
-        titleExtractionPrompt: loadPromptText(
-          parsed.titleExtractionPrompt,
-          fallback.titleExtractionPrompt,
+        titleExtractionPrompt: migrateTitleExtractionPrompt(
+          loadPromptText(
+            parsed.titleExtractionPrompt,
+            fallback.titleExtractionPrompt,
+          ),
         ),
         descriptionExtractionPrompt: loadPromptText(
           parsed.descriptionExtractionPrompt,
@@ -326,9 +329,11 @@ function loadPrefsFromUnknown(parsed: Record<string, unknown>) {
     : fallback.prompts;
   return {
     prompts: prompts.length > 0 ? prompts : fallback.prompts,
-    titleExtractionPrompt: loadPromptText(
-      parsed.titleExtractionPrompt,
-      fallback.titleExtractionPrompt,
+    titleExtractionPrompt: migrateTitleExtractionPrompt(
+      loadPromptText(
+        parsed.titleExtractionPrompt,
+        fallback.titleExtractionPrompt,
+      ),
     ),
     descriptionExtractionPrompt: loadPromptText(
       parsed.descriptionExtractionPrompt,

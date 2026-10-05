@@ -35,6 +35,7 @@ import {
   fileSafeName,
   fitSpineTitle,
   hardcoverImageFrameCm,
+  hardcoverImageOriginX,
   hexToRgb01,
   isPremadeCover,
   isRtlText,
@@ -251,6 +252,7 @@ function drawCoverImage(
   spineOnLeft = true,
   fitWidth = box.width,
   fitHeight = box.height,
+  imagePan = 0,
 ) {
   const scale = cropEnd
     ? Math.max(fitWidth / image.width, fitHeight / image.height)
@@ -258,9 +260,14 @@ function drawCoverImage(
   const drawW = image.width * scale;
   const drawH = image.height * scale;
   const x = cropEnd
-    ? spineOnLeft
-      ? box.x
-      : box.x + box.width - drawW
+    ? hardcoverImageOriginX({
+        x: box.x,
+        width: box.width,
+        drawW,
+        fitWidth,
+        spineOnLeft,
+        pan: imagePan,
+      })
     : box.x + (box.width - drawW) / 2;
   const y = box.y + (box.height - drawH) / 2;
   const clipRect = cropEnd ? box : clipBox;
@@ -324,6 +331,7 @@ async function drawBlurredSpineGap(
   spineOnLeft: boolean,
   source?: { y?: number; width: number; height: number },
   cropEnd = false,
+  imagePan = 0,
 ) {
   if (!image || gap < 0.5) return;
   const canvas = blurredEdgeCanvas(
@@ -333,6 +341,7 @@ async function drawBlurredSpineGap(
     gap * 3,
     spineOnLeft ? "left" : "right",
     cropEnd,
+    imagePan,
   );
   if (!canvas) return;
   const bytes = await new Promise<Uint8Array>((resolve, reject) => {
@@ -877,6 +886,7 @@ async function drawVectorCover(args: {
         layout.frontOnLeft,
         fitWidth,
         fitHeight,
+        args.bookConfig.imagePanX ?? 0,
       );
       if (backFrame && gapPt > 0 && !blurGap) {
         page.drawRectangle({
@@ -894,6 +904,7 @@ async function drawVectorCover(args: {
           layout.frontOnLeft,
           backFrame ?? undefined,
           cropEnd,
+          args.bookConfig.imagePanX ?? 0,
         );
       }
     }
@@ -1087,6 +1098,7 @@ async function drawVectorCover(args: {
       frontSpineOnLeft,
       fitWidth,
       fitHeight,
+      args.bookConfig.imagePanX ?? 0,
     );
     if (frontFrame && gapPt > 0 && args.bookConfig.spineGapFill !== "blur") {
       page.drawRectangle({
@@ -1104,6 +1116,7 @@ async function drawVectorCover(args: {
         frontSpineOnLeft,
         frontFrame ?? undefined,
         cropEnd,
+        args.bookConfig.imagePanX ?? 0,
       );
     }
   }
@@ -1160,16 +1173,21 @@ export async function exportCoverPdf(args: {
   if (unassigned) throw new Error(unassigned);
   const chapters = resolveChapters(args.bookConfig);
   const bookTitle = fileSafeName(args.bookConfig.bookName ?? "", "cover");
+  const savedName = (stem: string) =>
+    args.bookConfig.binding === "hardcover" ? `${stem}_HRD_HARD_هارد` : stem;
   const showTitle = showsChapterTitle(args.bookConfig);
   const coverImageElement = await loadCoverImage(args.sourceUrl).catch(
     () => null,
   );
 
   if (!isPremadeCover(args.bookConfig)) {
-    await downloadCoverImage(args.sourceUrl, bookTitle);
+    await downloadCoverImage(args.sourceUrl, savedName(bookTitle));
     if (args.bookConfig.coverKind === "double" && args.backSourceUrl) {
       await delay(350);
-      await downloadCoverImage(args.backSourceUrl, `${bookTitle}-back`);
+      await downloadCoverImage(
+        args.backSourceUrl,
+        savedName(`${bookTitle}-back`),
+      );
     }
     await delay(350);
   }
@@ -1199,8 +1217,8 @@ export async function exportCoverPdf(args: {
       : "";
     const filename =
       chapters.length > 1 && chapterPart
-        ? `${bookTitle}-${chapterPart}.pdf`
-        : `${bookTitle}.pdf`;
+        ? `${savedName(`${bookTitle}-${chapterPart}`)}.pdf`
+        : `${savedName(bookTitle)}.pdf`;
     downloadBlob(new Blob([copy], { type: "application/pdf" }), filename);
 
     if (index < chapters.length - 1) {

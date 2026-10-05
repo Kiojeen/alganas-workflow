@@ -190,6 +190,8 @@ export type DrawCoverOptions = {
   frontTitleColor?: string;
   frontTitleShadow?: boolean;
   imageFromSpine?: boolean;
+  /** Hardcover image pan, -100 (left) through 100 (right). 0 is centered. */
+  imagePanX?: number;
   spineGapFill?: SpineGapFill;
   hideStripe?: boolean;
 };
@@ -406,9 +408,7 @@ export function hardcoverGuideFrameCm(
   fromSpine = true,
 ) {
   if (pageSize === "b5") return { width: 17, height: 25 };
-  return fromSpine
-    ? { width: 20.5, height: 27 }
-    : { width: 19.5, height: 27 };
+  return fromSpine ? { width: 20.5, height: 27 } : { width: 19.5, height: 27 };
 }
 
 /**
@@ -740,6 +740,33 @@ export function hexToRgb01(hex: string): { r: number; g: number; b: number } {
   return { r: r / 255, g: g / 255, b: b / 255 };
 }
 
+/** Hardcover image pan, clamped to the slider range. */
+export function clampCoverImagePan(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(-100, value));
+}
+
+/**
+ * Horizontal origin of a cover-scaled hardcover image.
+ * Pan 0 crops the fitted overflow equally. A gap window keeps that
+ * placement and clips the extra centimetre from the far end.
+ */
+export function hardcoverImageOriginX(args: {
+  x: number;
+  width: number;
+  drawW: number;
+  fitWidth: number;
+  spineOnLeft: boolean;
+  pan: number | undefined;
+}) {
+  const gap = Math.max(0, args.fitWidth - args.width);
+  const fitX = args.spineOnLeft ? args.x - gap : args.x;
+  const slack = Math.max(0, args.drawW - args.fitWidth);
+  const centered = fitX + (args.fitWidth - args.drawW) / 2;
+  const pushed = args.spineOnLeft ? centered + gap : centered - gap;
+  return pushed + (clampCoverImagePan(args.pan) / 100) * (slack / 2);
+}
+
 export function fileSafeName(value: string, fallback = "cover") {
   const cleaned = value
     .trim()
@@ -978,6 +1005,7 @@ export function drawCoverOnCanvas(
       fill,
       cropEnd,
       fittedPx,
+      options.imagePanX ?? 0,
     );
   }
   if (!double && !hideStripe) {
@@ -1046,6 +1074,7 @@ export function drawCoverOnCanvas(
       fill,
       cropEnd,
       fittedPx,
+      options.imagePanX ?? 0,
     );
   }
 
@@ -1374,18 +1403,24 @@ function drawImageCovering(
   spineOnLeft = true,
   fitWidth = width,
   fitHeight = height,
+  imagePan = 0,
 ) {
-  // Cover the spine window. Gap mode keeps that same scale and clips 1 cm
-  // off the far end.
+  // Cover the spine window. The extra width is cropped equally unless the
+  // pan slider moves it. Gap mode keeps that scale and clips 1 cm off the far end.
   const scale = cropEnd
     ? Math.max(fitWidth / image.naturalWidth, fitHeight / image.naturalHeight)
     : Math.max(width / image.naturalWidth, height / image.naturalHeight);
   const drawW = image.naturalWidth * scale;
   const drawH = image.naturalHeight * scale;
   const dx = cropEnd
-    ? spineOnLeft
-      ? x
-      : x + width - drawW
+    ? hardcoverImageOriginX({
+        x,
+        width,
+        drawW,
+        fitWidth,
+        spineOnLeft,
+        pan: imagePan,
+      })
     : x + (width - drawW) / 2;
   const dy = y + (height - drawH) / 2;
 
@@ -1408,6 +1443,7 @@ export function blurredEdgeCanvas(
   gapWidth: number,
   edge: "left" | "right",
   cropEnd = false,
+  imagePan = 0,
 ): HTMLCanvasElement | null {
   if (
     image.naturalWidth < 1 ||
@@ -1431,9 +1467,14 @@ export function blurredEdgeCanvas(
   coveredCtx.drawImage(
     image,
     cropEnd
-      ? edge === "left"
-        ? 0
-        : covered.width - drawW
+      ? hardcoverImageOriginX({
+          x: 0,
+          width: covered.width,
+          drawW,
+          fitWidth: covered.width,
+          spineOnLeft: edge === "left",
+          pan: imagePan,
+        })
       : (covered.width - drawW) / 2,
     (covered.height - drawH) / 2,
     drawW,
@@ -1475,6 +1516,7 @@ function drawPanelImage(
   gapColor: string,
   cropEnd = false,
   fit: { w: number; h: number } | null = null,
+  imagePan = 0,
 ) {
   const box = frame ?? { x: panelX, y: panelY, w: panelW, h: panelH };
   const visibleX = spineOnLeft ? panelX + gap : panelX;
@@ -1497,6 +1539,7 @@ function drawPanelImage(
     spineOnLeft,
     fit?.w ?? box.w,
     fit?.h ?? box.h,
+    imagePan,
   );
   ctx.restore();
   if (gap < 1) return;
@@ -1509,6 +1552,7 @@ function drawPanelImage(
       gap,
       spineOnLeft ? "left" : "right",
       cropEnd,
+      imagePan,
     );
     if (blurred) {
       const blurY = frame ? box.y : panelY;
