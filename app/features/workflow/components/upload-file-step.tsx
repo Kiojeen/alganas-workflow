@@ -355,9 +355,9 @@ export function UploadFileStep({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="standard">عادي</SelectItem>
-              <SelectItem value="spiral">حلزوني</SelectItem>
-              <SelectItem value="hardcover">غلاف مقوى</SelectItem>
+              <SelectItem value="standard">سوفت</SelectItem>
+              <SelectItem value="spiral">سبايرول</SelectItem>
+              <SelectItem value="hardcover">Hard Cover</SelectItem>
             </SelectContent>
           </Select>
         </Field>

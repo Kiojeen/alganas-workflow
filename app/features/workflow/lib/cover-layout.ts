@@ -462,11 +462,20 @@ export function coverGuidesCm(
 ): GuideLine[] {
   const top = layout.originY;
   const bottom = layout.originY + layout.height;
+  // Hardcover's sheet is wider than the page, so the left and right page
+  // edges are extra outer lines. Skip that pair and the height number on it.
+  const insetPage = layout.originY > 0.05;
   const guides: GuideLine[] = [
-    { axis: "x", cm: layout.originX, kind: "trim" },
-    { axis: "x", cm: layout.originX + layout.wrapW, kind: "trim" },
     { axis: "y", cm: top, kind: "trim" },
     { axis: "y", cm: bottom, kind: "trim" },
+  ];
+  if (!insetPage) {
+    guides.push(
+      { axis: "x", cm: layout.originX, kind: "trim" },
+      { axis: "x", cm: layout.originX + layout.wrapW, kind: "trim" },
+    );
+  }
+  guides.push(
     { axis: "x", cm: layout.spineX, kind: "fold" },
     { axis: "x", cm: layout.spineX + layout.spineW, kind: "fold" },
     { axis: "x", cm: layout.stripeX, kind: "stripe" },
@@ -474,7 +483,7 @@ export function coverGuidesCm(
     { axis: "x", cm: layout.frontX + layout.a4W / 2, kind: "center" },
     { axis: "x", cm: layout.backX + layout.a4W / 2, kind: "center" },
     { axis: "y", cm: (top + bottom) / 2, kind: "center" },
-  ];
+  );
   if (layout.spineW > 0.05) {
     guides.push({
       axis: "x",
@@ -570,14 +579,16 @@ export function coverGuidesCm(
       y: bottom,
       cm: layout.a4W,
     },
-    {
+  );
+  if (!insetPage) {
+    guides.push({
       axis: "label",
       x: layout.originX,
       y: top + layout.height / 2,
       cm: layout.height,
       rotate: true,
-    },
-  );
+    });
+  }
   if (layout.spineW > 0.05) {
     guides.push({
       axis: "label",

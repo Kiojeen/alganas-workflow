@@ -560,7 +560,7 @@ export function CoverPreview({
       ) : (
         <p className="text-muted-foreground text-[11px] leading-relaxed">
           {singlePage
-            ? `غلاف حلزوني · صفحة ${pageSize.toUpperCase()} واحدة (${pageDims.width}×${pageDims.height} سم). ملف PDF لكل فصل: ${chapters.length}.`
+            ? `سبايرول · صفحة ${pageSize.toUpperCase()} واحدة (${pageDims.width}×${pageDims.height} سم). ملف PDF لكل فصل: ${chapters.length}.`
             : `اللوحة ${boardWidth}×${boardHeight} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote}${double || premade || bookConfig.hideStripe ? " · بلا شريط" : ` · الشريط ${stripeLayout.widthCm} سم`} · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
         </p>
       )}
