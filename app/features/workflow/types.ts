@@ -25,6 +25,9 @@ export type BookLanguage = "ar" | "en";
 
 export type CoverPageSize = "a4" | "a5" | "b5";
 
+/** A5 soft covers can turn sideways. The page area stays 14.8×21 cm. */
+export type PageOrientation = "vertical" | "horizontal";
+
 /**
  * `wrap` is front, spine, and description stripe. `double` swaps the stripe
  * for a second image. `premade` is a finished artboard image from the
@@ -74,6 +77,8 @@ export type BookConfig = {
   hideStripe: boolean;
   coverSide: CoverSide;
   pageSize: CoverPageSize;
+  /** Soft A5 wrap and double covers. Vertical is 14.8×21; horizontal swaps it. */
+  pageOrientation: PageOrientation;
   fontPair: CoverFontPair;
   coverColor: string;
   stripeColor: string;

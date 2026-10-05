@@ -42,6 +42,7 @@ import {
   layoutCoverCm,
   loadCoverImage,
   pageDimsCm,
+  pageOrientationOf,
   resolveChapters,
   sampleChapterBackdrop,
   shiftHex,
@@ -675,7 +676,8 @@ async function drawVectorCover(args: {
       : null;
 
   const singlePage = isSinglePageCover(args.bookConfig);
-  const dims = pageDimsCm(args.bookConfig.pageSize ?? "a4");
+  const orientation = pageOrientationOf(args.bookConfig);
+  const dims = pageDimsCm(args.bookConfig.pageSize ?? "a4", orientation);
   const board = artboardCm(args.bookConfig.binding);
   const pageWidth = cmToPt(singlePage ? dims.width : board.width);
   const pageHeight = cmToPt(singlePage ? dims.height : board.height);
@@ -699,12 +701,13 @@ async function drawVectorCover(args: {
     board.width,
     spineImageGapCm(args.bookConfig),
     board.height,
+    orientation,
   );
   const fillHex = args.bookConfig.coverColor || DEFAULT_COVER_COLOR;
   const stripeFillHex =
     args.bookConfig.stripeColor?.trim() || shiftHex(fillHex, -18);
   const pageSize = args.bookConfig.pageSize ?? "a4";
-  const panel = pageDimsCm(pageSize);
+  const panel = pageDimsCm(pageSize, orientation);
   const labelBackdrop = sampleChapterBackdrop(
     args.coverImageElement ?? null,
     panel.width,

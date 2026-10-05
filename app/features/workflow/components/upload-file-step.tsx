@@ -302,6 +302,10 @@ export function UploadFileStep({
               onBookConfigChange({
                 ...bookConfig,
                 coverKind: value as CoverKind,
+                binding:
+                  value === "double" && bookConfig.binding === "spiral"
+                    ? "standard"
+                    : bookConfig.binding,
               });
             }}
           >
@@ -356,7 +360,9 @@ export function UploadFileStep({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="standard">سوفت</SelectItem>
-              <SelectItem value="spiral">سبايرول</SelectItem>
+              {bookConfig.coverKind !== "double" && (
+                <SelectItem value="spiral">سبايرول</SelectItem>
+              )}
               <SelectItem value="hardcover">Hard Cover</SelectItem>
             </SelectContent>
           </Select>
@@ -390,6 +396,47 @@ export function UploadFileStep({
             </SelectContent>
           </Select>
         </Field>
+
+        {bookConfig.binding !== "hardcover" &&
+          bookConfig.binding !== "spiral" &&
+          bookConfig.coverKind !== "premade" &&
+          (bookConfig.pageSize ?? "a4") === "a5" && (
+            <Field label="اتجاه الورق">
+              <ToggleGroup
+                type="single"
+                value={
+                  bookConfig.pageOrientation === "horizontal"
+                    ? "horizontal"
+                    : "vertical"
+                }
+                disabled={disabled}
+                onValueChange={(value) => {
+                  if (value !== "vertical" && value !== "horizontal") return;
+                  onBookConfigChange({
+                    ...bookConfig,
+                    pageOrientation: value,
+                  });
+                }}
+                variant="outline"
+                size="sm"
+                spacing={0}
+                className="w-full"
+              >
+                <ToggleGroupItem
+                  value="vertical"
+                  className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
+                >
+                  عمودي
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="horizontal"
+                  className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
+                >
+                  أفقي
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </Field>
+          )}
 
         <Field label="لغة الكتاب">
           <ToggleGroup

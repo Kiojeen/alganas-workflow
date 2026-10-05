@@ -41,6 +41,7 @@ import {
   MIN_FRONT_TITLE_SIZE_CM,
   MIN_SPINE_CM,
   pageDimsCm,
+  pageOrientationOf,
   resolveChapters,
   sampleChapterBackdrop,
   shiftHex,
@@ -83,7 +84,10 @@ export function DesignStep({
   const fontPair = fontOptions.some((pair) => pair.id === bookConfig.fontPair)
     ? getCoverFontPair(bookConfig.fontPair)
     : (fontOptions[0] ?? getCoverFontPair(bookConfig.fontPair));
-  const pageDims = pageDimsCm(bookConfig.pageSize ?? "a4");
+  const pageDims = pageDimsCm(
+    bookConfig.pageSize ?? "a4",
+    pageOrientationOf(bookConfig),
+  );
   const singlePage = isSinglePageCover(bookConfig);
   const premade = isPremadeCover(bookConfig);
   const coverColor = bookConfig.coverColor || DEFAULT_COVER_COLOR;

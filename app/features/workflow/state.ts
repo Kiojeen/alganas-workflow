@@ -56,6 +56,7 @@ const defaultBookConfig: BookConfig = {
   hideStripe: false,
   coverSide: "ltr",
   pageSize: "a4",
+  pageOrientation: "vertical",
   fontPair: "montserrat",
   coverColor: "",
   stripeColor: "",
@@ -111,11 +112,15 @@ export function normalizeBookConfig(config: BookConfig): BookConfig {
     : config.coverKind === "double" || config.coverKind === "premade"
       ? config.coverKind
       : "wrap";
-  const binding = legacyPage
+  const requestedBinding = legacyPage
     ? "spiral"
     : config.binding === "spiral" || config.binding === "hardcover"
       ? config.binding
       : "standard";
+  const binding =
+    kind === "double" && requestedBinding === "spiral"
+      ? "standard"
+      : requestedBinding;
   const pageSize = config.pageSize ?? "a4";
   const nextPageSize =
     binding === "hardcover"
@@ -131,6 +136,8 @@ export function normalizeBookConfig(config: BookConfig): BookConfig {
     coverKind: kind,
     binding,
     pageSize: nextPageSize,
+    pageOrientation:
+      config.pageOrientation === "horizontal" ? "horizontal" : "vertical",
     premadeCoverId: config.premadeCoverId ?? "",
     imageFromSpine: config.imageFromSpine !== false,
     spineGapFill: "color",

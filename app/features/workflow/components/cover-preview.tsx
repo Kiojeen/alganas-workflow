@@ -33,6 +33,7 @@ import {
   isSinglePageCover,
   layoutCoverCm,
   pageDimsCm,
+  pageOrientationOf,
   resolveChapters,
   sampleChapterBackdrop,
   shiftHex,
@@ -224,7 +225,8 @@ export function CoverPreview({
   const hasChapters = chapters.length > 1;
   const fontPair = getCoverFontPair(bookConfig.fontPair);
   const pageSize = bookConfig.pageSize ?? "a4";
-  const pageDims = pageDimsCm(pageSize);
+  const orientation = pageOrientationOf(bookConfig);
+  const pageDims = pageDimsCm(pageSize, orientation);
   const singlePage = isSinglePageCover(bookConfig);
   const double = isDoubleCover(bookConfig);
   const premade = isPremadeCover(bookConfig);
@@ -319,6 +321,7 @@ export function CoverPreview({
                 boardWidth,
                 spineImageGapCm(bookConfig),
                 boardHeight,
+                orientation,
               ),
               double,
               bookConfig.binding === "hardcover" && !premade
@@ -393,6 +396,7 @@ export function CoverPreview({
             : undefined,
         pagesPerSpineCm,
         pageSize,
+        pageOrientation: orientation,
         stripeWidthCm: stripeLayout.widthCm,
         stripeInsetCm: stripeLayout.insetCm,
         stripeEdgeGapCm: stripeLayout.edgeGapCm,
@@ -462,6 +466,7 @@ export function CoverPreview({
     fontsReady,
     pagesPerSpineCm,
     pageSize,
+    orientation,
     stripeLayout.widthCm,
     stripeLayout.insetCm,
     stripeLayout.edgeGapCm,

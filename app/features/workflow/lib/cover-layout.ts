@@ -4,6 +4,7 @@ import type {
   CoverKind,
   CoverPageSize,
   CoverSide,
+  PageOrientation,
   SpineGapFill,
 } from "../types";
 import { allocatedPages, chapterDisplayName } from "./chapter-division";
@@ -177,6 +178,7 @@ export type DrawCoverOptions = {
   chapterNumber?: string;
   pagesPerSpineCm?: number;
   pageSize?: CoverPageSize;
+  pageOrientation?: PageOrientation;
   stripeWidthCm?: number;
   stripeInsetCm?: number;
   stripeEdgeGapCm?: number;
@@ -268,10 +270,34 @@ export function isDoubleCover(config: { coverKind?: CoverKind }) {
   return config.coverKind === "double";
 }
 
-export function pageDimsCm(pageSize: CoverPageSize = "a4") {
-  if (pageSize === "a5") return { width: A5_WIDTH_CM, height: A5_HEIGHT_CM };
+export function pageDimsCm(
+  pageSize: CoverPageSize = "a4",
+  orientation: PageOrientation = "vertical",
+) {
+  if (pageSize === "a5") {
+    return orientation === "horizontal"
+      ? { width: A5_HEIGHT_CM, height: A5_WIDTH_CM }
+      : { width: A5_WIDTH_CM, height: A5_HEIGHT_CM };
+  }
   if (pageSize === "b5") return { width: B5_WIDTH_CM, height: B5_HEIGHT_CM };
   return { width: A4_WIDTH_CM, height: A4_HEIGHT_CM };
+}
+
+/** Landscape is only for a soft A5 wrap or double cover. */
+export function pageOrientationOf(config: {
+  binding?: CoverBinding;
+  coverKind?: CoverKind;
+  pageSize?: CoverPageSize;
+  pageOrientation?: PageOrientation;
+}): PageOrientation {
+  const softA5 =
+    config.binding !== "hardcover" &&
+    config.binding !== "spiral" &&
+    (config.coverKind === "wrap" || config.coverKind === "double") &&
+    (config.pageSize ?? "a4") === "a5";
+  return softA5 && config.pageOrientation === "horizontal"
+    ? "horizontal"
+    : "vertical";
 }
 
 export function cmToPx(cm: number, dpi: number): number {
@@ -317,8 +343,9 @@ export function layoutCoverCm(
   boardWidthCm = ARTBOARD_WIDTH_CM,
   imageGapCm = 0,
   boardHeightCm = ARTBOARD_HEIGHT_CM,
+  orientation: PageOrientation = "vertical",
 ): CoverLayoutCm {
-  const dims = pageDimsCm(pageSize);
+  const dims = pageDimsCm(pageSize, orientation);
   const metrics = {
     ...defaultStripeLayout(pageSize),
     ...Object.fromEntries(
@@ -876,6 +903,7 @@ export function drawCoverOnCanvas(
     board.width,
     spineImageGapCm(options),
     board.height,
+    pageOrientationOf(options),
   );
   const p = (cm: number) => cmToPx(cm, dpi);
 
