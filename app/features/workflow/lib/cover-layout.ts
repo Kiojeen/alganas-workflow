@@ -369,10 +369,19 @@ export function layoutCoverCm(
   };
 }
 
-/** Safe guide on a hardcover page. It starts at the spine, or at the gap. */
-export function hardcoverGuideFrameCm(pageSize: CoverPageSize) {
+/**
+ * Safe guide on a hardcover page. It starts at the spine, or at the gap.
+ * From the spine the A4 guide is 20.5×27. After the gap it is 19.5×27.
+ * B5 stays the full 17×25 cm page.
+ */
+export function hardcoverGuideFrameCm(
+  pageSize: CoverPageSize,
+  fromSpine = true,
+) {
   if (pageSize === "b5") return { width: 17, height: 25 };
-  return { width: 19.5, height: 27 };
+  return fromSpine
+    ? { width: 20.5, height: 27 }
+    : { width: 19.5, height: 27 };
 }
 
 /**

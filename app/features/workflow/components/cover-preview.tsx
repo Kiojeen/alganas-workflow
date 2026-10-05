@@ -322,7 +322,10 @@ export function CoverPreview({
               ),
               double,
               bookConfig.binding === "hardcover" && !premade
-                ? hardcoverGuideFrameCm(pageSize)
+                ? hardcoverGuideFrameCm(
+                    pageSize,
+                    bookConfig.imageFromSpine === true,
+                  )
                 : null,
               bookConfig.binding === "hardcover" && !premade
                 ? hardcoverImageGuideFrames(
