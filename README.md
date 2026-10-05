@@ -21,7 +21,7 @@ The two tabs sit beside a live preview of the artboard. Above the tabs, «تصد
 
 **غلاف جاهز** is a finished artboard stored on this device, 47×29.7 cm for a standard cover and 48.7×30 cm for a hardcover. There is no AI, stripe, or description. The typed book name is drawn on the front and the spine. A5 and B5 shrink that image on the same artboard; spine marks, spine text, and guides still follow the calculated spine. Font, size, and position of the front title are editable.
 
-**غلاف مقوى** uses a 48.7×30 cm artboard with the same spine rules. The panel is A4 or B5 (17×25 cm). Wrap, double, and premade covers all work. Uploaded images start 1 cm from the spine unless «تبدأ الصورة من الكعب» is on in the design tab. That gap is the cover color by default, or a blur of the uploaded image.
+**غلاف مقوى** uses a 48.7×30 cm artboard with the same spine rules. The panel is A4 or B5 (17×25 cm). Wrap, double, and premade covers all work. Uploaded images start at the spine. Turning off «تبدأ الصورة من الكعب» in the design tab leaves a 1 cm gap filled with the cover color.
 
 **حلزوني** (under نوع التجليد) is a single A4 or A5 page: no stripe, spine, or spine marks, and no description. Page count and chapters are still used to decide how many covers to export. عادي keeps wrap and double covers as they were.
 

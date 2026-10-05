@@ -68,8 +68,10 @@ export type BookConfig = {
    * Otherwise they start 1 cm away from it.
    */
   imageFromSpine: boolean;
-  /** Hardcover gap fill. `color` uses the cover color; `blur` smears the image. */
+  /** Hardcover gap fill. The gap uses the cover color. */
   spineGapFill: SpineGapFill;
+  /** Wrap covers only. The description stripe is drawn unless this is set. */
+  hideStripe: boolean;
   coverSide: CoverSide;
   pageSize: CoverPageSize;
   fontPair: CoverFontPair;

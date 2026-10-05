@@ -65,10 +65,10 @@ function drawGuideChip(
   bounds: { width: number; height: number },
 ) {
   ctx.save();
-  ctx.font = `${Math.round(11 * dpr)}px sans-serif`;
+  ctx.font = `${Math.round(10 * dpr)}px sans-serif`;
   const textWidth = ctx.measureText(text).width;
-  const chipW = textWidth + 8 * dpr;
-  const chipH = 16 * dpr;
+  const chipW = textWidth + 4 * dpr;
+  const chipH = 12 * dpr;
   const halfW = rotate ? chipH / 2 : chipW / 2;
   const halfH = rotate ? chipW / 2 : chipH / 2;
   const px = Math.min(
@@ -81,13 +81,8 @@ function drawGuideChip(
   );
   ctx.translate(px, py);
   if (rotate) ctx.rotate(-Math.PI / 2);
-  ctx.beginPath();
-  ctx.roundRect(-chipW / 2, -chipH / 2, chipW, chipH, 3 * dpr);
   ctx.fillStyle = "#06141c";
-  ctx.fill();
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = GUIDE_COLOR;
-  ctx.stroke();
+  ctx.fillRect(-chipW / 2, -chipH / 2, chipW, chipH);
   ctx.fillStyle = GUIDE_COLOR;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -118,19 +113,23 @@ function drawGuides(
   const bounds = { width: overlay.width, height: overlay.height };
   for (const guide of guides) {
     ctx.beginPath();
-    ctx.setLineDash(
-      guide.kind === "center" || guide.kind === "image"
-        ? [4 * dpr, 4 * dpr]
-        : [],
-    );
+    ctx.setLineDash(guide.kind === "center" ? [2 * dpr, 3 * dpr] : []);
     ctx.strokeStyle = GUIDE_COLOR;
-    ctx.globalAlpha = guide.kind === "center" ? 0.7 : 1;
+    ctx.globalAlpha = guide.kind === "center" ? 0.4 : 1;
     if (guide.axis === "rect") {
-      const x = px(guide.x, boardWidthCm, overlay.width);
-      const y = px(guide.y, boardHeightCm, overlay.height);
-      const w = (guide.w / boardWidthCm) * overlay.width;
-      const h = (guide.h / boardHeightCm) * overlay.height;
-      ctx.strokeRect(x, y, w, h);
+      const x1 = px(guide.x, boardWidthCm, overlay.width);
+      const x2 = px(guide.x + guide.w, boardWidthCm, overlay.width);
+      const y1 = px(guide.y, boardHeightCm, overlay.height);
+      const y2 = px(guide.y + guide.h, boardHeightCm, overlay.height);
+      ctx.moveTo(x1, 0);
+      ctx.lineTo(x1, overlay.height);
+      ctx.moveTo(x2, 0);
+      ctx.lineTo(x2, overlay.height);
+      ctx.moveTo(0, y1);
+      ctx.lineTo(overlay.width, y1);
+      ctx.moveTo(0, y2);
+      ctx.lineTo(overlay.width, y2);
+      ctx.stroke();
       continue;
     }
     if (guide.axis === "label") continue;
@@ -158,7 +157,7 @@ function drawGuides(
       drawGuideChip(
         ctx,
         formatGuideCm(guide.w),
-        x + w / 2,
+        x + w * (guide.widthAlong ?? 0.5),
         guide.widthEdge === "bottom" ? y + h : y,
         dpr,
         false,
@@ -332,7 +331,11 @@ export function CoverPreview({
                   )
                 : [],
             )
-    ).filter((guide) => !(double || premade) || guide.kind !== "stripe");
+    ).filter(
+      (guide) =>
+        guide.kind !== "stripe" ||
+        (!double && !premade && bookConfig.hideStripe !== true),
+    );
 
     const paint = () => {
       const { width, height } = container.getBoundingClientRect();
@@ -398,7 +401,8 @@ export function CoverPreview({
         frontTitleColor,
         frontTitleShadow,
         imageFromSpine: bookConfig.imageFromSpine,
-        spineGapFill: bookConfig.spineGapFill,
+        spineGapFill: "color",
+        hideStripe: bookConfig.hideStripe === true,
       });
       if (guides.length > 0) {
         drawGuides(overlay, guides, boardWidth, boardHeight, showNumbers);
@@ -469,6 +473,7 @@ export function CoverPreview({
     bookConfig.imageFromSpine,
     showNumbers,
     bookConfig.spineGapFill,
+    bookConfig.hideStripe,
   ]);
 
   const spineNote = hideSpineText
@@ -556,7 +561,7 @@ export function CoverPreview({
         <p className="text-muted-foreground text-[11px] leading-relaxed">
           {singlePage
             ? `غلاف حلزوني · صفحة ${pageSize.toUpperCase()} واحدة (${pageDims.width}×${pageDims.height} سم). ملف PDF لكل فصل: ${chapters.length}.`
-            : `اللوحة ${boardWidth}×${boardHeight} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote}${double || premade ? " · بلا شريط" : ` · الشريط ${stripeLayout.widthCm} سم`} · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
+            : `اللوحة ${boardWidth}×${boardHeight} سم · الغلاف ${pageSize.toUpperCase()} ${pageDims.width}×${pageDims.height} سم · ${spineNote}${double || premade || bookConfig.hideStripe ? " · بلا شريط" : ` · الشريط ${stripeLayout.widthCm} سم`} · العرض الكلي ${wrapCm.toFixed(2)} سم.`}
         </p>
       )}
     </section>

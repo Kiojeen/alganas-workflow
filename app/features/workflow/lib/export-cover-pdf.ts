@@ -894,7 +894,8 @@ async function drawVectorCover(args: {
         );
       }
     }
-    if (!double) page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
+    if (!double && args.bookConfig.hideStripe !== true)
+      page.drawRectangle({ ...stripe, color: color(stripeFillHex) });
   }
 
   const padX = cmToPt(args.stripeInsetCm ?? STRIPE_INSET_CM);
@@ -904,7 +905,7 @@ async function drawVectorCover(args: {
   const lineHeight = fontSize * 1.45;
   const stripeFont = fontForText(stripeText, descriptionFont, arabic, pair);
   const lines =
-    double || premade
+    double || premade || args.bookConfig.hideStripe === true
       ? []
       : wrapWords(stripeText, maxWidth, (value) =>
           stripeFont.widthOfTextAtSize(value, fontSize),

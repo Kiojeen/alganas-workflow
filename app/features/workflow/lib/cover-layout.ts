@@ -189,6 +189,7 @@ export type DrawCoverOptions = {
   frontTitleShadow?: boolean;
   imageFromSpine?: boolean;
   spineGapFill?: SpineGapFill;
+  hideStripe?: boolean;
 };
 
 export function spineWidthCm(
@@ -368,7 +369,7 @@ export function layoutCoverCm(
   };
 }
 
-/** Guide rectangle on a hardcover page. It starts at the spine or the gap. */
+/** Safe guide on a hardcover page. It starts at the spine, or at the gap. */
 export function hardcoverGuideFrameCm(pageSize: CoverPageSize) {
   if (pageSize === "b5") return { width: 17, height: 25 };
   return { width: 19.5, height: 27 };
@@ -432,6 +433,8 @@ export type GuideLine =
       kind: "safe" | "image";
       /** Which horizontal edge of the box carries the width. */
       widthEdge?: "top" | "bottom";
+      /** 0–1 across the box. Keeps two width numbers off the same spot. */
+      widthAlong?: number;
       showHeight?: boolean;
       /** Which side of the box gets the height number. */
       heightSide?: "left" | "right";
@@ -513,9 +516,10 @@ export function coverGuidesCm(
         w: frame.w,
         h: frame.h,
         kind: "safe",
-        widthEdge: frameH > layout.height - 0.2 ? "top" : "bottom",
+        widthEdge: "top",
+        widthAlong: 0.72,
         heightSide: spineOnLeft ? "left" : "right",
-        heightAlong: 0.5,
+        heightAlong: 0.68,
       });
     };
     place(layout.frontX, !layout.frontOnLeft);
@@ -544,9 +548,10 @@ export function coverGuidesCm(
         h: frame.h,
         kind: "image",
         widthEdge: "top",
+        widthAlong: 0.28,
         showHeight: true,
         heightSide: spineOnLeft ? "right" : "left",
-        heightAlong: 0.5,
+        heightAlong: 0.32,
       });
     };
     placeImage(layout.frontX, !layout.frontOnLeft);
@@ -813,6 +818,7 @@ export function drawCoverOnCanvas(
     stripeWidthCm,
     stripeInsetCm,
     stripeEdgeGapCm,
+    hideStripe = false,
   } = options;
   if (isSpiralBinding(options)) {
     drawSinglePageCanvas(canvas, options);
@@ -926,12 +932,12 @@ export function drawCoverOnCanvas(
       fittedPx,
     );
   }
-  if (!double) {
+  if (!double && !hideStripe) {
     ctx.fillStyle = stripeFill;
     ctx.fillRect(stripeX, originY, stripeW, coverH);
   }
 
-  if (!double)
+  if (!double && !hideStripe)
     drawStripeParagraph(ctx, {
       x: stripeX,
       y: originY,

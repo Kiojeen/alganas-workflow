@@ -109,7 +109,7 @@ export function Workflow({ workflowId }: { workflowId: string }) {
   const generatingRef = useRef(false);
   const extractingRef = useRef(false);
   const [showLines, setShowLines] = useState(true);
-  const [showGuideNumbers, setShowGuideNumbers] = useState(true);
+  const [showGuideNumbers, setShowGuideNumbers] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [chapterIndex, setChapterIndex] = useState(0);

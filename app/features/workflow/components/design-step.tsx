@@ -152,26 +152,42 @@ export function DesignStep({
           disabled={disabled}
           swatches={palette}
         />
-        {(bookConfig.coverKind ?? "wrap") === "wrap" && !premade && (
-          <>
-            <CoverColorPicker
-              label="لون الشريط"
-              value={stripeColor}
-              fallback={shiftHex(coverColor, -18)}
-              onChange={(hex) => patch({ stripeColor: hex })}
-              disabled={disabled}
-              swatches={palette}
-            />
-            <CoverColorPicker
-              label="لون نص الشريط"
-              value={bookConfig.stripeForeground}
-              fallback={contrastHex(stripeColor)}
-              onChange={(hex) => patch({ stripeForeground: hex })}
-              disabled={disabled}
-              swatches={palette}
-            />
-          </>
-        )}
+        {(bookConfig.coverKind ?? "wrap") === "wrap" &&
+          !premade &&
+          !singlePage && (
+            <>
+              <label className="flex items-center gap-2 text-xs sm:col-span-2">
+                <Checkbox
+                  checked={bookConfig.hideStripe !== true}
+                  disabled={disabled}
+                  onCheckedChange={(checked) =>
+                    patch({ hideStripe: checked !== true })
+                  }
+                />
+                <span>الشريط</span>
+              </label>
+              {bookConfig.hideStripe !== true && (
+                <>
+                  <CoverColorPicker
+                    label="لون الشريط"
+                    value={stripeColor}
+                    fallback={shiftHex(coverColor, -18)}
+                    onChange={(hex) => patch({ stripeColor: hex })}
+                    disabled={disabled}
+                    swatches={palette}
+                  />
+                  <CoverColorPicker
+                    label="لون نص الشريط"
+                    value={bookConfig.stripeForeground}
+                    fallback={contrastHex(stripeColor)}
+                    onChange={(hex) => patch({ stripeForeground: hex })}
+                    disabled={disabled}
+                    swatches={palette}
+                  />
+                </>
+              )}
+            </>
+          )}
         {!singlePage && (
           <>
             <CoverColorPicker
@@ -257,7 +273,7 @@ export function DesignStep({
         <div className="flex flex-col gap-3 rounded-md border p-3">
           <label className="flex items-center gap-2 text-xs">
             <Checkbox
-              checked={bookConfig.imageFromSpine === true}
+              checked={bookConfig.imageFromSpine !== false}
               disabled={disabled}
               onCheckedChange={(checked) =>
                 patch({ imageFromSpine: checked === true })
@@ -265,37 +281,6 @@ export function DesignStep({
             />
             <span>تبدأ الصورة من الكعب</span>
           </label>
-          {bookConfig.imageFromSpine !== true && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-muted-foreground text-xs">فراغ الكعب</span>
-              <ToggleGroup
-                type="single"
-                value={bookConfig.spineGapFill ?? "color"}
-                disabled={disabled}
-                onValueChange={(value) => {
-                  if (value !== "color" && value !== "blur") return;
-                  patch({ spineGapFill: value });
-                }}
-                variant="outline"
-                size="sm"
-                spacing={0}
-                className="w-full"
-              >
-                <ToggleGroupItem
-                  value="color"
-                  className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
-                >
-                  اللون التلقائي
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  value="blur"
-                  className={cn("flex-1 text-xs", ACTIVE_TOGGLE_CLASS)}
-                >
-                  تمويه الصورة
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-          )}
         </div>
       )}
 
