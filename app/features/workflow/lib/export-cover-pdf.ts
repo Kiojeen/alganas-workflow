@@ -249,7 +249,7 @@ function drawCoverImage(
   box: { x: number; y: number; width: number; height: number },
   clipBox = box,
   cropEnd = false,
-  spineOnLeft = true,
+  _spineOnLeft = true,
   fitWidth = box.width,
   fitHeight = box.height,
   imagePan = 0,
@@ -264,8 +264,6 @@ function drawCoverImage(
         x: box.x,
         width: box.width,
         drawW,
-        fitWidth,
-        spineOnLeft,
         pan: imagePan,
       })
     : box.x + (box.width - drawW) / 2;

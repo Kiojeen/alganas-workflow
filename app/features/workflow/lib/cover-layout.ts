@@ -400,14 +400,16 @@ export function layoutCoverCm(
 
 /**
  * Safe guide on a hardcover page. It starts at the spine, or at the gap.
- * From the spine the A4 guide is 20.5×27. After the gap it is 19.5×27.
- * B5 stays the full 17×25 cm page.
+ * From the spine, A4 is 20.5×27 and B5 is 18×25. After the gap, A4 is
+ * 19.5×27 and B5 is the full 17×25 cm page.
  */
 export function hardcoverGuideFrameCm(
   pageSize: CoverPageSize,
   fromSpine = true,
 ) {
-  if (pageSize === "b5") return { width: 17, height: 25 };
+  if (pageSize === "b5") {
+    return fromSpine ? { width: 18, height: 25 } : { width: 17, height: 25 };
+  }
   return fromSpine ? { width: 20.5, height: 27 } : { width: 19.5, height: 27 };
 }
 
@@ -747,24 +749,19 @@ export function clampCoverImagePan(value: number | undefined) {
 }
 
 /**
- * Horizontal origin of a cover-scaled hardcover image.
- * Pan 0 crops the fitted overflow equally. A gap window keeps that
- * placement and clips the extra centimetre from the far end.
+ * Horizontal origin of a cover-scaled hardcover image inside its visible
+ * window. Pan 0 crops whatever is wider than that window equally on both
+ * sides. The slider walks the whole of that extra width.
  */
 export function hardcoverImageOriginX(args: {
   x: number;
   width: number;
   drawW: number;
-  fitWidth: number;
-  spineOnLeft: boolean;
   pan: number | undefined;
 }) {
-  const gap = Math.max(0, args.fitWidth - args.width);
-  const fitX = args.spineOnLeft ? args.x - gap : args.x;
-  const slack = Math.max(0, args.drawW - args.fitWidth);
-  const centered = fitX + (args.fitWidth - args.drawW) / 2;
-  const pushed = args.spineOnLeft ? centered + gap : centered - gap;
-  return pushed + (clampCoverImagePan(args.pan) / 100) * (slack / 2);
+  const slack = Math.max(0, args.drawW - args.width);
+  const centered = args.x + (args.width - args.drawW) / 2;
+  return centered + (clampCoverImagePan(args.pan) / 100) * (slack / 2);
 }
 
 export function fileSafeName(value: string, fallback = "cover") {
@@ -1400,27 +1397,21 @@ function drawImageCovering(
   width: number,
   height: number,
   cropEnd = false,
-  spineOnLeft = true,
+  _spineOnLeft = true,
   fitWidth = width,
   fitHeight = height,
   imagePan = 0,
 ) {
-  // Cover the spine window. The extra width is cropped equally unless the
-  // pan slider moves it. Gap mode keeps that scale and clips 1 cm off the far end.
+  // Cover the spine window. Extra width is cropped equally from both sides
+  // unless the pan slider moves it. Gap mode keeps that scale inside the
+  // narrower window, so the centimetre is split across the two sides too.
   const scale = cropEnd
     ? Math.max(fitWidth / image.naturalWidth, fitHeight / image.naturalHeight)
     : Math.max(width / image.naturalWidth, height / image.naturalHeight);
   const drawW = image.naturalWidth * scale;
   const drawH = image.naturalHeight * scale;
   const dx = cropEnd
-    ? hardcoverImageOriginX({
-        x,
-        width,
-        drawW,
-        fitWidth,
-        spineOnLeft,
-        pan: imagePan,
-      })
+    ? hardcoverImageOriginX({ x, width, drawW, pan: imagePan })
     : x + (width - drawW) / 2;
   const dy = y + (height - drawH) / 2;
 
@@ -1471,8 +1462,6 @@ export function blurredEdgeCanvas(
           x: 0,
           width: covered.width,
           drawW,
-          fitWidth: covered.width,
-          spineOnLeft: edge === "left",
           pan: imagePan,
         })
       : (covered.width - drawW) / 2,
